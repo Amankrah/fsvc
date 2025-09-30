@@ -1,0 +1,303 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+*/venv/
+gui/venv/
+pythonenv*/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.pot
+*.pyc
+media/
+staticfiles/
+static_root/
+media_root/
+
+# Django migrations (optional - uncomment if you want to ignore migrations)
+# */migrations/*.py
+# */migrations/*.pyc
+# !*/migrations/__init__.py
+
+# FastAPI
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.cursor/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+out/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# React Native / Expo
+FsdaFrontend/node_modules/
+FsdaFrontend/.expo/
+FsdaFrontend/.expo-shared/
+FsdaFrontend/dist/
+FsdaFrontend/npm-debug.*
+FsdaFrontend/yarn-debug.*
+FsdaFrontend/yarn-error.*
+FsdaFrontend/*.jks
+FsdaFrontend/*.p8
+FsdaFrontend/*.p12
+FsdaFrontend/*.key
+FsdaFrontend/*.mobileprovision
+FsdaFrontend/*.orig.*
+FsdaFrontend/web-build/
+FsdaFrontend/.cache/
+
+# React Native
+FsdaFrontend/android/app/build/
+FsdaFrontend/android/.gradle/
+FsdaFrontend/android/local.properties
+FsdaFrontend/android/.idea/
+FsdaFrontend/android/*.iml
+FsdaFrontend/ios/Pods/
+FsdaFrontend/ios/*.xcworkspace
+FsdaFrontend/ios/*.xcuserdata/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output
+*.lcov
+.cache
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Backup Files
+*.backup
+*.old
+*.orig
+
+# Compiled Files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Package Files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Certificates & Keys (Security)
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.jks
+*.keystore
+
+# Authentication files - contain sensitive tokens and user data
+gui/auth.json
+auth.json
+credentials.json
+
+# Documentation Build
+docs/_build/
+docs/.doctrees/
+site/
+
+# Analytics Results
+backend/analytics_results/
+analytics_results/
+*.csv
+*.xlsx
+*.xls
+
+# User Uploaded Files
+uploads/
+user_files/
+temp_files/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Docker
+docker-compose*.override.yml
+.dockerignore
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Miscellaneous
+*.pid
+*.seed
+*.pid.lock
+.sass-cache/
+connect.lock
+typings/
+
+# MacOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Project Specific
+backend/dev_db.sqlite3
+backend/test_db.sqlite3
+backend/media/
+backend/staticfiles/
+FsdaFrontend/android/app/google-services.json
+FsdaFrontend/ios/GoogleService-Info.plist
+
+# Secrets and Credentials
+secrets/
+credentials/
+.secrets/
+*.credentials
+config/secrets.yml
+config/database.yml
+
+# Build Artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Local Configuration
+local_settings.py
+settings_local.py
+config_local.py
+
+# Redis
+dump.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Backup databases
+*.sql
+*.dump
