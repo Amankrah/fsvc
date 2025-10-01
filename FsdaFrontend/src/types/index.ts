@@ -200,6 +200,9 @@ export interface ValidationRule {
 export interface Question {
   id: string;
   project: string;
+  project_details?: Project;
+  question_bank_source?: string;
+  question_bank_source_details?: QuestionBank;
   question_text: string;
   response_type: ResponseType;
   is_required: boolean;
@@ -209,6 +212,12 @@ export interface Question {
   order_index: number;
   created_at: string;
   sync_status: 'pending' | 'synced' | 'error';
+  assigned_respondent_type?: string;
+  assigned_commodity?: string;
+  assigned_country?: string;
+  is_dynamically_generated?: boolean;
+  research_partner_info?: ResearchPartnerInfo;
+  should_send_response_to_partner?: boolean;
 }
 
 export interface CreateQuestionData {
@@ -280,4 +289,207 @@ export interface ApiError {
   error?: string;
   statusCode?: number;
   details?: Record<string, string[]>;
+}
+
+// QuestionBank Types
+export type RespondentType =
+  | 'input_suppliers'
+  | 'farmers'
+  | 'aggregators_lbcs'
+  | 'processors'
+  | 'processors_eu'
+  | 'retailers_food_vendors'
+  | 'retailers_food_vendors_eu'
+  | 'local_consumers'
+  | 'consumers_eu_prolific'
+  | 'client_business_eu_prolific'
+  | 'government'
+  | 'ngos'
+  | 'certification_schemes'
+  | 'coop'
+  | 'chief';
+
+export type CommodityType = 'cocoa' | 'maize' | 'palm_oil' | 'groundnut' | 'honey';
+
+export type QuestionCategory =
+  | 'production'
+  | 'processing'
+  | 'distribution'
+  | 'consumption'
+  | 'waste_management'
+  | 'input_supply'
+  | 'market_access'
+  | 'quality_standards'
+  | 'certification'
+  | 'sustainability'
+  | 'climate_impact'
+  | 'social_impact'
+  | 'economic_impact'
+  | 'governance'
+  | 'policy'
+  | 'technology'
+  | 'logistics'
+  | 'finance'
+  | 'nutrition'
+  | 'food_safety';
+
+export type DataSourceType =
+  | 'internal'
+  | 'partner_university'
+  | 'partner_ngo'
+  | 'partner_government'
+  | 'partner_private'
+  | 'partner_international'
+  | 'consultant'
+  | 'collaborative';
+
+export interface ResearchPartnerInfo {
+  data_source: DataSourceType;
+  partner_name?: string;
+  partner_contact?: string;
+  work_package?: string;
+}
+
+export interface QuestionBank {
+  id: string;
+  question_text: string;
+  question_category: QuestionCategory;
+  targeted_respondents: RespondentType[];
+  targeted_commodities: CommodityType[];
+  targeted_countries: string[];
+  data_source: DataSourceType;
+  research_partner_name?: string;
+  research_partner_contact?: string;
+  work_package?: string;
+  base_project?: string;
+  base_project_details?: Project;
+  response_type: ResponseType;
+  is_required: boolean;
+  allow_multiple: boolean;
+  options?: string[];
+  validation_rules?: ValidationRule;
+  priority_score: number;
+  is_active: boolean;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  targeted_respondents_display?: string[];
+  targeted_commodities_display?: string[];
+}
+
+export interface CreateQuestionBankData {
+  question_text: string;
+  question_category: QuestionCategory;
+  targeted_respondents: RespondentType[];
+  targeted_commodities?: CommodityType[];
+  targeted_countries?: string[];
+  data_source?: DataSourceType;
+  research_partner_name?: string;
+  research_partner_contact?: string;
+  work_package?: string;
+  base_project?: string;
+  response_type: ResponseType;
+  is_required?: boolean;
+  allow_multiple?: boolean;
+  options?: string[];
+  validation_rules?: ValidationRule;
+  priority_score?: number;
+  is_active?: boolean;
+  tags?: string[];
+}
+
+export interface DynamicQuestionSession {
+  id: string;
+  project: string;
+  project_details?: Project;
+  respondent_type: RespondentType;
+  commodity?: string;
+  country?: string;
+  categories: QuestionCategory[];
+  work_packages: string[];
+  questions_generated: number;
+  questions_from_partners: Record<string, number>;
+  created_by?: string;
+  created_at: string;
+  notes?: string;
+  partner_distribution?: Record<string, number>;
+  questions_count?: number;
+}
+
+export interface GenerateDynamicQuestionsData {
+  project: string;
+  respondent_type: RespondentType;
+  commodity?: CommodityType;
+  country?: string;
+  categories?: QuestionCategory[];
+  work_packages?: string[];
+  replace_existing?: boolean;
+  notes?: string;
+}
+
+export interface QuestionBankSearchData {
+  respondent_type: RespondentType;
+  commodity?: CommodityType;
+  country?: string;
+  categories?: QuestionCategory[];
+  work_packages?: string[];
+  data_sources?: DataSourceType[];
+  limit?: number;
+  include_inactive?: boolean;
+}
+
+export interface QuestionBankChoices {
+  respondent_types: Array<{ value: RespondentType; label: string }>;
+  commodities: Array<{ value: CommodityType; label: string }>;
+  categories: Array<{ value: QuestionCategory; label: string }>;
+  data_sources: Array<{ value: DataSourceType; label: string }>;
+}
+
+export interface DynamicQuestionGenerationResult {
+  questions: Question[];
+  session: DynamicQuestionSession;
+  summary: {
+    questions_generated: number;
+    partner_distribution: Record<string, number>;
+    respondent_type: RespondentType;
+    commodity?: string;
+    categories: QuestionCategory[];
+    work_packages: string[];
+    replaced_existing: boolean;
+  };
+}
+
+export interface QuestionPreviewResult {
+  preview_questions: QuestionBank[];
+  preview_summary: {
+    total_questions: number;
+    partner_distribution: Record<string, number>;
+    category_distribution: Record<string, number>;
+    search_parameters: QuestionBankSearchData;
+  };
+}
+
+export interface PartnerDistributionResult {
+  partner_distribution: Record<string, {
+    partner_info: ResearchPartnerInfo;
+    questions: Question[];
+    question_count: number;
+  }>;
+  summary: {
+    total_partners: number;
+    total_questions: number;
+    project_id: string;
+  };
+}
+
+// Dynamic Question Generation Form Data
+export interface DynamicQuestionFormData {
+  respondent_type: RespondentType;
+  commodity?: CommodityType;
+  country?: string;
+  categories?: QuestionCategory[];
+  work_packages?: string[];
+  replace_existing?: boolean;
+  notes?: string;
 }

@@ -26,7 +26,13 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import apiService from '../services/api';
-import { Question } from '../types';
+import { 
+  Question, 
+  RespondentType, 
+  CommodityType, 
+  QuestionBankChoices,
+  DynamicQuestionGenerationResult 
+} from '../types';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { generateRespondentId } from '../utils/respondentIdGenerator';
 
@@ -57,9 +63,19 @@ const DataCollectionScreen: React.FC = () => {
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [currentLocationQuestion, setCurrentLocationQuestion] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', address: '' });
+  
+  // Dynamic question generation states
+  const [selectedRespondentType, setSelectedRespondentType] = useState<RespondentType | ''>('');
+  const [selectedCommodity, setSelectedCommodity] = useState<CommodityType | ''>('');
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [questionBankChoices, setQuestionBankChoices] = useState<QuestionBankChoices | null>(null);
+  const [loadingChoices, setLoadingChoices] = useState(false);
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [showDynamicGeneration, setShowDynamicGeneration] = useState(false);
 
   useEffect(() => {
     loadQuestions();
+    loadQuestionBankChoices();
     // Auto-generate respondent ID on mount
     if (useAutoId) {
       generateNewRespondentId();
@@ -82,6 +98,64 @@ const DataCollectionScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to load questions');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadQuestionBankChoices = async () => {
+    try {
+      setLoadingChoices(true);
+      const choices = await apiService.getQuestionBankChoices();
+      setQuestionBankChoices(choices);
+    } catch (error: any) {
+      console.error('Error loading question bank choices:', error);
+      // Don't show error alert as this is not critical for basic functionality
+    } finally {
+      setLoadingChoices(false);
+    }
+  };
+
+  const generateDynamicQuestions = async () => {
+    if (!selectedRespondentType) {
+      Alert.alert('Required', 'Please select a respondent type');
+      return;
+    }
+
+    try {
+      setGeneratingQuestions(true);
+      
+      const generationData = {
+        project: projectId,
+        respondent_type: selectedRespondentType,
+        commodity: selectedCommodity || undefined,
+        country: selectedCountry || undefined,
+        replace_existing: false, // Don't replace existing questions by default
+        notes: `Dynamic generation for ${selectedRespondentType} respondent${selectedCommodity ? `, ${selectedCommodity} commodity` : ''}${selectedCountry ? `, ${selectedCountry}` : ''}`
+      };
+
+      const result: DynamicQuestionGenerationResult = await apiService.generateDynamicQuestions(generationData);
+      
+      // Update questions with the generated ones
+      const allQuestions = [
+        ...questions, // Keep existing questions
+        ...result.questions
+      ].sort((a: Question, b: Question) => a.order_index - b.order_index);
+      
+      setQuestions(allQuestions);
+      
+      Alert.alert(
+        'Questions Generated!', 
+        `Successfully generated ${result.summary.questions_generated} questions for ${selectedRespondentType} respondents.`,
+        [{ text: 'OK', onPress: () => setShowDynamicGeneration(false) }]
+      );
+      
+    } catch (error: any) {
+      console.error('Error generating dynamic questions:', error);
+      Alert.alert(
+        'Generation Failed', 
+        error.response?.data?.error || 'Failed to generate questions. Please try again.'
+      );
+    } finally {
+      setGeneratingQuestions(false);
     }
   };
 
@@ -638,10 +712,148 @@ const DataCollectionScreen: React.FC = () => {
                   }}
                 />
 
+                {/* Dynamic Question Generation Section */}
+                <View style={styles.dynamicGenerationSection}>
+                  <View style={styles.sectionHeader}>
+                    <Text variant="titleMedium" style={styles.sectionTitle}>
+                      Dynamic Question Generation (Optional)
+                    </Text>
+                    <Text variant="bodySmall" style={styles.sectionSubtitle}>
+                      Generate targeted questions based on respondent profile
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.toggleButton}
+                    onPress={() => setShowDynamicGeneration(!showDynamicGeneration)}
+                  >
+                    <Text style={styles.toggleButtonText}>
+                      {showDynamicGeneration ? 'Hide Options' : 'Show Generation Options'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {showDynamicGeneration && questionBankChoices && (
+                    <View style={styles.dynamicForm}>
+                      {/* Respondent Type Selection */}
+                      <View style={styles.fieldContainer}>
+                        <Text variant="bodyMedium" style={styles.fieldLabel}>
+                          Respondent Type *
+                        </Text>
+                        <View style={styles.choiceContainer}>
+                          {questionBankChoices.respondent_types.map((respondent) => (
+                            <TouchableOpacity
+                              key={respondent.value}
+                              style={[
+                                styles.choiceButton,
+                                selectedRespondentType === respondent.value && styles.choiceButtonSelected
+                              ]}
+                              onPress={() => setSelectedRespondentType(respondent.value)}
+                            >
+                              <Text style={[
+                                styles.choiceButtonText,
+                                selectedRespondentType === respondent.value && styles.choiceButtonTextSelected
+                              ]}>
+                                {respondent.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Commodity Selection */}
+                      <View style={styles.fieldContainer}>
+                        <Text variant="bodyMedium" style={styles.fieldLabel}>
+                          Commodity of Interest (Optional)
+                        </Text>
+                        <View style={styles.choiceContainer}>
+                          <TouchableOpacity
+                            style={[
+                              styles.choiceButton,
+                              selectedCommodity === '' && styles.choiceButtonSelected
+                            ]}
+                            onPress={() => setSelectedCommodity('')}
+                          >
+                            <Text style={[
+                              styles.choiceButtonText,
+                              selectedCommodity === '' && styles.choiceButtonTextSelected
+                            ]}>
+                              All Commodities
+                            </Text>
+                          </TouchableOpacity>
+                          {questionBankChoices.commodities.map((commodity) => (
+                            <TouchableOpacity
+                              key={commodity.value}
+                              style={[
+                                styles.choiceButton,
+                                selectedCommodity === commodity.value && styles.choiceButtonSelected
+                              ]}
+                              onPress={() => setSelectedCommodity(commodity.value)}
+                            >
+                              <Text style={[
+                                styles.choiceButtonText,
+                                selectedCommodity === commodity.value && styles.choiceButtonTextSelected
+                              ]}>
+                                {commodity.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Country Input */}
+                      <View style={styles.fieldContainer}>
+                        <TextInput
+                          label="Country of Interest (Optional)"
+                          value={selectedCountry}
+                          onChangeText={setSelectedCountry}
+                          mode="outlined"
+                          style={styles.input}
+                          textColor="#ffffff"
+                          placeholder="e.g., Ghana, Nigeria, Ivory Coast"
+                          placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                          theme={{
+                            colors: {
+                              primary: '#64c8ff',
+                              onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                              outline: 'rgba(100, 200, 255, 0.5)',
+                            },
+                          }}
+                        />
+                      </View>
+
+                      {/* Generate Button */}
+                      <Button
+                        mode="outlined"
+                        onPress={generateDynamicQuestions}
+                        loading={generatingQuestions}
+                        disabled={generatingQuestions || !selectedRespondentType}
+                        style={styles.generateButton}
+                        icon="auto-fix"
+                      >
+                        {generatingQuestions ? 'Generating...' : 'Generate Questions'}
+                      </Button>
+
+                      {questions.length > 0 && (
+                        <Text variant="bodySmall" style={styles.questionsInfo}>
+                          {questions.length} question(s) ready for this survey
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {loadingChoices && (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" />
+                      <Text style={styles.loadingText}>Loading options...</Text>
+                    </View>
+                  )}
+                </View>
+
                 <Button
                   mode="contained"
                   onPress={handleRespondentSubmit}
                   style={styles.startButton}
+                  disabled={questions.length === 0}
                 >
                   Start Survey
                 </Button>
@@ -1274,6 +1486,88 @@ const styles = StyleSheet.create({
   submitButton: {
     flex: 1,
     backgroundColor: '#4b1e85',
+  },
+  // Dynamic question generation styles
+  dynamicGenerationSection: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  sectionSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
+  },
+  toggleButton: {
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  toggleButtonText: {
+    color: '#64c8ff',
+    fontWeight: '600',
+  },
+  dynamicForm: {
+    gap: 20,
+  },
+  fieldContainer: {
+    gap: 8,
+  },
+  fieldLabel: {
+    color: '#ffffff',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  choiceContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  choiceButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  choiceButtonSelected: {
+    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    borderColor: '#64c8ff',
+  },
+  choiceButtonText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+  },
+  choiceButtonTextSelected: {
+    color: '#64c8ff',
+    fontWeight: '600',
+  },
+  generateButton: {
+    borderColor: '#64c8ff',
+    marginTop: 8,
+  },
+  questionsInfo: {
+    color: '#64c8ff',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
   },
 });
 

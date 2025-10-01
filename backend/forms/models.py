@@ -4,6 +4,278 @@ from projects.models import Project
 
 # Create your models here.
 
+
+class QuestionBank(models.Model):
+    """
+    Central repository for questions that can be dynamically assigned to different projects
+    based on targeted respondents, commodities, and other criteria.
+    """
+    
+    # Commodity choices
+    COMMODITY_CHOICES = [
+        ('cocoa', 'Cocoa'),
+        ('maize', 'Maize'),
+        ('palm_oil', 'Palm Oil'),
+        ('groundnut', 'Groundnut'),
+        ('honey', 'Honey'),
+    ]
+    
+    # Targeted respondent choices
+    RESPONDENT_CHOICES = [
+        ('input_suppliers', 'Input Suppliers'),
+        ('farmers', 'Farmers'),
+        ('aggregators_lbcs', 'Aggregators/LBCs'),
+        ('processors', 'Processors'),
+        ('processors_eu', 'Processors EU'),
+        ('retailers_food_vendors', 'Retailers/Food Vendors'),
+        ('retailers_food_vendors_eu', 'Retailers/Food Vendors EU'),
+        ('local_consumers', 'Local Consumers'),
+        ('consumers_eu_prolific', 'Consumers EU (Prolific)'),
+        ('client_business_eu_prolific', 'Client/Business EU (Prolific)'),
+        ('government', 'Government'),
+        ('ngos', 'NGOs'),
+        ('certification_schemes', 'Certification Schemes'),
+        ('coop', 'COOP'),
+        ('chief', 'Chief'),
+    ]
+    
+    # Question category choices based on food system value chain
+    CATEGORY_CHOICES = [
+        ('production', 'Production'),
+        ('processing', 'Processing'),
+        ('distribution', 'Distribution'),
+        ('consumption', 'Consumption'),
+        ('waste_management', 'Waste Management'),
+        ('input_supply', 'Input Supply'),
+        ('market_access', 'Market Access'),
+        ('quality_standards', 'Quality Standards'),
+        ('certification', 'Certification'),
+        ('sustainability', 'Sustainability'),
+        ('climate_impact', 'Climate Impact'),
+        ('social_impact', 'Social Impact'),
+        ('economic_impact', 'Economic Impact'),
+        ('governance', 'Governance'),
+        ('policy', 'Policy'),
+        ('technology', 'Technology'),
+        ('logistics', 'Logistics'),
+        ('finance', 'Finance'),
+        ('nutrition', 'Nutrition'),
+        ('food_safety', 'Food Safety'),
+    ]
+    
+    # Data source choices for research partners
+    DATA_SOURCE_CHOICES = [
+        ('internal', 'Internal Research Team'),
+        ('partner_university', 'Partner University'),
+        ('partner_ngo', 'Partner NGO'),
+        ('partner_government', 'Partner Government Agency'),
+        ('partner_private', 'Partner Private Organization'),
+        ('partner_international', 'Partner International Organization'),
+        ('consultant', 'External Consultant'),
+        ('collaborative', 'Collaborative Development'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Core question information
+    question_text = models.TextField(help_text="The actual question text")
+    question_category = models.CharField(
+        max_length=30, 
+        choices=CATEGORY_CHOICES,
+        help_text="Category based on food system value chain"
+    )
+    
+    # Targeting information
+    targeted_respondents = models.JSONField(
+        help_text="List of respondent types this question targets",
+        default=list
+    )
+    targeted_commodities = models.JSONField(
+        help_text="List of commodities this question applies to",
+        default=list
+    )
+    targeted_countries = models.JSONField(
+        help_text="List of countries this question applies to",
+        default=list
+    )
+    
+    # Research partnership information
+    data_source = models.CharField(
+        max_length=30,
+        choices=DATA_SOURCE_CHOICES,
+        default='internal',
+        help_text="Source/partner who created this question"
+    )
+    research_partner_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Name of the specific research partner"
+    )
+    research_partner_contact = models.EmailField(
+        blank=True,
+        help_text="Contact email for the research partner"
+    )
+    
+    # Work package and project linking
+    work_package = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Work package identifier for this question"
+    )
+    base_project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='question_bank_items',
+        null=True,
+        blank=True,
+        help_text="Optional base project this question belongs to"
+    )
+    
+    # Question configuration
+    response_type = models.CharField(max_length=20, choices=[
+        # Text Response Types
+        ('text_short', 'Short Text'),
+        ('text_long', 'Long Text'),
+        
+        # Numeric Response Types
+        ('numeric_integer', 'Number (Integer)'),
+        ('numeric_decimal', 'Number (Decimal)'),
+        ('scale_rating', 'Rating Scale'),
+        
+        # Choice Response Types
+        ('choice_single', 'Single Choice'),
+        ('choice_multiple', 'Multiple Choice'),
+        
+        # Date & Time Response Types
+        ('date', 'Date'),
+        ('datetime', 'Date & Time'),
+        
+        # Location Response Types
+        ('geopoint', 'GPS Location'),
+        ('geoshape', 'Geographic Shape'),
+        
+        # Media Response Types
+        ('image', 'Photo/Image'),
+        ('audio', 'Audio Recording'),
+        ('video', 'Video Recording'),
+        ('file', 'File Upload'),
+        
+        # Special Response Types
+        ('signature', 'Digital Signature'),
+        ('barcode', 'Barcode/QR Code'),
+    ])
+    is_required = models.BooleanField(default=True)
+    allow_multiple = models.BooleanField(default=False)
+    options = models.JSONField(null=True, blank=True, help_text="For multiple choice questions")
+    validation_rules = models.JSONField(null=True, blank=True)
+    
+    # Metadata
+    priority_score = models.IntegerField(
+        default=1,
+        help_text="Priority for question selection (1-10, 10 being highest)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this question is available for dynamic generation"
+    )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Additional tags for question organization"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=200, blank=True)
+    
+    class Meta:
+        ordering = ['-priority_score', 'question_category', 'created_at']
+        indexes = [
+            models.Index(fields=['question_category']),
+            models.Index(fields=['data_source']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['priority_score']),
+        ]
+    
+    def __str__(self):
+        return f"{self.question_category}: {self.question_text[:50]}..."
+    
+    def get_targeted_respondents_display(self):
+        """Get human-readable list of targeted respondents"""
+        respondent_dict = dict(self.RESPONDENT_CHOICES)
+        return [respondent_dict.get(resp, resp) for resp in self.targeted_respondents]
+    
+    def get_targeted_commodities_display(self):
+        """Get human-readable list of targeted commodities"""
+        commodity_dict = dict(self.COMMODITY_CHOICES)
+        return [commodity_dict.get(comm, comm) for comm in self.targeted_commodities]
+    
+    def is_applicable_for(self, respondent_type, commodity=None, country=None):
+        """Check if this question is applicable for given criteria"""
+        if not self.is_active:
+            return False
+            
+        if respondent_type not in self.targeted_respondents:
+            return False
+            
+        if commodity and self.targeted_commodities and commodity not in self.targeted_commodities:
+            return False
+            
+        if country and self.targeted_countries and country not in self.targeted_countries:
+            return False
+            
+        return True
+    
+    def create_question_instance(self, project, order_index=0):
+        """Create a Question instance from this QuestionBank item for a specific project"""
+        return Question.objects.create(
+            project=project,
+            question_bank_source=self,
+            question_text=self.question_text,
+            response_type=self.response_type,
+            is_required=self.is_required,
+            allow_multiple=self.allow_multiple,
+            options=self.options,
+            validation_rules=self.validation_rules,
+            order_index=order_index,
+        )
+    
+    @classmethod
+    def get_questions_for_respondent(cls, respondent_type, commodity=None, country=None, 
+                                   category=None, work_package=None, limit=None):
+        """Get applicable questions for a specific respondent type with optional filters"""
+        queryset = cls.objects.filter(is_active=True)
+        
+        # Filter by respondent type
+        queryset = queryset.filter(targeted_respondents__contains=[respondent_type])
+        
+        # Optional filters
+        if commodity:
+            queryset = queryset.filter(
+                models.Q(targeted_commodities__contains=[commodity]) |
+                models.Q(targeted_commodities=[])  # Questions that apply to all commodities
+            )
+        
+        if country:
+            queryset = queryset.filter(
+                models.Q(targeted_countries__contains=[country]) |
+                models.Q(targeted_countries=[])  # Questions that apply to all countries
+            )
+        
+        if category:
+            queryset = queryset.filter(question_category=category)
+        
+        if work_package:
+            queryset = queryset.filter(work_package=work_package)
+        
+        queryset = queryset.order_by('-priority_score', 'question_category')
+        
+        if limit:
+            queryset = queryset[:limit]
+            
+        return queryset
+
 class Question(models.Model):
     RESPONSE_TYPES = [
         # Text Response Types
@@ -47,6 +319,17 @@ class Question(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='questions')
+    
+    # Link to QuestionBank for dynamic generation
+    question_bank_source = models.ForeignKey(
+        QuestionBank,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='question_instances',
+        help_text="Source QuestionBank item if this question was dynamically generated"
+    )
+    
     question_text = models.TextField()
     response_type = models.CharField(max_length=20, choices=RESPONSE_TYPES)
     is_required = models.BooleanField(default=True)
@@ -56,6 +339,23 @@ class Question(models.Model):
     order_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     sync_status = models.CharField(max_length=20, default='pending')
+    
+    # Additional metadata for dynamic questions
+    assigned_respondent_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Respondent type this question was generated for"
+    )
+    assigned_commodity = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Commodity this question was generated for"
+    )
+    assigned_country = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Country this question was generated for"
+    )
 
     class Meta:
         ordering = ['order_index', 'created_at']
@@ -224,3 +524,158 @@ class Question(models.Model):
                 'response_value': '',
                 'structured_data': {'text_value': ''}
             }
+    
+    def is_dynamically_generated(self):
+        """Check if this question was dynamically generated from QuestionBank"""
+        return self.question_bank_source is not None
+    
+    def get_research_partner_info(self):
+        """Get research partner information for this question"""
+        if self.question_bank_source:
+            return {
+                'data_source': self.question_bank_source.data_source,
+                'partner_name': self.question_bank_source.research_partner_name,
+                'partner_contact': self.question_bank_source.research_partner_contact,
+                'work_package': self.question_bank_source.work_package,
+            }
+        return None
+    
+    def should_send_response_to_partner(self):
+        """Check if responses to this question should be sent to research partner"""
+        return (self.question_bank_source and 
+                self.question_bank_source.data_source != 'internal' and
+                self.question_bank_source.research_partner_contact)
+    
+    @classmethod
+    def generate_dynamic_questions_for_project(cls, project, respondent_type, 
+                                             commodity=None, country=None, 
+                                             categories=None, work_packages=None):
+        """Generate dynamic questions from QuestionBank for a specific project"""
+        questions = []
+        
+        # Get applicable questions from QuestionBank
+        bank_questions = QuestionBank.get_questions_for_respondent(
+            respondent_type=respondent_type,
+            commodity=commodity,
+            country=country
+        )
+        
+        # Filter by categories if specified
+        if categories:
+            bank_questions = bank_questions.filter(question_category__in=categories)
+        
+        # Filter by work packages if specified
+        if work_packages:
+            bank_questions = bank_questions.filter(work_package__in=work_packages)
+        
+        # Create Question instances
+        current_order = cls.objects.filter(project=project).count()
+        
+        for bank_question in bank_questions:
+            question = bank_question.create_question_instance(
+                project=project,
+                order_index=current_order
+            )
+            # Set assignment metadata
+            question.assigned_respondent_type = respondent_type
+            question.assigned_commodity = commodity or ''
+            question.assigned_country = country or ''
+            question.save()
+            
+            questions.append(question)
+            current_order += 1
+        
+        return questions
+    
+    @classmethod
+    def get_questions_by_research_partner(cls, project, partner_type=None):
+        """Get questions grouped by research partner for response distribution"""
+        questions = cls.objects.filter(
+            project=project,
+            question_bank_source__isnull=False
+        ).select_related('question_bank_source')
+        
+        if partner_type:
+            questions = questions.filter(question_bank_source__data_source=partner_type)
+        
+        # Group by research partner
+        partner_groups = {}
+        for question in questions:
+            source = question.question_bank_source
+            key = f"{source.data_source}_{source.research_partner_name}"
+            
+            if key not in partner_groups:
+                partner_groups[key] = {
+                    'partner_info': {
+                        'data_source': source.data_source,
+                        'partner_name': source.research_partner_name,
+                        'partner_contact': source.research_partner_contact,
+                        'work_package': source.work_package,
+                    },
+                    'questions': []
+                }
+            
+            partner_groups[key]['questions'].append(question)
+        
+        return partner_groups
+
+
+class DynamicQuestionSession(models.Model):
+    """
+    Tracks dynamic question generation sessions for projects.
+    Helps manage and audit the question generation process.
+    """
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        Project, 
+        on_delete=models.CASCADE, 
+        related_name='question_generation_sessions'
+    )
+    
+    # Session parameters
+    respondent_type = models.CharField(max_length=50)
+    commodity = models.CharField(max_length=50, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    categories = models.JSONField(default=list, blank=True)
+    work_packages = models.JSONField(default=list, blank=True)
+    
+    # Generation results
+    questions_generated = models.PositiveIntegerField(default=0)
+    questions_from_partners = models.JSONField(
+        default=dict, 
+        help_text="Count of questions from each research partner"
+    )
+    
+    # Session metadata
+    created_by = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        
+    def __str__(self):
+        return f"Dynamic questions for {self.respondent_type} in {self.project} ({self.created_at.strftime('%Y-%m-%d')})"
+    
+    def get_generated_questions(self):
+        """Get all questions generated in this session"""
+        return Question.objects.filter(
+            project=self.project,
+            assigned_respondent_type=self.respondent_type,
+            created_at__gte=self.created_at
+        ).select_related('question_bank_source')
+    
+    def get_partner_distribution(self):
+        """Get distribution of questions by research partner"""
+        questions = self.get_generated_questions()
+        distribution = {}
+        
+        for question in questions:
+            if question.question_bank_source:
+                source = question.question_bank_source.data_source
+                if source not in distribution:
+                    distribution[source] = 0
+                distribution[source] += 1
+        
+        return distribution

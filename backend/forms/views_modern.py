@@ -9,8 +9,11 @@ from django.core.cache import cache
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from .models import Question
-from .serializers import QuestionSerializer
+from .models import Question, QuestionBank, DynamicQuestionSession
+from .serializers import (
+    QuestionSerializer, QuestionBankSerializer, DynamicQuestionSessionSerializer,
+    QuestionBankSearchSerializer, GenerateDynamicQuestionsSerializer
+)
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import QuestionFilter
 import logging
@@ -423,6 +426,248 @@ class ModernQuestionViewSet(BaseModelViewSet):
             }
         })
     
+    @action(detail=False, methods=['post'])
+    def generate_dynamic_questions(self, request):
+        """Generate dynamic questions from QuestionBank for a project"""
+        serializer = GenerateDynamicQuestionsSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get validated data
+            project_id = serializer.validated_data['project']
+            respondent_type = serializer.validated_data['respondent_type']
+            commodity = serializer.validated_data.get('commodity')
+            country = serializer.validated_data.get('country')
+            categories = serializer.validated_data.get('categories', [])
+            work_packages = serializer.validated_data.get('work_packages', [])
+            replace_existing = serializer.validated_data.get('replace_existing', False)
+            notes = serializer.validated_data.get('notes', '')
+            
+            # Get project and check permissions
+            from projects.models import Project
+            try:
+                project = Project.objects.get(id=project_id)
+            except Project.DoesNotExist:
+                return Response(
+                    {'error': 'Project not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            if not project.can_user_edit(request.user):
+                raise ValidationError("You don't have permission to generate questions for this project")
+            
+            with transaction.atomic():
+                # Create dynamic question session
+                session = DynamicQuestionSession.objects.create(
+                    project=project,
+                    respondent_type=respondent_type,
+                    commodity=commodity or '',
+                    country=country or '',
+                    categories=categories,
+                    work_packages=work_packages,
+                    created_by=str(request.user),
+                    notes=notes
+                )
+                
+                # Remove existing questions if replace_existing is True
+                if replace_existing:
+                    existing_questions = Question.objects.filter(project=project)
+                    existing_count = existing_questions.count()
+                    existing_questions.delete()
+                    logger.info(f"Removed {existing_count} existing questions from project {project_id}")
+                
+                # Generate dynamic questions
+                generated_questions = Question.generate_dynamic_questions_for_project(
+                    project=project,
+                    respondent_type=respondent_type,
+                    commodity=commodity,
+                    country=country,
+                    categories=categories,
+                    work_packages=work_packages
+                )
+                
+                # Update session with results
+                session.questions_generated = len(generated_questions)
+                
+                # Count questions by research partner
+                partner_distribution = {}
+                for question in generated_questions:
+                    if question.question_bank_source:
+                        partner = question.question_bank_source.data_source
+                        partner_distribution[partner] = partner_distribution.get(partner, 0) + 1
+                
+                session.questions_from_partners = partner_distribution
+                session.save()
+                
+                # Serialize the generated questions
+                question_serializer = QuestionSerializer(generated_questions, many=True)
+                session_serializer = DynamicQuestionSessionSerializer(session)
+                
+                # Clear cache
+                self._clear_project_cache(project.id)
+                
+                logger.info(
+                    f"Generated {len(generated_questions)} dynamic questions for project {project_id}, "
+                    f"respondent: {respondent_type}, commodity: {commodity}"
+                )
+                
+                return Response({
+                    'questions': question_serializer.data,
+                    'session': session_serializer.data,
+                    'summary': {
+                        'questions_generated': len(generated_questions),
+                        'partner_distribution': partner_distribution,
+                        'respondent_type': respondent_type,
+                        'commodity': commodity,
+                        'categories': categories,
+                        'work_packages': work_packages,
+                        'replaced_existing': replace_existing
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error generating dynamic questions: {e}")
+            return Response(
+                {'error': 'Failed to generate questions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def preview_dynamic_questions(self, request):
+        """Preview questions that would be generated without creating them"""
+        serializer = QuestionBankSearchSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get search parameters
+            respondent_type = serializer.validated_data['respondent_type']
+            commodity = serializer.validated_data.get('commodity')
+            country = serializer.validated_data.get('country')
+            categories = serializer.validated_data.get('categories', [])
+            work_packages = serializer.validated_data.get('work_packages', [])
+            data_sources = serializer.validated_data.get('data_sources', [])
+            limit = serializer.validated_data.get('limit')
+            
+            # Get applicable questions from QuestionBank
+            questions = QuestionBank.get_questions_for_respondent(
+                respondent_type=respondent_type,
+                commodity=commodity,
+                country=country,
+                limit=limit
+            )
+            
+            # Apply additional filters
+            if categories:
+                questions = questions.filter(question_category__in=categories)
+            
+            if work_packages:
+                questions = questions.filter(work_package__in=work_packages)
+            
+            if data_sources:
+                questions = questions.filter(data_source__in=data_sources)
+            
+            # Apply user access filter
+            user = request.user
+            if not user.is_superuser:
+                questions = questions.filter(
+                    Q(base_project__isnull=True) |
+                    Q(base_project__created_by=user) |
+                    Q(base_project__members__user=user)
+                )
+            
+            questions = questions.filter(is_active=True).distinct()
+            
+            # Serialize results
+            result_serializer = QuestionBankSerializer(questions, many=True)
+            
+            # Calculate preview statistics
+            partner_distribution = {}
+            category_distribution = {}
+            
+            for question in questions:
+                # Partner distribution
+                partner = question.data_source
+                partner_distribution[partner] = partner_distribution.get(partner, 0) + 1
+                
+                # Category distribution
+                category = question.question_category
+                category_distribution[category] = category_distribution.get(category, 0) + 1
+            
+            return Response({
+                'preview_questions': result_serializer.data,
+                'preview_summary': {
+                    'total_questions': questions.count(),
+                    'partner_distribution': partner_distribution,
+                    'category_distribution': category_distribution,
+                    'search_parameters': serializer.validated_data
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in preview_dynamic_questions: {e}")
+            return Response(
+                {'error': 'Failed to preview questions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def get_partner_distribution(self, request):
+        """Get questions grouped by research partner for a project"""
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Check project access
+            from projects.models import Project
+            project = Project.objects.get(id=project_id)
+            if not project.can_user_access(request.user):
+                raise ValidationError("You don't have permission to access this project")
+            
+            # Get partner distribution
+            partner_groups = Question.get_questions_by_research_partner(project)
+            
+            # Serialize the data
+            response_data = {}
+            total_questions = 0
+            
+            for key, group in partner_groups.items():
+                questions_serializer = QuestionSerializer(group['questions'], many=True)
+                response_data[key] = {
+                    'partner_info': group['partner_info'],
+                    'questions': questions_serializer.data,
+                    'question_count': len(group['questions'])
+                }
+                total_questions += len(group['questions'])
+            
+            return Response({
+                'partner_distribution': response_data,
+                'summary': {
+                    'total_partners': len(partner_groups),
+                    'total_questions': total_questions,
+                    'project_id': project_id
+                }
+            })
+            
+        except Project.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting partner distribution: {e}")
+            return Response(
+                {'error': 'Failed to get partner distribution'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     # Private helper methods
     def _validate_response_type_data(self, validated_data):
         """Validate response type specific data"""
@@ -505,6 +750,254 @@ class ModernQuestionViewSet(BaseModelViewSet):
         ]
         for key in cache_keys:
             cache.delete(key)
+
+
+class QuestionBankViewSet(BaseModelViewSet):
+    """ViewSet for managing QuestionBank with search and filtering capabilities"""
+    
+    serializer_class = QuestionBankSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['question_text', 'research_partner_name', 'work_package']
+    ordering_fields = ['question_text', 'question_category', 'priority_score', 'created_at', 'data_source']
+    ordering = ['-priority_score', 'question_category', 'created_at']
+    permission_classes = [permissions.IsAuthenticated]
+    
+    # Caching configuration
+    cache_timeout = 600  # 10 minutes for question bank
+    
+    def get_queryset(self):
+        """Optimized queryset with user access filtering"""
+        queryset = QuestionBank.objects.select_related('base_project')
+        
+        # Filter by user access - users can only see questions from their projects
+        # or public questions (questions without base_project)
+        user = self.request.user
+        if not user.is_superuser:
+            queryset = queryset.filter(
+                Q(base_project__isnull=True) |  # Public questions
+                Q(base_project__created_by=user) |  # User's own projects
+                Q(base_project__members__user=user)  # Projects user is member of
+            )
+        
+        # Filter by active status by default
+        if self.request.query_params.get('include_inactive', '').lower() != 'true':
+            queryset = queryset.filter(is_active=True)
+        
+        return queryset.distinct()
+    
+    def perform_create(self, serializer):
+        """Enhanced question bank creation with user tracking"""
+        # Set created_by to current user
+        serializer.validated_data['created_by'] = str(self.request.user)
+        
+        # If base_project is provided, check user permissions
+        base_project = serializer.validated_data.get('base_project')
+        if base_project and not base_project.can_user_edit(self.request.user):
+            raise ValidationError("You don't have permission to add questions to this project")
+        
+        with transaction.atomic():
+            question_bank = serializer.save()
+            logger.info(f"QuestionBank created: {question_bank.id} by {self.request.user}")
+    
+    def perform_update(self, serializer):
+        """Enhanced question bank update with permission checks"""
+        instance = self.get_object()
+        
+        # Check if user can edit this question bank item
+        if instance.base_project and not instance.base_project.can_user_edit(self.request.user):
+            if not self.request.user.is_superuser:
+                raise ValidationError("You don't have permission to edit this question")
+        
+        with transaction.atomic():
+            question_bank = serializer.save()
+            logger.info(f"QuestionBank updated: {question_bank.id} by {self.request.user}")
+    
+    def perform_destroy(self, instance):
+        """Enhanced question bank deletion with permission checks"""
+        # Check permissions
+        if instance.base_project and not instance.base_project.can_user_edit(self.request.user):
+            if not self.request.user.is_superuser:
+                raise ValidationError("You don't have permission to delete this question")
+        
+        # Soft delete by setting is_active to False instead of actual deletion
+        # to preserve data integrity for generated questions
+        instance.is_active = False
+        instance.save()
+        
+        logger.info(f"QuestionBank soft deleted: {instance.id} by {self.request.user}")
+    
+    @action(detail=False, methods=['post'])
+    def search_for_respondent(self, request):
+        """Search question bank for specific respondent type with filters"""
+        serializer = QuestionBankSearchSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get search parameters
+            respondent_type = serializer.validated_data['respondent_type']
+            commodity = serializer.validated_data.get('commodity')
+            country = serializer.validated_data.get('country')
+            categories = serializer.validated_data.get('categories', [])
+            work_packages = serializer.validated_data.get('work_packages', [])
+            data_sources = serializer.validated_data.get('data_sources', [])
+            limit = serializer.validated_data.get('limit')
+            include_inactive = serializer.validated_data.get('include_inactive', False)
+            
+            # Use the model's class method to get applicable questions
+            questions = QuestionBank.get_questions_for_respondent(
+                respondent_type=respondent_type,
+                commodity=commodity,
+                country=country,
+                limit=limit
+            )
+            
+            # Apply additional filters
+            if categories:
+                questions = questions.filter(question_category__in=categories)
+            
+            if work_packages:
+                questions = questions.filter(work_package__in=work_packages)
+            
+            if data_sources:
+                questions = questions.filter(data_source__in=data_sources)
+            
+            # Apply user access filter
+            user = request.user
+            if not user.is_superuser:
+                questions = questions.filter(
+                    Q(base_project__isnull=True) |
+                    Q(base_project__created_by=user) |
+                    Q(base_project__members__user=user)
+                )
+            
+            # Apply active filter
+            if not include_inactive:
+                questions = questions.filter(is_active=True)
+            
+            # Serialize results
+            questions = questions.distinct()
+            result_serializer = QuestionBankSerializer(questions, many=True)
+            
+            return Response({
+                'questions': result_serializer.data,
+                'count': questions.count(),
+                'search_parameters': serializer.validated_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in search_for_respondent: {e}")
+            return Response(
+                {'error': 'Failed to search questions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def get_choices(self, request):
+        """Get available choices for question bank fields"""
+        cache_key = "question_bank_choices"
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+        
+        choices_data = {
+            'respondent_types': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in QuestionBank.RESPONDENT_CHOICES
+            ],
+            'commodities': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in QuestionBank.COMMODITY_CHOICES
+            ],
+            'categories': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in QuestionBank.CATEGORY_CHOICES
+            ],
+            'data_sources': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in QuestionBank.DATA_SOURCE_CHOICES
+            ]
+        }
+        
+        # Cache for 1 hour
+        cache.set(cache_key, choices_data, 3600)
+        return Response(choices_data)
+    
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Duplicate a question bank item"""
+        question_bank = self.get_object()
+        
+        try:
+            # Create a copy
+            new_question_bank = QuestionBank.objects.create(
+                question_text=f"Copy of {question_bank.question_text}",
+                question_category=question_bank.question_category,
+                targeted_respondents=question_bank.targeted_respondents.copy(),
+                targeted_commodities=question_bank.targeted_commodities.copy(),
+                targeted_countries=question_bank.targeted_countries.copy(),
+                data_source=question_bank.data_source,
+                research_partner_name=question_bank.research_partner_name,
+                research_partner_contact=question_bank.research_partner_contact,
+                work_package=question_bank.work_package,
+                base_project=question_bank.base_project,
+                response_type=question_bank.response_type,
+                is_required=question_bank.is_required,
+                allow_multiple=question_bank.allow_multiple,
+                options=question_bank.options.copy() if question_bank.options else None,
+                validation_rules=question_bank.validation_rules.copy() if question_bank.validation_rules else None,
+                priority_score=question_bank.priority_score,
+                tags=question_bank.tags.copy(),
+                created_by=str(request.user)
+            )
+            
+            serializer = QuestionBankSerializer(new_question_bank)
+            logger.info(f"QuestionBank duplicated: {question_bank.id} -> {new_question_bank.id}")
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Error duplicating question bank: {e}")
+            return Response(
+                {'error': f'Failed to duplicate question: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class DynamicQuestionSessionViewSet(BaseModelViewSet):
+    """ViewSet for managing dynamic question generation sessions"""
+    
+    serializer_class = DynamicQuestionSessionSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['respondent_type', 'commodity', 'country', 'notes']
+    ordering_fields = ['created_at', 'respondent_type', 'questions_generated']
+    ordering = ['-created_at']
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter sessions by user access to projects"""
+        queryset = DynamicQuestionSession.objects.select_related('project')
+        
+        user = self.request.user
+        if not user.is_superuser:
+            queryset = queryset.filter(
+                Q(project__created_by=user) |
+                Q(project__members__user=user)
+            )
+        
+        return queryset.distinct()
+    
+    def perform_create(self, serializer):
+        """Create session with user tracking"""
+        serializer.validated_data['created_by'] = str(self.request.user)
+        
+        # Check project permissions
+        project = serializer.validated_data['project']
+        if not project.can_user_edit(self.request.user):
+            raise ValidationError("You don't have permission to generate questions for this project")
+        
+        session = serializer.save()
+        logger.info(f"Dynamic question session created: {session.id}")
 
 
 # Maintain backward compatibility

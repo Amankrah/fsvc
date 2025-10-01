@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'forms',
     'responses',
     'sync',
-    'analytics_results',
+    # 'analytics_results',
 ]
 
 MIDDLEWARE = [

@@ -8,7 +8,7 @@ from rest_framework_nested import routers
 from . import views
 from projects.views import ProjectViewSet
 from sync.views import SyncQueueViewSet
-from analytics_results.views import AnalyticsResultViewSet
+# from analytics_results.views import AnalyticsResultViewSet
 from forms.views_modern import ModernQuestionViewSet as QuestionViewSet
 from responses.views import ResponseViewSet, RespondentViewSet
 
@@ -16,7 +16,7 @@ from responses.views import ResponseViewSet, RespondentViewSet
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet, basename='projects')
 router.register(r'sync-queue', SyncQueueViewSet, basename='sync-queue')
-router.register(r'analytics-results', AnalyticsResultViewSet, basename='analytics-results')
+# router.register(r'analytics-results', AnalyticsResultViewSet, basename='analytics-results')
 router.register(r'questions', QuestionViewSet, basename='questions')
 router.register(r'responses', ResponseViewSet, basename='responses')
 router.register(r'respondents', RespondentViewSet, basename='respondents')
@@ -25,7 +25,7 @@ router.register(r'respondents', RespondentViewSet, basename='respondents')
 projects_router = routers.NestedDefaultRouter(router, r'projects', lookup='project')
 projects_router.register(r'questions', views.QuestionViewSet, basename='project-questions')
 projects_router.register(r'responses', ResponseViewSet, basename='project-responses')
-projects_router.register(r'analytics', AnalyticsResultViewSet, basename='project-analytics')
+# projects_router.register(r'analytics', AnalyticsResultViewSet, basename='project-analytics')
 
 urlpatterns = [
     path('', include(router.urls)),

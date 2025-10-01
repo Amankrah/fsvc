@@ -228,6 +228,131 @@ class ApiService {
     });
   }
 
+  // Dynamic Question Generation endpoints
+  async generateDynamicQuestions(data: {
+    project: string;
+    respondent_type: string;
+    commodity?: string;
+    country?: string;
+    categories?: string[];
+    work_packages?: string[];
+    replace_existing?: boolean;
+    notes?: string;
+  }) {
+    return await this.post('/forms/questions/generate_dynamic_questions/', data);
+  }
+
+  async previewDynamicQuestions(data: {
+    respondent_type: string;
+    commodity?: string;
+    country?: string;
+    categories?: string[];
+    work_packages?: string[];
+    data_sources?: string[];
+    limit?: number;
+    include_inactive?: boolean;
+  }) {
+    return await this.post('/forms/questions/preview_dynamic_questions/', data);
+  }
+
+  async getPartnerDistribution(projectId: string) {
+    return await this.get(`/forms/questions/get_partner_distribution/?project_id=${projectId}`);
+  }
+
+  // QuestionBank endpoints
+  async getQuestionBank(params?: {
+    respondent_type?: string;
+    commodity?: string;
+    category?: string;
+    data_source?: string;
+    is_active?: boolean;
+    search?: string;
+    ordering?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const queryString = params ? new URLSearchParams(params as any).toString() : '';
+    return await this.get(`/forms/question-bank/${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getQuestionBankItem(id: string) {
+    return await this.get(`/forms/question-bank/${id}/`);
+  }
+
+  async createQuestionBankItem(data: {
+    question_text: string;
+    question_category: string;
+    targeted_respondents: string[];
+    targeted_commodities?: string[];
+    targeted_countries?: string[];
+    data_source?: string;
+    research_partner_name?: string;
+    research_partner_contact?: string;
+    work_package?: string;
+    base_project?: string;
+    response_type: string;
+    is_required?: boolean;
+    allow_multiple?: boolean;
+    options?: string[];
+    validation_rules?: any;
+    priority_score?: number;
+    is_active?: boolean;
+    tags?: string[];
+  }) {
+    return await this.post('/forms/question-bank/', data);
+  }
+
+  async updateQuestionBankItem(id: string, data: any) {
+    return await this.patch(`/forms/question-bank/${id}/`, data);
+  }
+
+  async deleteQuestionBankItem(id: string) {
+    return await this.delete(`/forms/question-bank/${id}/`);
+  }
+
+  async searchQuestionBankForRespondent(data: {
+    respondent_type: string;
+    commodity?: string;
+    country?: string;
+    categories?: string[];
+    work_packages?: string[];
+    data_sources?: string[];
+    limit?: number;
+    include_inactive?: boolean;
+  }) {
+    return await this.post('/forms/question-bank/search_for_respondent/', data);
+  }
+
+  async getQuestionBankChoices() {
+    return await this.get('/forms/question-bank/get_choices/');
+  }
+
+  async duplicateQuestionBankItem(id: string) {
+    return await this.post(`/forms/question-bank/${id}/duplicate/`);
+  }
+
+  // Dynamic Question Session endpoints
+  async getQuestionSessions(projectId?: string) {
+    const params = projectId ? `?project=${projectId}` : '';
+    return await this.get(`/forms/question-sessions/${params}`);
+  }
+
+  async getQuestionSession(id: string) {
+    return await this.get(`/forms/question-sessions/${id}/`);
+  }
+
+  async createQuestionSession(data: {
+    project: string;
+    respondent_type: string;
+    commodity?: string;
+    country?: string;
+    categories?: string[];
+    work_packages?: string[];
+    notes?: string;
+  }) {
+    return await this.post('/forms/question-sessions/', data);
+  }
+
   // Response endpoints
   async getResponses(projectId: string) {
     return await this.get(`/responses/responses/?project_id=${projectId}`);

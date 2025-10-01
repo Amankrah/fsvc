@@ -80,7 +80,7 @@ urlpatterns = [
     path(f'api/{API_VERSION}/', include('api.v1.urls')),
     
     # Individual app URLs
-    path('api/analytics/', include('analytics_results.urls')),
+    # path('api/analytics/', include('analytics_results.urls')),
     path('api/forms/', include('forms.urls')),
     path('api/projects/', include('projects.urls')),
     path('api/responses/', include('responses.urls')),
