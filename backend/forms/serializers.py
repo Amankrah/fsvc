@@ -130,12 +130,13 @@ class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
         fields = [
-            'id', 'project', 'project_details', 'question_bank_source', 
-            'question_bank_source_details', 'question_text', 'response_type', 
-            'is_required', 'allow_multiple', 'options', 'validation_rules', 'order_index', 
+            'id', 'project', 'project_details', 'question_bank_source',
+            'question_bank_source_details', 'question_text', 'response_type',
+            'is_required', 'allow_multiple', 'options', 'validation_rules', 'order_index',
             'created_at', 'sync_status', 'assigned_respondent_type', 'assigned_commodity',
             'assigned_country', 'is_dynamically_generated', 'research_partner_info',
-            'should_send_response_to_partner'
+            'should_send_response_to_partner', 'is_owner_question', 'partner_organization',
+            'partner_data_storage', 'targeted_respondents', 'question_sources'
         ]
         read_only_fields = ['id', 'created_at']
         

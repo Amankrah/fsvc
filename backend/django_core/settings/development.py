@@ -22,7 +22,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 CORS_ALLOW_ALL_ORIGINS = True
 
 # Allowed hosts for development and testing
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.0.42', '10.122.115.54', 'testserver', '*']
 
 # Internal IPs for development
-INTERNAL_IPS = ['127.0.0.1'] 
+INTERNAL_IPS = ['127.0.0.1', '10.0.0.42', '10.122.115.54'] 

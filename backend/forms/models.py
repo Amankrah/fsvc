@@ -319,7 +319,7 @@ class Question(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='questions')
-    
+
     # Link to QuestionBank for dynamic generation
     question_bank_source = models.ForeignKey(
         QuestionBank,
@@ -329,7 +329,7 @@ class Question(models.Model):
         related_name='question_instances',
         help_text="Source QuestionBank item if this question was dynamically generated"
     )
-    
+
     question_text = models.TextField()
     response_type = models.CharField(max_length=20, choices=RESPONSE_TYPES)
     is_required = models.BooleanField(default=True)
@@ -339,7 +339,36 @@ class Question(models.Model):
     order_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     sync_status = models.CharField(max_length=20, default='pending')
-    
+
+    # Question ownership and partner collaboration (UPDATED FOR MULTI-SOURCE SUPPORT)
+    is_owner_question = models.BooleanField(
+        default=True,
+        help_text="True if this question belongs to the project owner"
+    )
+
+    question_sources = models.JSONField(
+        default=list,
+        help_text="List of sources this question belongs to. Can include 'owner' and/or partner names from project.partner_organizations"
+    )
+
+    # DEPRECATED - Keeping for backward compatibility
+    partner_organization = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="DEPRECATED: Use question_sources instead. Partner organization information if this is a partner question"
+    )
+    partner_data_storage = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="DEPRECATED: Use question_sources instead. Partner's data storage endpoint/location for responses"
+    )
+
+    # Targeted respondents for this question
+    targeted_respondents = models.JSONField(
+        default=list,
+        help_text="List of respondent types this question targets"
+    )
+
     # Additional metadata for dynamic questions
     assigned_respondent_type = models.CharField(
         max_length=50,
@@ -356,6 +385,48 @@ class Question(models.Model):
         blank=True,
         help_text="Country this question was generated for"
     )
+
+    def get_database_endpoints(self):
+        """
+        Get list of database endpoints where responses to this question should be sent.
+        Returns: List of dicts with 'name', 'endpoint', 'api_key'
+        """
+        endpoints = []
+
+        # Add owner database endpoint if owner is in question_sources
+        if 'owner' in self.question_sources and self.project.owner_database_endpoint:
+            endpoints.append({
+                'name': 'owner',
+                'endpoint': self.project.owner_database_endpoint,
+                'api_key': self.project.settings.get('owner_api_key', ''),
+            })
+
+        # Add partner database endpoints
+        for source in self.question_sources:
+            if source != 'owner' and self.project.partner_organizations:
+                # Find matching partner
+                for partner in self.project.partner_organizations:
+                    if partner.get('name') == source:
+                        endpoints.append({
+                            'name': partner.get('name'),
+                            'endpoint': partner.get('database_endpoint', ''),
+                            'api_key': partner.get('api_key', ''),
+                        })
+                        break
+
+        return endpoints
+
+    def should_send_to_owner(self):
+        """Check if responses should be sent to owner database"""
+        return 'owner' in self.question_sources
+
+    def should_send_to_partners(self):
+        """Check if responses should be sent to partner databases"""
+        return any(source != 'owner' for source in self.question_sources)
+
+    def get_partner_sources(self):
+        """Get list of partner names this question belongs to"""
+        return [source for source in self.question_sources if source != 'owner']
 
     class Meta:
         ordering = ['order_index', 'created_at']

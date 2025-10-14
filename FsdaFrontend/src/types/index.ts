@@ -15,7 +15,7 @@ export interface User {
 }
 
 // Project Member Types
-export type ProjectMemberRole = 'owner' | 'member' | 'analyst' | 'collaborator' | 'viewer';
+export type ProjectMemberRole = 'owner' | 'member' | 'analyst' | 'collaborator' | 'partner' | 'viewer';
 
 export type ProjectPermission =
   | 'all'
@@ -35,6 +35,9 @@ export interface ProjectMember {
   email: string;
   role: ProjectMemberRole;
   permissions: ProjectPermission[];
+  partner_organization?: string;
+  is_partner?: boolean;
+  accessible_question_sources?: string[];
   joined_at: string;
   is_creator: boolean;
 }
@@ -46,6 +49,15 @@ export interface ProjectMemberDetails {
   role: ProjectMemberRole;
   permissions: string;
   permissions_list: ProjectPermission[];
+  partner_organization?: string;
+  is_partner?: boolean;
+  accessible_question_sources?: string[];
+  partner_config?: {
+    name: string;
+    contact_email?: string;
+    has_database_endpoint: boolean;
+    has_api_key: boolean;
+  };
   joined_at: string;
   invited_by?: string;
   invited_by_details?: User;
@@ -55,6 +67,7 @@ export interface InviteMemberData {
   user_id: string;
   role: ProjectMemberRole;
   permissions?: ProjectPermission[];
+  partner_organization?: string;
 }
 
 export interface SearchedUser {
@@ -79,6 +92,7 @@ export interface UpdateMemberData {
   user_id: string;
   role?: ProjectMemberRole;
   permissions_list?: ProjectPermission[];
+  partner_organization?: string;
 }
 
 export interface PendingInvitationMember {
@@ -139,6 +153,18 @@ export interface NotificationsResponse {
   total_count: number;
 }
 
+export interface PartnerOrganization {
+  user_id: string;  // ID of the registered user who is the partner
+  name: string;  // Full name or organization name
+  username: string;  // Username of the partner user
+  contact_email?: string;
+  institution?: string;  // Partner's institution
+  database_endpoint?: string;  // Optional AWS RDS endpoint or API URL
+  api_key?: string;  // Optional authentication key for the partner database
+  organization_type?: string;
+  description?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -156,6 +182,12 @@ export interface Project {
   team_members_count: number;
   team_members?: ProjectMember[];
   user_permissions?: string[];
+  has_partners: boolean;
+  partner_organizations: PartnerOrganization[];
+  owner_database_endpoint?: string;  // Owner's database endpoint (AWS RDS or API URL)
+  targeted_respondents: RespondentType[];
+  targeted_commodities: CommodityType[];
+  targeted_countries: string[];
 }
 
 export interface CreateProjectData {
@@ -163,6 +195,12 @@ export interface CreateProjectData {
   description?: string;
   settings?: Record<string, any>;
   metadata?: Record<string, any>;
+  has_partners?: boolean;
+  partner_organizations?: PartnerOrganization[];
+  owner_database_endpoint?: string;  // Owner's database endpoint
+  targeted_respondents?: RespondentType[];
+  targeted_commodities?: CommodityType[];
+  targeted_countries?: string[];
 }
 
 // Form/Question Types
@@ -218,6 +256,11 @@ export interface Question {
   is_dynamically_generated?: boolean;
   research_partner_info?: ResearchPartnerInfo;
   should_send_response_to_partner?: boolean;
+  is_owner_question: boolean;
+  partner_organization?: PartnerOrganization;
+  partner_data_storage?: string;
+  targeted_respondents: RespondentType[];
+  question_sources?: string[];  // Array of source names: ['owner', 'Partner A', etc.]
 }
 
 export interface CreateQuestionData {
@@ -228,6 +271,10 @@ export interface CreateQuestionData {
   options?: string[];
   validation_rules?: ValidationRule;
   order_index?: number;
+  is_owner_question?: boolean;
+  partner_organization?: PartnerOrganization;
+  partner_data_storage?: string;
+  targeted_respondents?: RespondentType[];
 }
 
 export interface ResponseTypeInfo {

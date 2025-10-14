@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { secureStorage } from '../utils/secureStorage';
 import { useAuthStore } from '../store/authStore';
 import { API_BASE_URL } from '../config/env';
+import { CreateProjectData, CreateQuestionData } from '../types';
 
 // Django Token Auth Response Format
 interface LoginResponse {
@@ -134,11 +135,11 @@ class ApiService {
     return await this.get(`/projects/projects/${id}/`);
   }
 
-  async createProject(data: { name: string; description?: string }) {
+  async createProject(data: CreateProjectData) {
     return await this.post('/projects/projects/', data);
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; description?: string }>) {
+  async updateProject(id: string, data: Partial<CreateProjectData>) {
     return await this.patch(`/projects/projects/${id}/`, data);
   }
 
@@ -201,7 +202,7 @@ class ApiService {
     return await this.post(`/forms/questions/bulk_create/?replace=${replace}`, questionsData);
   }
 
-  async updateQuestion(id: string, data: any) {
+  async updateQuestion(id: string, data: Partial<CreateQuestionData>) {
     return await this.patch(`/forms/questions/${id}/`, data);
   }
 
@@ -329,6 +330,61 @@ class ApiService {
 
   async duplicateQuestionBankItem(id: string) {
     return await this.post(`/forms/question-bank/${id}/duplicate/`);
+  }
+
+  // Question Import/Export endpoints
+  async downloadCSVTemplate() {
+    const token = await secureStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/forms/question-bank/download_csv_template/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download CSV template');
+    }
+
+    return response.blob();
+  }
+
+  async downloadExcelTemplate() {
+    const token = await secureStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/forms/question-bank/download_excel_template/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download Excel template');
+    }
+
+    return response.blob();
+  }
+
+  async importQuestions(file: File | any) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = await secureStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/forms/question-bank/import_questions/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw data;
+    }
+
+    return data;
   }
 
   // Dynamic Question Session endpoints

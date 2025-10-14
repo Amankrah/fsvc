@@ -7,10 +7,14 @@ from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import ResponseFilter
 from .models import Response, Respondent
 from .serializers import ResponseSerializer, RespondentSerializer
+from .database_router import get_database_router
 import csv
 import json
 from io import StringIO
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -45,6 +49,157 @@ class ResponseViewSet(BaseModelViewSet):
             queryset = queryset.filter(respondent_id=respondent_id)
 
         return queryset
+
+    @action(detail=True, methods=['post'])
+    def retry_routing(self, request, pk=None):
+        """
+        Manually retry database routing for a specific response.
+        Useful when partner database endpoints were temporarily unavailable.
+        """
+        try:
+            response = self.get_object()
+
+            # Check if retry is needed
+            if response.routing_complete:
+                return DRFResponse({
+                    'message': 'Response has already been successfully routed to all endpoints',
+                    'routing_summary': response.get_routing_summary()
+                })
+
+            # Get routing info before retry
+            failed_endpoints_before = response.get_failed_endpoints()
+
+            # Retry routing
+            router = get_database_router()
+            routing_results = router.route_response(response)
+
+            # Update status
+            response.update_routing_status(routing_results)
+
+            # Get updated info
+            failed_endpoints_after = response.get_failed_endpoints()
+
+            return DRFResponse({
+                'message': 'Routing retry completed',
+                'routing_complete': response.routing_complete,
+                'failed_endpoints_before': failed_endpoints_before,
+                'failed_endpoints_after': failed_endpoints_after,
+                'routing_summary': response.get_routing_summary(),
+                'routing_results': routing_results
+            })
+
+        except Exception as e:
+            logger.exception(f"Error retrying routing for response {pk}")
+            return DRFResponse({
+                'error': f'Failed to retry routing: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def routing_status(self, request):
+        """
+        Get summary of routing status across all responses.
+        """
+        try:
+            queryset = self.get_queryset()
+
+            project_id = request.query_params.get('project_id')
+            if project_id:
+                queryset = queryset.filter(project_id=project_id)
+
+            total = queryset.count()
+            complete = queryset.filter(routing_complete=True).count()
+            incomplete = queryset.filter(routing_complete=False).count()
+            needs_retry = queryset.filter(
+                routing_complete=False,
+                routing_attempts__lt=3
+            ).count()
+
+            return DRFResponse({
+                'total_responses': total,
+                'routing_complete': complete,
+                'routing_incomplete': incomplete,
+                'needs_retry': needs_retry,
+                'completion_rate': round((complete / total * 100), 2) if total > 0 else 0
+            })
+
+        except Exception as e:
+            logger.exception("Error getting routing status")
+            return DRFResponse({
+                'error': f'Failed to get routing status: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def bulk_retry_routing(self, request):
+        """
+        Retry routing for multiple responses in bulk.
+        Accepts a list of response IDs or filters by project.
+        """
+        try:
+            response_ids = request.data.get('response_ids', [])
+            project_id = request.data.get('project_id')
+            max_attempts = request.data.get('max_attempts', 3)
+
+            queryset = self.get_queryset()
+
+            # Filter by response IDs or project
+            if response_ids:
+                queryset = queryset.filter(response_id__in=response_ids)
+            elif project_id:
+                queryset = queryset.filter(project_id=project_id)
+            else:
+                return DRFResponse({
+                    'error': 'Either response_ids or project_id must be provided'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Only retry incomplete responses within max attempts
+            queryset = queryset.filter(
+                routing_complete=False,
+                routing_attempts__lt=max_attempts
+            )
+
+            responses_to_retry = list(queryset[:100])  # Limit to 100 at a time
+
+            if not responses_to_retry:
+                return DRFResponse({
+                    'message': 'No responses need retry',
+                    'total': 0
+                })
+
+            # Retry each response
+            router = get_database_router()
+            success_count = 0
+            partial_success_count = 0
+            failed_count = 0
+
+            for response in responses_to_retry:
+                try:
+                    routing_results = router.route_response(response)
+                    response.update_routing_status(routing_results)
+
+                    if response.routing_complete:
+                        success_count += 1
+                    elif routing_results.get('successful_submissions', 0) > 0:
+                        partial_success_count += 1
+                    else:
+                        failed_count += 1
+
+                except Exception as e:
+                    logger.exception(f"Error retrying response {response.response_id}")
+                    failed_count += 1
+
+            return DRFResponse({
+                'message': 'Bulk retry completed',
+                'total_processed': len(responses_to_retry),
+                'fully_successful': success_count,
+                'partially_successful': partial_success_count,
+                'failed': failed_count
+            })
+
+        except Exception as e:
+            logger.exception("Error in bulk retry routing")
+            return DRFResponse({
+                'error': f'Failed to perform bulk retry: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RespondentViewSet(BaseModelViewSet):

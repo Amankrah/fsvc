@@ -963,6 +963,90 @@ class QuestionBankViewSet(BaseModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=False, methods=['get'])
+    def download_csv_template(self, request):
+        """Download CSV template for importing questions"""
+        from .import_export import QuestionImportExport
+        return QuestionImportExport.generate_csv_template()
+
+    @action(detail=False, methods=['get'])
+    def download_excel_template(self, request):
+        """Download Excel template for importing questions"""
+        from .import_export import QuestionImportExport
+        return QuestionImportExport.generate_excel_template()
+
+    @action(detail=False, methods=['post'])
+    def import_questions(self, request):
+        """Import questions from CSV or Excel file"""
+        from .import_export import QuestionImportExport
+
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'No file provided. Please upload a CSV or Excel file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        file = request.FILES['file']
+        file_name = file.name.lower()
+
+        # Validate file type
+        if not (file_name.endswith('.csv') or file_name.endswith('.xlsx') or file_name.endswith('.xls')):
+            return Response(
+                {'error': 'Invalid file type. Please upload a CSV or Excel (.xlsx, .xls) file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Parse file based on type
+            if file_name.endswith('.csv'):
+                questions_data, parse_errors = QuestionImportExport.parse_csv(file)
+            else:
+                questions_data, parse_errors = QuestionImportExport.parse_excel(file)
+
+            # If there are parse errors, return them
+            if parse_errors:
+                return Response({
+                    'error': 'Failed to parse file',
+                    'details': parse_errors,
+                    'questions_parsed': len(questions_data)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # If no questions were parsed
+            if not questions_data:
+                return Response({
+                    'error': 'No valid questions found in file. Please check the template format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Import questions to question bank
+            result = QuestionImportExport.import_questions_to_bank(
+                questions_data,
+                created_by=str(request.user)
+            )
+
+            # Prepare response
+            response_data = {
+                'message': 'Import completed successfully',
+                'created': result['created'],
+                'updated': result['updated'],
+                'total_processed': result['total_processed'],
+                'errors': result['errors']
+            }
+
+            logger.info(f"Questions imported by {request.user}: {result['total_processed']} processed")
+
+            # Return appropriate status based on errors
+            if result['errors']:
+                return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
+            else:
+                return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error importing questions: {e}")
+            return Response(
+                {'error': f'Failed to import questions: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class DynamicQuestionSessionViewSet(BaseModelViewSet):
     """ViewSet for managing dynamic question generation sessions"""

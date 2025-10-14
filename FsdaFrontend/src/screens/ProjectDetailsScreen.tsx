@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import {
   Text,
   Card,
@@ -8,6 +8,7 @@ import {
   Divider,
   List,
   Avatar,
+  FAB,
 } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,7 +16,7 @@ import apiService from '../services/api';
 import { Project } from '../types';
 
 type RootStackParamList = {
-  Dashboard: undefined;
+  Dashboard: { editProjectId?: string };
   ProjectDetails: { projectId: string };
   Forms: { projectId: string };
   DataCollection: { projectId: string; projectName: string };
@@ -107,6 +108,10 @@ const ProjectDetailsScreen: React.FC = () => {
     },
   ];
 
+  const handleEditProject = () => {
+    navigation.navigate('Dashboard', { editProjectId: projectId });
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Card style={styles.headerCard}>
@@ -127,6 +132,12 @@ const ProjectDetailsScreen: React.FC = () => {
                 </Text>
               )}
             </View>
+            <IconButton
+              icon="pencil"
+              size={24}
+              onPress={handleEditProject}
+              style={styles.editIconButton}
+            />
           </View>
 
           <View style={styles.statsRow}>
@@ -276,6 +287,11 @@ const styles = StyleSheet.create({
   backButton: {
     margin: 16,
     marginTop: 8,
+  },
+  editIconButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
   },
 });
 

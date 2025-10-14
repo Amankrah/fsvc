@@ -15,6 +15,42 @@ class Project(models.Model):
     settings = models.JSONField(default=dict)  # Project-specific settings
     metadata = models.JSONField(default=dict)  # Additional metadata
 
+    # Partner collaboration configuration
+    has_partners = models.BooleanField(
+        default=False,
+        help_text="Whether this project involves partner organizations"
+    )
+    partner_organizations = models.JSONField(
+        default=list,
+        help_text="List of partner organizations. Format: [{'name': 'Partner ABC', 'contact_email': 'email@partner.org', 'database_endpoint': 'https://...' (optional), 'api_key': '...' (optional)}]"
+    )
+
+    # Owner database endpoint (AWS RDS or other) - Optional
+    owner_database_endpoint = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Optional: AWS RDS or database endpoint URL where owner's responses should be stored"
+    )
+
+    # Targeted respondents configuration
+    targeted_respondents = models.JSONField(
+        default=list,
+        help_text="List of respondent types targeted for this project"
+    )
+
+    # Targeted commodities
+    targeted_commodities = models.JSONField(
+        default=list,
+        help_text="List of commodities this project focuses on"
+    )
+
+    # Targeted countries/regions
+    targeted_countries = models.JSONField(
+        default=list,
+        help_text="List of countries/regions this project covers"
+    )
+
     class Meta:
         ordering = ['-created_at']
 
@@ -251,6 +287,7 @@ class ProjectMember(models.Model):
         ('member', 'Member'),
         ('analyst', 'Analyst'),
         ('collaborator', 'Collaborator'),
+        ('partner', 'Partner Organization'),
         ('viewer', 'Viewer'),
     ]
     
@@ -274,12 +311,21 @@ class ProjectMember(models.Model):
         help_text="Comma-separated list of permissions",
         default='view_project,view_responses'
     )
+
+    # Partner organization affiliation
+    partner_organization = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name of partner organization this member represents (must match project.partner_organizations)"
+    )
+
     joined_at = models.DateTimeField(auto_now_add=True)
     invited_by = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='sent_invitations'
     )
     
@@ -314,6 +360,44 @@ class ProjectMember(models.Model):
             self.permissions = ','.join(current_permissions)
             self.save()
     
+    def is_partner(self):
+        """Check if this member represents a partner organization"""
+        return self.role == 'partner' and self.partner_organization is not None
+
+    def get_partner_config(self):
+        """
+        Get the partner organization's database configuration from the project.
+        Returns the partner dict or None if not a partner or config not found.
+        """
+        if not self.is_partner():
+            return None
+
+        for partner in self.project.partner_organizations:
+            if partner.get('name') == self.partner_organization:
+                return partner
+
+        return None
+
+    def get_accessible_question_sources(self):
+        """
+        Get list of question sources this member can view responses for.
+        - Owner members: can see 'owner' questions only
+        - Partner members: can see their partner's questions only
+        - Collaborator/Analyst: can see all questions
+        """
+        if self.role in ['collaborator', 'analyst']:
+            # Full access - can see all question sources
+            sources = ['owner']
+            for partner in self.project.partner_organizations:
+                sources.append(partner.get('name'))
+            return sources
+        elif self.is_partner():
+            # Partner member - only see their own partner's questions
+            return [self.partner_organization]
+        else:
+            # Regular member - only see owner questions
+            return ['owner']
+
     @classmethod
     def get_default_permissions_for_role(cls, role):
         """Get default permissions for a role"""
@@ -321,8 +405,9 @@ class ProjectMember(models.Model):
             'viewer': ['view_project', 'view_responses'],
             'member': ['view_project', 'view_responses', 'edit_responses', 'view_analytics'],
             'analyst': ['view_project', 'view_responses', 'view_analytics', 'run_analytics', 'export_data'],
-            'collaborator': ['view_project', 'edit_project', 'view_responses', 'edit_responses', 
+            'collaborator': ['view_project', 'edit_project', 'view_responses', 'edit_responses',
                            'view_analytics', 'run_analytics', 'manage_questions', 'export_data'],
+            'partner': ['view_project', 'view_responses', 'view_analytics', 'export_data'],
         }
         return role_permissions.get(role, ['view_project', 'view_responses'])
 

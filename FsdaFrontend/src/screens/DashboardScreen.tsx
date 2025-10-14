@@ -5,6 +5,9 @@ import {
   FlatList,
   RefreshControl,
   Platform,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Text,
@@ -17,17 +20,19 @@ import {
   IconButton,
   Searchbar,
   Chip,
+  Switch,
+  Divider,
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import apiService from '../services/api';
 import ProjectCard from '../components/ProjectCard';
 import NotificationBell from '../components/NotificationBell';
-import { Project } from '../types';
+import { Project, RespondentType, CommodityType, PartnerOrganization } from '../types';
 
 type RootStackParamList = {
-  Dashboard: undefined;
+  Dashboard: { editProjectId?: string };
   ProjectDetails: { projectId: string };
   AcceptInvitation: { projectId: string; notificationId: string };
   Forms: undefined;
@@ -37,9 +42,11 @@ type RootStackParamList = {
 };
 
 type DashboardNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
+type DashboardRouteProp = RouteProp<RootStackParamList, 'Dashboard'>;
 
 const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<DashboardNavigationProp>();
+  const route = useRoute<DashboardRouteProp>();
   const { user } = useAuthStore();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -54,6 +61,25 @@ const DashboardScreen: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [hasPartners, setHasPartners] = useState(false);
+  const [selectedRespondents, setSelectedRespondents] = useState<RespondentType[]>([]);
+  const [selectedCommodities, setSelectedCommodities] = useState<CommodityType[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [partnerOrganizations, setPartnerOrganizations] = useState<PartnerOrganization[]>([]);
+  const [partnerSearchQuery, setPartnerSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedPartner, setSelectedPartner] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Edit Project Dialog
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Predefined options
+  const RESPONDENT_TYPES: RespondentType[] = ['farmers', 'processors', 'retailers_food_vendors', 'local_consumers', 'government'];
+  const COMMODITY_TYPES: CommodityType[] = ['cocoa', 'maize', 'palm_oil', 'groundnut', 'honey'];
+  const COUNTRY_OPTIONS = ['Ghana', 'Nigeria', 'Kenya', 'Tanzania', 'Uganda', 'Ethiopia', 'South Africa', 'Senegal', 'Mali', 'Burkina Faso', 'Other'];
 
   // Stats
   const [stats, setStats] = useState({
@@ -119,6 +145,59 @@ const DashboardScreen: React.FC = () => {
     loadProjects();
   }, [loadProjects]);
 
+  // Search for users to add as partners
+  const searchUsers = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await apiService.searchUsers(query);
+      setSearchResults(response.users || []);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchUsers(partnerSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [partnerSearchQuery, searchUsers]);
+
+  const handleOpenEditDialog = useCallback((project: Project) => {
+    setEditingProject(project);
+    setNewProjectName(project.name);
+    setNewProjectDescription(project.description || '');
+    setHasPartners(project.has_partners || false);
+    setPartnerOrganizations(project.partner_organizations || []);
+    setSelectedRespondents(project.targeted_respondents || []);
+    setSelectedCommodities(project.targeted_commodities || []);
+    setSelectedCountries(project.targeted_countries || []);
+    setShowEditDialog(true);
+  }, []);
+
+  // Handle navigation from ProjectDetails to open edit dialog
+  useEffect(() => {
+    const editProjectId = route.params?.editProjectId;
+    if (editProjectId && projects.length > 0) {
+      const projectToEdit = projects.find(p => p.id === editProjectId);
+      if (projectToEdit) {
+        handleOpenEditDialog(projectToEdit);
+        // Clear the parameter after opening dialog to prevent reopening on re-render
+        navigation.setParams({ editProjectId: undefined });
+      }
+    }
+  }, [route.params?.editProjectId, projects, handleOpenEditDialog, navigation]);
+
   const handleCreateProject = useCallback(async () => {
     if (!newProjectName.trim()) return;
 
@@ -127,11 +206,24 @@ const DashboardScreen: React.FC = () => {
       const newProject = await apiService.createProject({
         name: newProjectName.trim(),
         description: newProjectDescription.trim() || undefined,
+        has_partners: hasPartners,
+        partner_organizations: partnerOrganizations.length > 0 ? partnerOrganizations : undefined,
+        targeted_respondents: selectedRespondents.length > 0 ? selectedRespondents : undefined,
+        targeted_commodities: selectedCommodities.length > 0 ? selectedCommodities : undefined,
+        targeted_countries: selectedCountries.length > 0 ? selectedCountries : undefined,
       });
 
       setProjects((prev) => [newProject, ...prev]);
       setNewProjectName('');
       setNewProjectDescription('');
+      setHasPartners(false);
+      setPartnerOrganizations([]);
+      setPartnerSearchQuery('');
+      setSearchResults([]);
+      setSelectedPartner(null);
+      setSelectedRespondents([]);
+      setSelectedCommodities([]);
+      setSelectedCountries([]);
       setShowCreateDialog(false);
     } catch (error: any) {
       console.error('Error creating project:', error);
@@ -139,7 +231,92 @@ const DashboardScreen: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
-  }, [newProjectName, newProjectDescription]);
+  }, [newProjectName, newProjectDescription, hasPartners, partnerOrganizations, selectedRespondents, selectedCommodities, selectedCountries]);
+
+  const handleAddPartner = useCallback(() => {
+    if (selectedPartner) {
+      // Check if partner already added
+      const alreadyAdded = partnerOrganizations.some(
+        p => p.user_id === selectedPartner.id
+      );
+
+      if (alreadyAdded) {
+        alert('This user has already been added as a partner');
+        return;
+      }
+
+      setPartnerOrganizations([...partnerOrganizations, {
+        user_id: selectedPartner.id,
+        name: selectedPartner.full_name || selectedPartner.username,
+        contact_email: selectedPartner.email,
+        username: selectedPartner.username,
+        institution: selectedPartner.institution
+      }]);
+      setSelectedPartner(null);
+      setPartnerSearchQuery('');
+      setSearchResults([]);
+    }
+  }, [selectedPartner, partnerOrganizations]);
+
+  const handleRemovePartner = useCallback((index: number) => {
+    const updated = [...partnerOrganizations];
+    updated.splice(index, 1);
+    setPartnerOrganizations(updated);
+  }, [partnerOrganizations]);
+
+  const toggleRespondent = useCallback((respondent: RespondentType) => {
+    setSelectedRespondents(prev =>
+      prev.includes(respondent) ? prev.filter(r => r !== respondent) : [...prev, respondent]
+    );
+  }, []);
+
+  const toggleCommodity = useCallback((commodity: CommodityType) => {
+    setSelectedCommodities(prev =>
+      prev.includes(commodity) ? prev.filter(c => c !== commodity) : [...prev, commodity]
+    );
+  }, []);
+
+  const toggleCountry = useCallback((country: string) => {
+    setSelectedCountries(prev =>
+      prev.includes(country) ? prev.filter(c => c !== country) : [...prev, country]
+    );
+  }, []);
+
+  const handleUpdateProject = useCallback(async () => {
+    if (!editingProject || !newProjectName.trim()) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedProject = await apiService.updateProject(editingProject.id, {
+        name: newProjectName.trim(),
+        description: newProjectDescription.trim() || undefined,
+        has_partners: hasPartners,
+        partner_organizations: partnerOrganizations.length > 0 ? partnerOrganizations : undefined,
+        targeted_respondents: selectedRespondents.length > 0 ? selectedRespondents : undefined,
+        targeted_commodities: selectedCommodities.length > 0 ? selectedCommodities : undefined,
+        targeted_countries: selectedCountries.length > 0 ? selectedCountries : undefined,
+      });
+
+      setProjects((prev) => prev.map(p => p.id === editingProject.id ? updatedProject : p));
+      setNewProjectName('');
+      setNewProjectDescription('');
+      setHasPartners(false);
+      setPartnerOrganizations([]);
+      setPartnerSearchQuery('');
+      setSearchResults([]);
+      setSelectedPartner(null);
+      setSelectedRespondents([]);
+      setSelectedCommodities([]);
+      setSelectedCountries([]);
+      setEditingProject(null);
+      setShowEditDialog(false);
+    } catch (error: any) {
+      console.error('Error updating project:', error);
+      alert(error.response?.data?.message || 'Failed to update project');
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [editingProject, newProjectName, newProjectDescription, hasPartners, partnerOrganizations, selectedRespondents, selectedCommodities, selectedCountries]);
 
   const handleProjectPress = useCallback(
     (project: Project) => {
@@ -300,7 +477,7 @@ const DashboardScreen: React.FC = () => {
         data={filteredProjects}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ProjectCard project={item} onPress={handleProjectPress} />
+          <ProjectCard project={item} onPress={handleProjectPress} onEditPress={handleOpenEditDialog} />
         )}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={!isLoading ? renderEmptyState : null}
@@ -318,27 +495,173 @@ const DashboardScreen: React.FC = () => {
       />
 
       <Portal>
-        <Dialog visible={showCreateDialog} onDismiss={() => setShowCreateDialog(false)}>
+        <Dialog visible={showCreateDialog} onDismiss={() => setShowCreateDialog(false)} style={styles.createDialog}>
           <Dialog.Title>Create New Project</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="Project Name"
-              value={newProjectName}
-              onChangeText={setNewProjectName}
-              mode="outlined"
-              style={styles.dialogInput}
-              autoFocus
-            />
-            <TextInput
-              label="Description (Optional)"
-              value={newProjectDescription}
-              onChangeText={setNewProjectDescription}
-              mode="outlined"
-              multiline
-              numberOfLines={3}
-              style={styles.dialogInput}
-            />
-          </Dialog.Content>
+          <Dialog.ScrollArea style={styles.dialogScrollArea}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.dialogContent}>
+                <TextInput
+                  label="Project Name *"
+                  value={newProjectName}
+                  onChangeText={setNewProjectName}
+                  mode="outlined"
+                  style={styles.dialogInput}
+                  autoFocus
+                />
+                <TextInput
+                  label="Description (Optional)"
+                  value={newProjectDescription}
+                  onChangeText={setNewProjectDescription}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={3}
+                  style={styles.dialogInput}
+                />
+
+                <Divider style={styles.divider} />
+
+                <View style={styles.switchContainer}>
+                  <View style={styles.switchLabelContainer}>
+                    <Text variant="titleMedium">Collaborate with Partners</Text>
+                    <Text variant="bodySmall" style={styles.switchDescription}>
+                      Enable if partner organizations will collaborate on this project. Partners will be invited as team members with access to their own questions only.
+                    </Text>
+                  </View>
+                  <Switch value={hasPartners} onValueChange={setHasPartners} />
+                </View>
+
+                {hasPartners && (
+                  <View style={styles.partnersSection}>
+                    <Text variant="labelLarge" style={styles.sectionLabel}>Partner Organizations</Text>
+                    <Text variant="bodySmall" style={styles.sectionDescription}>
+                      Search for registered users to add as partners
+                    </Text>
+                    <TextInput
+                      label="Search Users"
+                      value={partnerSearchQuery}
+                      onChangeText={setPartnerSearchQuery}
+                      mode="outlined"
+                      style={styles.dialogInput}
+                      placeholder="Search by name, username, or email..."
+                      right={isSearching ? <TextInput.Icon icon={() => <ActivityIndicator size={20} />} /> : undefined}
+                    />
+                    {searchResults.length > 0 && (
+                      <View style={styles.searchResultsContainer}>
+                        {searchResults.map((user) => (
+                          <TouchableOpacity
+                            key={user.id}
+                            style={[
+                              styles.searchResultItem,
+                              selectedPartner?.id === user.id && styles.searchResultItemSelected
+                            ]}
+                            onPress={() => setSelectedPartner(user)}
+                          >
+                            <View style={styles.searchResultContent}>
+                              <Text variant="bodyLarge" style={styles.searchResultName}>
+                                {user.full_name}
+                              </Text>
+                              <Text variant="bodySmall" style={styles.searchResultDetails}>
+                                @{user.username} • {user.email}
+                              </Text>
+                              {user.institution && (
+                                <Text variant="bodySmall" style={styles.searchResultInstitution}>
+                                  {user.institution}
+                                </Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                    {partnerSearchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+                      <Text variant="bodySmall" style={styles.noResultsText}>
+                        No users found
+                      </Text>
+                    )}
+                    <Button
+                      mode="contained"
+                      onPress={handleAddPartner}
+                      disabled={!selectedPartner}
+                      style={styles.addPartnerButton}
+                      icon="plus"
+                    >
+                      Add Selected Partner
+                    </Button>
+                    {partnerOrganizations.length > 0 && (
+                      <View style={styles.partnersList}>
+                        {partnerOrganizations.map((partner, index) => (
+                          <Chip
+                            key={index}
+                            onClose={() => handleRemovePartner(index)}
+                            style={styles.partnerChip}
+                          >
+                            {partner.name}
+                          </Chip>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Respondents</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the types of respondents for this project
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {RESPONDENT_TYPES.map((type) => (
+                    <Chip
+                      key={type}
+                      selected={selectedRespondents.includes(type)}
+                      onPress={() => toggleRespondent(type)}
+                      style={styles.selectionChip}
+                    >
+                      {type}
+                    </Chip>
+                  ))}
+                </View>
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Commodities</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the commodities this project focuses on
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {COMMODITY_TYPES.map((commodity) => (
+                    <Chip
+                      key={commodity}
+                      selected={selectedCommodities.includes(commodity)}
+                      onPress={() => toggleCommodity(commodity)}
+                      style={styles.selectionChip}
+                    >
+                      {commodity}
+                    </Chip>
+                  ))}
+                </View>
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Countries/Regions</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the countries or regions this project covers
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <Chip
+                      key={country}
+                      selected={selectedCountries.includes(country)}
+                      onPress={() => toggleCountry(country)}
+                      style={styles.selectionChip}
+                    >
+                      {country}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          </Dialog.ScrollArea>
           <Dialog.Actions>
             <Button onPress={() => setShowCreateDialog(false)} disabled={isCreating}>
               Cancel
@@ -349,6 +672,186 @@ const DashboardScreen: React.FC = () => {
               disabled={isCreating || !newProjectName.trim()}
             >
               Create
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog visible={showEditDialog} onDismiss={() => setShowEditDialog(false)} style={styles.createDialog}>
+          <Dialog.Title>Edit Project</Dialog.Title>
+          <Dialog.ScrollArea style={styles.dialogScrollArea}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.dialogContent}>
+                <TextInput
+                  label="Project Name *"
+                  value={newProjectName}
+                  onChangeText={setNewProjectName}
+                  mode="outlined"
+                  style={styles.dialogInput}
+                />
+                <TextInput
+                  label="Description (Optional)"
+                  value={newProjectDescription}
+                  onChangeText={setNewProjectDescription}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={3}
+                  style={styles.dialogInput}
+                />
+
+                <Divider style={styles.divider} />
+
+                <View style={styles.switchContainer}>
+                  <View style={styles.switchLabelContainer}>
+                    <Text variant="titleMedium">Collaborate with Partners</Text>
+                    <Text variant="bodySmall" style={styles.switchDescription}>
+                      Enable if this project involves partner organizations
+                    </Text>
+                  </View>
+                  <Switch value={hasPartners} onValueChange={setHasPartners} />
+                </View>
+
+                {hasPartners && (
+                  <View style={styles.partnersSection}>
+                    <Text variant="labelLarge" style={styles.sectionLabel}>Partner Organizations</Text>
+                    <Text variant="bodySmall" style={styles.sectionDescription}>
+                      Search for registered users to add as partners
+                    </Text>
+                    <TextInput
+                      label="Search Users"
+                      value={partnerSearchQuery}
+                      onChangeText={setPartnerSearchQuery}
+                      mode="outlined"
+                      style={styles.dialogInput}
+                      placeholder="Search by name, username, or email..."
+                      right={isSearching ? <TextInput.Icon icon={() => <ActivityIndicator size={20} />} /> : undefined}
+                    />
+                    {searchResults.length > 0 && (
+                      <View style={styles.searchResultsContainer}>
+                        {searchResults.map((user) => (
+                          <TouchableOpacity
+                            key={user.id}
+                            style={[
+                              styles.searchResultItem,
+                              selectedPartner?.id === user.id && styles.searchResultItemSelected
+                            ]}
+                            onPress={() => setSelectedPartner(user)}
+                          >
+                            <View style={styles.searchResultContent}>
+                              <Text variant="bodyLarge" style={styles.searchResultName}>
+                                {user.full_name}
+                              </Text>
+                              <Text variant="bodySmall" style={styles.searchResultDetails}>
+                                @{user.username} • {user.email}
+                              </Text>
+                              {user.institution && (
+                                <Text variant="bodySmall" style={styles.searchResultInstitution}>
+                                  {user.institution}
+                                </Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                    {partnerSearchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+                      <Text variant="bodySmall" style={styles.noResultsText}>
+                        No users found
+                      </Text>
+                    )}
+                    <Button
+                      mode="contained"
+                      onPress={handleAddPartner}
+                      disabled={!selectedPartner}
+                      style={styles.addPartnerButton}
+                      icon="plus"
+                    >
+                      Add Selected Partner
+                    </Button>
+                    {partnerOrganizations.length > 0 && (
+                      <View style={styles.partnersList}>
+                        {partnerOrganizations.map((partner, index) => (
+                          <Chip
+                            key={index}
+                            onClose={() => handleRemovePartner(index)}
+                            style={styles.partnerChip}
+                          >
+                            {partner.name}
+                          </Chip>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Respondents</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the types of respondents for this project
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {RESPONDENT_TYPES.map((type) => (
+                    <Chip
+                      key={type}
+                      selected={selectedRespondents.includes(type)}
+                      onPress={() => toggleRespondent(type)}
+                      style={styles.selectionChip}
+                    >
+                      {type}
+                    </Chip>
+                  ))}
+                </View>
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Commodities</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the commodities this project focuses on
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {COMMODITY_TYPES.map((commodity) => (
+                    <Chip
+                      key={commodity}
+                      selected={selectedCommodities.includes(commodity)}
+                      onPress={() => toggleCommodity(commodity)}
+                      style={styles.selectionChip}
+                    >
+                      {commodity}
+                    </Chip>
+                  ))}
+                </View>
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Countries/Regions</Text>
+                <Text variant="bodySmall" style={styles.sectionDescription}>
+                  Select the countries or regions this project covers
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <Chip
+                      key={country}
+                      selected={selectedCountries.includes(country)}
+                      onPress={() => toggleCountry(country)}
+                      style={styles.selectionChip}
+                    >
+                      {country}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button onPress={() => setShowEditDialog(false)} disabled={isUpdating}>
+              Cancel
+            </Button>
+            <Button
+              onPress={handleUpdateProject}
+              loading={isUpdating}
+              disabled={isUpdating || !newProjectName.trim()}
+            >
+              Update
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -501,8 +1004,114 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 16,
   },
+  createDialog: {
+    maxHeight: '90%',
+  },
+  dialogScrollArea: {
+    paddingHorizontal: 0,
+  },
+  dialogContent: {
+    paddingHorizontal: 24,
+  },
   dialogInput: {
     marginBottom: 12,
+  },
+  divider: {
+    marginVertical: 16,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  switchLabelContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  switchDescription: {
+    color: '#6c757d',
+    marginTop: 4,
+  },
+  sectionLabel: {
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  sectionDescription: {
+    color: '#6c757d',
+    marginBottom: 12,
+  },
+  helperText: {
+    color: '#6c757d',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  partnersSection: {
+    marginTop: 12,
+  },
+  partnerInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  partnerInput: {
+    flex: 1,
+  },
+  addPartnerButton: {
+    marginBottom: 12,
+  },
+  partnersList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  partnerChip: {
+    marginBottom: 4,
+  },
+  searchResultsContainer: {
+    maxHeight: 250,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  searchResultItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchResultItemSelected: {
+    backgroundColor: '#e3f2fd',
+  },
+  searchResultContent: {
+    gap: 4,
+  },
+  searchResultName: {
+    fontWeight: '600',
+    color: '#212121',
+  },
+  searchResultDetails: {
+    color: '#757575',
+  },
+  searchResultInstitution: {
+    color: '#9e9e9e',
+    fontStyle: 'italic',
+  },
+  noResultsText: {
+    textAlign: 'center',
+    color: '#9e9e9e',
+    marginVertical: 12,
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectionChip: {
+    marginBottom: 4,
   },
 });
 

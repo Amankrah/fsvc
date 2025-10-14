@@ -5,7 +5,10 @@
  */
 
 // Django backend typically runs on port 8000
-const DEV_API_URL = 'http://localhost:8000/api';
+// For physical devices, use your computer's network IP address
+// Available IPs (uncomment the one that matches your current network):
+const DEV_API_URL = 'http://10.122.115.54:8000/api';  // Current active IP
+// const DEV_API_URL = 'http://10.0.0.42:8000/api';   // Alternative IP
 const PROD_API_URL = 'https://your-production-api.com/api';
 
 export const API_BASE_URL = __DEV__ ? DEV_API_URL : PROD_API_URL;

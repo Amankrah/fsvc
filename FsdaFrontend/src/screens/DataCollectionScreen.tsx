@@ -26,12 +26,12 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import apiService from '../services/api';
-import { 
-  Question, 
-  RespondentType, 
-  CommodityType, 
-  QuestionBankChoices,
-  DynamicQuestionGenerationResult 
+import {
+  Question,
+  RespondentType,
+  CommodityType,
+  DynamicQuestionGenerationResult,
+  Project
 } from '../types';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { generateRespondentId } from '../utils/respondentIdGenerator';
@@ -48,13 +48,13 @@ const DataCollectionScreen: React.FC = () => {
   const navigation = useNavigation<DataCollectionNavigationProp>();
   const { projectId, projectName } = route.params;
 
+  const [project, setProject] = useState<Project | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [responses, setResponses] = useState<ResponseData>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [respondentId, setRespondentId] = useState('');
-  const [respondentName, setRespondentName] = useState('');
   const [showRespondentForm, setShowRespondentForm] = useState(true);
   const [useAutoId, setUseAutoId] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -63,23 +63,21 @@ const DataCollectionScreen: React.FC = () => {
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [currentLocationQuestion, setCurrentLocationQuestion] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', address: '' });
-  
-  // Dynamic question generation states
+
+  // Project-specific metadata (from project configuration) - REQUIRED for question generation
   const [selectedRespondentType, setSelectedRespondentType] = useState<RespondentType | ''>('');
-  const [selectedCommodity, setSelectedCommodity] = useState<CommodityType | ''>('');
+  const [selectedCommodities, setSelectedCommodities] = useState<CommodityType[]>([]); // Multiple commodities
   const [selectedCountry, setSelectedCountry] = useState('');
-  const [questionBankChoices, setQuestionBankChoices] = useState<QuestionBankChoices | null>(null);
-  const [loadingChoices, setLoadingChoices] = useState(false);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
-  const [showDynamicGeneration, setShowDynamicGeneration] = useState(false);
+  const [questionsGenerated, setQuestionsGenerated] = useState(false); // Track if questions have been generated
 
   useEffect(() => {
-    loadQuestions();
-    loadQuestionBankChoices();
+    loadProject();
     // Auto-generate respondent ID on mount
     if (useAutoId) {
       generateNewRespondentId();
     }
+    // DO NOT load questions automatically - they must be generated per respondent
   }, []);
 
   const generateNewRespondentId = () => {
@@ -87,32 +85,19 @@ const DataCollectionScreen: React.FC = () => {
     setRespondentId(autoId);
   };
 
-  const loadQuestions = async () => {
+  const loadProject = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getQuestions(projectId);
-      const questionList = Array.isArray(data) ? data : data.results || [];
-      setQuestions(questionList.sort((a: Question, b: Question) => a.order_index - b.order_index));
+      const projectData = await apiService.getProject(projectId);
+      setProject(projectData);
     } catch (error: any) {
-      console.error('Error loading questions:', error);
-      Alert.alert('Error', 'Failed to load questions');
+      console.error('Error loading project:', error);
+      Alert.alert('Error', 'Failed to load project details');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadQuestionBankChoices = async () => {
-    try {
-      setLoadingChoices(true);
-      const choices = await apiService.getQuestionBankChoices();
-      setQuestionBankChoices(choices);
-    } catch (error: any) {
-      console.error('Error loading question bank choices:', error);
-      // Don't show error alert as this is not critical for basic functionality
-    } finally {
-      setLoadingChoices(false);
-    }
-  };
 
   const generateDynamicQuestions = async () => {
     if (!selectedRespondentType) {
@@ -122,36 +107,35 @@ const DataCollectionScreen: React.FC = () => {
 
     try {
       setGeneratingQuestions(true);
-      
+
+      const commoditiesText = selectedCommodities.length > 0 ? selectedCommodities.join(', ') : 'all commodities';
+
       const generationData = {
         project: projectId,
         respondent_type: selectedRespondentType,
-        commodity: selectedCommodity || undefined,
+        commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : undefined,
         country: selectedCountry || undefined,
-        replace_existing: false, // Don't replace existing questions by default
-        notes: `Dynamic generation for ${selectedRespondentType} respondent${selectedCommodity ? `, ${selectedCommodity} commodity` : ''}${selectedCountry ? `, ${selectedCountry}` : ''}`
+        replace_existing: false,
+        notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesText}${selectedCountry ? `, ${selectedCountry}` : ''}`
       };
 
       const result: DynamicQuestionGenerationResult = await apiService.generateDynamicQuestions(generationData);
-      
-      // Update questions with the generated ones
-      const allQuestions = [
-        ...questions, // Keep existing questions
-        ...result.questions
-      ].sort((a: Question, b: Question) => a.order_index - b.order_index);
-      
-      setQuestions(allQuestions);
-      
+
+      // Set ONLY the generated questions (do not merge with existing)
+      const generatedQuestions = result.questions.sort((a: Question, b: Question) => a.order_index - b.order_index);
+      setQuestions(generatedQuestions);
+      setQuestionsGenerated(true);
+
       Alert.alert(
-        'Questions Generated!', 
+        'Questions Generated!',
         `Successfully generated ${result.summary.questions_generated} questions for ${selectedRespondentType} respondents.`,
-        [{ text: 'OK', onPress: () => setShowDynamicGeneration(false) }]
+        [{ text: 'OK' }]
       );
-      
+
     } catch (error: any) {
       console.error('Error generating dynamic questions:', error);
       Alert.alert(
-        'Generation Failed', 
+        'Generation Failed',
         error.response?.data?.error || 'Failed to generate questions. Please try again.'
       );
     } finally {
@@ -164,6 +148,22 @@ const DataCollectionScreen: React.FC = () => {
       Alert.alert('Required', 'Please enter a Respondent ID');
       return;
     }
+
+    // MUST have generated questions before proceeding
+    if (!questionsGenerated || questions.length === 0) {
+      Alert.alert(
+        'Questions Required',
+        'Please generate questions by selecting respondent type and clicking "Generate Questions" before starting the survey.'
+      );
+      return;
+    }
+
+    // MUST have selected respondent type
+    if (!selectedRespondentType) {
+      Alert.alert('Required', 'Please select a respondent type');
+      return;
+    }
+
     setShowRespondentForm(false);
   };
 
@@ -217,13 +217,15 @@ const DataCollectionScreen: React.FC = () => {
     try {
       setSubmitting(true);
 
-      // First, create or get the respondent
+      // First, create or get the respondent with project-specific metadata
       const respondentData = {
         respondent_id: respondentId,
-        name: respondentName || null,
         project: projectId,
-        is_anonymous: !respondentName,
+        is_anonymous: true,
         consent_given: true,
+        respondent_type: selectedRespondentType || null,
+        commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : null,
+        country: selectedCountry || null,
       };
 
       const respondent = await apiService.createRespondent(respondentData);
@@ -252,11 +254,15 @@ const DataCollectionScreen: React.FC = () => {
 
       await Promise.all(responsePromises);
 
-      // Automatically reset for next respondent
+      // Automatically reset for next respondent - CLEAR EVERYTHING including questions and context
       setResponses({});
       setShowRespondentForm(true);
       setCurrentQuestionIndex(0);
-      setRespondentName('');
+      setQuestions([]); // Clear questions - must regenerate for next respondent
+      setQuestionsGenerated(false); // Reset generation flag
+      setSelectedRespondentType(''); // Clear respondent type
+      setSelectedCommodities([]); // Clear commodities
+      setSelectedCountry(''); // Clear country
       if (useAutoId) {
         generateNewRespondentId();
       } else {
@@ -694,132 +700,127 @@ const DataCollectionScreen: React.FC = () => {
                   }}
                 />
 
-                <TextInput
-                  label="Name (Optional)"
-                  value={respondentName}
-                  onChangeText={setRespondentName}
-                  mode="outlined"
-                  style={styles.input}
-                  textColor="#ffffff"
-                  placeholder="Enter your name"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-
-                {/* Dynamic Question Generation Section */}
+                {/* Respondent Profile & Question Generation Section - REQUIRED */}
                 <View style={styles.dynamicGenerationSection}>
                   <View style={styles.sectionHeader}>
                     <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Dynamic Question Generation (Optional)
+                      Respondent Profile & Question Generation *
                     </Text>
                     <Text variant="bodySmall" style={styles.sectionSubtitle}>
-                      Generate targeted questions based on respondent profile
+                      Select respondent profile to generate targeted questions
                     </Text>
                   </View>
 
-                  <TouchableOpacity 
-                    style={styles.toggleButton}
-                    onPress={() => setShowDynamicGeneration(!showDynamicGeneration)}
-                  >
-                    <Text style={styles.toggleButtonText}>
-                      {showDynamicGeneration ? 'Hide Options' : 'Show Generation Options'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {showDynamicGeneration && questionBankChoices && (
+                  {project && (
                     <View style={styles.dynamicForm}>
-                      {/* Respondent Type Selection */}
-                      <View style={styles.fieldContainer}>
-                        <Text variant="bodyMedium" style={styles.fieldLabel}>
-                          Respondent Type *
-                        </Text>
-                        <View style={styles.choiceContainer}>
-                          {questionBankChoices.respondent_types.map((respondent) => (
-                            <TouchableOpacity
-                              key={respondent.value}
-                              style={[
-                                styles.choiceButton,
-                                selectedRespondentType === respondent.value && styles.choiceButtonSelected
-                              ]}
-                              onPress={() => setSelectedRespondentType(respondent.value)}
-                            >
-                              <Text style={[
-                                styles.choiceButtonText,
-                                selectedRespondentType === respondent.value && styles.choiceButtonTextSelected
-                              ]}>
-                                {respondent.label}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
+                      {/* Respondent Type Selection - From Project Configuration */}
+                      {project.targeted_respondents && project.targeted_respondents.length > 0 && (
+                        <View style={styles.fieldContainer}>
+                          <Text variant="bodyMedium" style={styles.fieldLabel}>
+                            Respondent Type * (from project)
+                          </Text>
+                          <View style={styles.choiceContainer}>
+                            {project.targeted_respondents.map((respondent) => (
+                              <TouchableOpacity
+                                key={respondent}
+                                style={[
+                                  styles.choiceButton,
+                                  selectedRespondentType === respondent && styles.choiceButtonSelected
+                                ]}
+                                onPress={() => setSelectedRespondentType(respondent)}
+                              >
+                                <Text style={[
+                                  styles.choiceButtonText,
+                                  selectedRespondentType === respondent && styles.choiceButtonTextSelected
+                                ]}>
+                                  {respondent}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
-                      </View>
+                      )}
 
-                      {/* Commodity Selection */}
-                      <View style={styles.fieldContainer}>
-                        <Text variant="bodyMedium" style={styles.fieldLabel}>
-                          Commodity of Interest (Optional)
-                        </Text>
-                        <View style={styles.choiceContainer}>
-                          <TouchableOpacity
-                            style={[
-                              styles.choiceButton,
-                              selectedCommodity === '' && styles.choiceButtonSelected
-                            ]}
-                            onPress={() => setSelectedCommodity('')}
-                          >
-                            <Text style={[
-                              styles.choiceButtonText,
-                              selectedCommodity === '' && styles.choiceButtonTextSelected
-                            ]}>
-                              All Commodities
+                      {/* Commodity Selection - From Project Configuration - MULTIPLE SELECTION */}
+                      {project.targeted_commodities && project.targeted_commodities.length > 0 && (
+                        <View style={styles.fieldContainer}>
+                          <Text variant="bodyMedium" style={styles.fieldLabel}>
+                            Commodity of Interest (from project) - Select one or more
+                          </Text>
+                          <View style={styles.choiceContainer}>
+                            {project.targeted_commodities.map((commodity) => (
+                              <TouchableOpacity
+                                key={commodity}
+                                style={[
+                                  styles.choiceButton,
+                                  selectedCommodities.includes(commodity) && styles.choiceButtonSelected
+                                ]}
+                                onPress={() => {
+                                  if (selectedCommodities.includes(commodity)) {
+                                    setSelectedCommodities(selectedCommodities.filter(c => c !== commodity));
+                                  } else {
+                                    setSelectedCommodities([...selectedCommodities, commodity]);
+                                  }
+                                }}
+                              >
+                                <Text style={[
+                                  styles.choiceButtonText,
+                                  selectedCommodities.includes(commodity) && styles.choiceButtonTextSelected
+                                ]}>
+                                  {commodity}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          {selectedCommodities.length > 0 && (
+                            <Text variant="bodySmall" style={styles.selectionHint}>
+                              {selectedCommodities.length} selected: {selectedCommodities.join(', ')}
                             </Text>
-                          </TouchableOpacity>
-                          {questionBankChoices.commodities.map((commodity) => (
+                          )}
+                        </View>
+                      )}
+
+                      {/* Country Selection - From Project Configuration */}
+                      {project.targeted_countries && project.targeted_countries.length > 0 && (
+                        <View style={styles.fieldContainer}>
+                          <Text variant="bodyMedium" style={styles.fieldLabel}>
+                            Country/Region (from project)
+                          </Text>
+                          <View style={styles.choiceContainer}>
                             <TouchableOpacity
-                              key={commodity.value}
                               style={[
                                 styles.choiceButton,
-                                selectedCommodity === commodity.value && styles.choiceButtonSelected
+                                selectedCountry === '' && styles.choiceButtonSelected
                               ]}
-                              onPress={() => setSelectedCommodity(commodity.value)}
+                              onPress={() => setSelectedCountry('')}
                             >
                               <Text style={[
                                 styles.choiceButtonText,
-                                selectedCommodity === commodity.value && styles.choiceButtonTextSelected
+                                selectedCountry === '' && styles.choiceButtonTextSelected
                               ]}>
-                                {commodity.label}
+                                Any Country
                               </Text>
                             </TouchableOpacity>
-                          ))}
+                            {project.targeted_countries.map((country) => (
+                              <TouchableOpacity
+                                key={country}
+                                style={[
+                                  styles.choiceButton,
+                                  selectedCountry === country && styles.choiceButtonSelected
+                                ]}
+                                onPress={() => setSelectedCountry(country)}
+                              >
+                                <Text style={[
+                                  styles.choiceButtonText,
+                                  selectedCountry === country && styles.choiceButtonTextSelected
+                                ]}>
+                                  {country}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
-                      </View>
-
-                      {/* Country Input */}
-                      <View style={styles.fieldContainer}>
-                        <TextInput
-                          label="Country of Interest (Optional)"
-                          value={selectedCountry}
-                          onChangeText={setSelectedCountry}
-                          mode="outlined"
-                          style={styles.input}
-                          textColor="#ffffff"
-                          placeholder="e.g., Ghana, Nigeria, Ivory Coast"
-                          placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                          theme={{
-                            colors: {
-                              primary: '#64c8ff',
-                              onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                              outline: 'rgba(100, 200, 255, 0.5)',
-                            },
-                          }}
-                        />
-                      </View>
+                      )}
 
                       {/* Generate Button */}
                       <Button
@@ -833,18 +834,18 @@ const DataCollectionScreen: React.FC = () => {
                         {generatingQuestions ? 'Generating...' : 'Generate Questions'}
                       </Button>
 
-                      {questions.length > 0 && (
-                        <Text variant="bodySmall" style={styles.questionsInfo}>
-                          {questions.length} question(s) ready for this survey
+                      {questionsGenerated && questions.length > 0 ? (
+                        <View style={styles.successIndicator}>
+                          <Text style={styles.successIcon}>✓</Text>
+                          <Text variant="bodyMedium" style={styles.questionsInfo}>
+                            {questions.length} question(s) generated and ready!
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text variant="bodySmall" style={styles.warningInfo}>
+                          You must generate questions before starting the survey
                         </Text>
                       )}
-                    </View>
-                  )}
-
-                  {loadingChoices && (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="small" />
-                      <Text style={styles.loadingText}>Loading options...</Text>
                     </View>
                   )}
                 </View>
@@ -852,11 +853,17 @@ const DataCollectionScreen: React.FC = () => {
                 <Button
                   mode="contained"
                   onPress={handleRespondentSubmit}
-                  style={styles.startButton}
-                  disabled={questions.length === 0}
+                  style={[styles.startButton, !questionsGenerated && styles.startButtonDisabled]}
+                  disabled={!questionsGenerated || questions.length === 0}
                 >
                   Start Survey
                 </Button>
+
+                {!questionsGenerated && (
+                  <Text variant="bodySmall" style={styles.startHint}>
+                    Please generate questions to enable survey start
+                  </Text>
+                )}
               </Card.Content>
             </Card>
           </View>
@@ -1503,22 +1510,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
   },
-  toggleButton: {
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  toggleButtonText: {
-    color: '#64c8ff',
-    fontWeight: '600',
-  },
   dynamicForm: {
     gap: 20,
+    marginTop: 16,
   },
   fieldContainer: {
     gap: 8,
@@ -1561,6 +1555,41 @@ const styles = StyleSheet.create({
     color: '#64c8ff',
     textAlign: 'center',
     fontWeight: '500',
+  },
+  warningInfo: {
+    color: '#ff6b6b',
+    textAlign: 'center',
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  successIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  successIcon: {
+    fontSize: 20,
+    color: '#4caf50',
+    fontWeight: 'bold',
+  },
+  startButtonDisabled: {
+    opacity: 0.5,
+  },
+  startHint: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  selectionHint: {
+    color: '#64c8ff',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     flexDirection: 'row',

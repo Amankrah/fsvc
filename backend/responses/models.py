@@ -259,22 +259,42 @@ class Respondent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     respondent_id = models.CharField(max_length=255, unique=True, db_index=True)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='respondents')
-    
+
+    # Project-specific metadata (aligned with question bank)
+    respondent_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Type of respondent from project's targeted_respondents"
+    )
+    commodity = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Commodity from project's targeted_commodities"
+    )
+    country = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Country from project's targeted_countries"
+    )
+
     # Optional demographic/metadata fields
     name = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     demographics = models.JSONField(default=dict, blank=True)  # age, gender, etc.
-    
+
     # Location information
     location_data = models.JSONField(null=True, blank=True)  # GPS coordinates, address
-    
+
     # Data collection metadata
     created_at = models.DateTimeField(auto_now_add=True)
     last_response_at = models.DateTimeField(null=True, blank=True)
     is_anonymous = models.BooleanField(default=True)
     consent_given = models.BooleanField(default=False)
-    
+
     # Sync and tracking
     sync_status = models.CharField(max_length=20, default='pending')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_respondents')
@@ -314,12 +334,19 @@ class Response(models.Model):
     """Enhanced Response model with proper response types"""
     # Primary identifiers
     response_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+
     # Relationships
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='responses')
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='responses')
     respondent = models.ForeignKey(Respondent, on_delete=models.CASCADE, related_name='responses')
     response_type = models.ForeignKey(ResponseType, on_delete=models.CASCADE, related_name='responses', default=get_default_response_type)
+
+    # Question bank context (copied from respondent at response time for historical accuracy)
+    question_bank_context = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Context from question bank: respondent_type, commodity, country"
+    )
     
     # Response data - keeping backward compatibility
     response_value = models.TextField(blank=True, null=True)  # For simple responses
@@ -354,9 +381,28 @@ class Response(models.Model):
     validation_errors = models.JSONField(null=True, blank=True)
     data_quality_score = models.FloatField(null=True, blank=True)  # 0-100 quality score
     
-    # Sync status
+    # Sync status (legacy - single database)
     sync_status = models.CharField(max_length=20, default='pending')
     synced_at = models.DateTimeField(null=True, blank=True)
+
+    # Multi-database sync tracking
+    database_routing_status = models.JSONField(
+        default=dict,
+        help_text="Tracks submission status for each database endpoint. Format: {'owner': {...}, 'Partner A': {...}}"
+    )
+    routing_attempts = models.IntegerField(
+        default=0,
+        help_text="Number of routing attempts made"
+    )
+    last_routing_attempt = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of last routing attempt"
+    )
+    routing_complete = models.BooleanField(
+        default=False,
+        help_text="True if response has been successfully sent to all target databases"
+    )
 
     class Meta:
         ordering = ['-collected_at']
@@ -377,14 +423,22 @@ class Response(models.Model):
     def save(self, *args, **kwargs):
         """Override save to update respondent's last_response_at and process data"""
         is_new = self.pk is None
-        
+
         # Auto-populate response_type from question if not set
         if not self.response_type and self.question:
             self.response_type = self.question.get_expected_response_type()
-        
+
+        # Auto-populate question bank context from respondent
+        if not self.question_bank_context and self.respondent:
+            self.question_bank_context = {
+                'respondent_type': self.respondent.respondent_type,
+                'commodity': self.respondent.commodity,
+                'country': self.respondent.country,
+            }
+
         # Auto-populate structured fields based on response type
         self._process_response_data()
-        
+
         super().save(*args, **kwargs)
         if is_new:
             self.respondent.update_last_response()
@@ -546,3 +600,114 @@ class Response(models.Model):
         # Ensure score is between 0 and 100
         self.data_quality_score = max(0, min(100, score))
         return self.data_quality_score
+
+    def update_routing_status(self, routing_results: dict):
+        """
+        Update database routing status based on routing results.
+
+        Args:
+            routing_results: Dict returned from DatabaseRouter.route_response()
+        """
+        from django.utils import timezone
+
+        self.routing_attempts += 1
+        self.last_routing_attempt = timezone.now()
+
+        # Update status for each endpoint
+        for result in routing_results.get('results', []):
+            endpoint_name = result.get('endpoint_name', 'unknown')
+            self.database_routing_status[endpoint_name] = {
+                'success': result.get('success', False),
+                'status_code': result.get('status_code'),
+                'error': result.get('error'),
+                'timestamp': result.get('timestamp'),
+                'endpoint_url': result.get('endpoint_url'),
+            }
+
+        # Check if routing is complete (all endpoints successful)
+        all_successful = all(
+            status.get('success', False)
+            for status in self.database_routing_status.values()
+        )
+
+        if all_successful and self.database_routing_status:
+            self.routing_complete = True
+            self.sync_status = 'synced'
+            self.synced_at = timezone.now()
+        else:
+            self.routing_complete = False
+            self.sync_status = 'partial' if any(
+                status.get('success', False)
+                for status in self.database_routing_status.values()
+            ) else 'failed'
+
+        self.save(update_fields=[
+            'database_routing_status',
+            'routing_attempts',
+            'last_routing_attempt',
+            'routing_complete',
+            'sync_status',
+            'synced_at'
+        ])
+
+    def get_routing_summary(self) -> dict:
+        """
+        Get a summary of database routing status.
+
+        Returns:
+            Dict with routing summary information
+        """
+        if not self.database_routing_status:
+            return {
+                'total_endpoints': 0,
+                'successful': 0,
+                'failed': 0,
+                'pending': 0,
+                'complete': False,
+                'attempts': self.routing_attempts
+            }
+
+        successful = sum(
+            1 for status in self.database_routing_status.values()
+            if status.get('success', False)
+        )
+        failed = len(self.database_routing_status) - successful
+
+        return {
+            'total_endpoints': len(self.database_routing_status),
+            'successful': successful,
+            'failed': failed,
+            'pending': 0,
+            'complete': self.routing_complete,
+            'attempts': self.routing_attempts,
+            'last_attempt': self.last_routing_attempt.isoformat() if self.last_routing_attempt else None,
+            'details': self.database_routing_status
+        }
+
+    def get_failed_endpoints(self) -> list:
+        """
+        Get list of endpoint names that failed to receive the response.
+
+        Returns:
+            List of endpoint names
+        """
+        return [
+            name for name, status in self.database_routing_status.items()
+            if not status.get('success', False)
+        ]
+
+    def needs_retry(self, max_attempts: int = 3) -> bool:
+        """
+        Check if response routing should be retried.
+
+        Args:
+            max_attempts: Maximum number of retry attempts
+
+        Returns:
+            True if retry is needed
+        """
+        return (
+            not self.routing_complete and
+            self.routing_attempts < max_attempts and
+            len(self.get_failed_endpoints()) > 0
+        )

@@ -49,6 +49,7 @@ const ROLE_DISPLAY_NAMES: Record<ProjectMemberRole, string> = {
   member: 'Member',
   analyst: 'Analyst',
   collaborator: 'Collaborator',
+  partner: 'Partner Organization',
   viewer: 'Viewer',
 };
 
@@ -57,6 +58,7 @@ const ROLE_COLORS: Record<ProjectMemberRole, string> = {
   member: '#03dac6',
   analyst: '#ff6f00',
   collaborator: '#00bcd4',
+  partner: '#9c27b0',
   viewer: '#9e9e9e',
 };
 
@@ -87,6 +89,7 @@ const DEFAULT_PERMISSIONS_FOR_ROLE: Record<Exclude<ProjectMemberRole, 'owner'>, 
     'manage_questions',
     'export_data',
   ],
+  partner: ['view_project', 'view_responses', 'view_analytics', 'export_data'],
 };
 
 const MembersScreen: React.FC = () => {
@@ -97,6 +100,7 @@ const MembersScreen: React.FC = () => {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [project, setProject] = useState<any>(null);
 
   // Invite Dialog State
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -107,9 +111,11 @@ const MembersScreen: React.FC = () => {
   const [invitePermissions, setInvitePermissions] = useState<ProjectPermission[]>(
     DEFAULT_PERMISSIONS_FOR_ROLE.member
   );
+  const [invitePartnerOrg, setInvitePartnerOrg] = useState<string>('');
   const [isInviting, setIsInviting] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [showPartnerMenu, setShowPartnerMenu] = useState(false);
 
   // Edit Member Dialog State
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -138,9 +144,19 @@ const MembersScreen: React.FC = () => {
     }
   }, [projectId]);
 
+  const loadProject = useCallback(async () => {
+    try {
+      const projectData = await apiService.getProject(projectId);
+      setProject(projectData);
+    } catch (error: any) {
+      console.error('Error loading project:', error);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     loadMembers();
-  }, [loadMembers]);
+    loadProject();
+  }, [loadMembers, loadProject]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -184,12 +200,19 @@ const MembersScreen: React.FC = () => {
       return;
     }
 
+    // Validate partner organization for partner role
+    if (inviteRole === 'partner' && !invitePartnerOrg) {
+      Alert.alert('Error', 'Please select a partner organization for partner role');
+      return;
+    }
+
     setIsInviting(true);
     try {
       const inviteData: InviteMemberData = {
         user_id: selectedUser.id,
         role: inviteRole,
         permissions: invitePermissions,
+        partner_organization: inviteRole === 'partner' ? invitePartnerOrg : undefined,
       };
 
       await apiService.inviteMember(projectId, inviteData);
@@ -200,6 +223,7 @@ const MembersScreen: React.FC = () => {
       setSearchedUsers([]);
       setInviteRole('member');
       setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE.member);
+      setInvitePartnerOrg('');
       setShowInviteDialog(false);
       loadMembers();
     } catch (error: any) {
@@ -207,12 +231,13 @@ const MembersScreen: React.FC = () => {
       const errorMessage =
         error.response?.data?.error ||
         error.response?.data?.details?.user_id?.[0] ||
+        error.response?.data?.details?.partner_organization?.[0] ||
         'Failed to invite member';
       Alert.alert('Error', errorMessage);
     } finally {
       setIsInviting(false);
     }
-  }, [selectedUser, inviteRole, invitePermissions, projectId, loadMembers]);
+  }, [selectedUser, inviteRole, invitePermissions, invitePartnerOrg, projectId, loadMembers]);
 
   const handleUpdateMember = useCallback(async () => {
     if (!editingMember) return;
@@ -288,6 +313,10 @@ const MembersScreen: React.FC = () => {
       setInviteRole(role);
       if (role !== 'owner') {
         setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE[role]);
+      }
+      // Reset partner organization if role is not partner
+      if (role !== 'partner') {
+        setInvitePartnerOrg('');
       }
       setShowRoleMenu(false);
     }
@@ -404,9 +433,12 @@ const MembersScreen: React.FC = () => {
       setSearchedUsers([]);
       setInviteRole('member');
       setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE.member);
-    }}>
+      setInvitePartnerOrg('');
+    }} style={styles.inviteDialog}>
       <Dialog.Title>Invite Team Member</Dialog.Title>
-      <Dialog.Content>
+      <Dialog.ScrollArea style={styles.inviteDialogScrollArea}>
+        <ScrollView showsVerticalScrollIndicator={true}>
+        <View style={styles.dialogContentContainer}>
         <Text variant="bodyMedium" style={styles.inviteHelpText}>
           Search for a registered user to invite to this project. They will receive a notification to accept the invitation.
         </Text>
@@ -507,6 +539,51 @@ const MembersScreen: React.FC = () => {
             ))}
         </Menu>
 
+        {inviteRole === 'partner' && project?.partner_organizations && project.partner_organizations.length > 0 && (
+          <>
+            <Text variant="labelMedium" style={styles.sectionLabel}>
+              Partner Organization *
+            </Text>
+            <Menu
+              visible={showPartnerMenu}
+              onDismiss={() => setShowPartnerMenu(false)}
+              anchor={
+                <Button
+                  mode="outlined"
+                  onPress={() => setShowPartnerMenu(true)}
+                  style={styles.roleButton}
+                  icon="chevron-down"
+                  contentStyle={styles.roleButtonContent}
+                >
+                  {invitePartnerOrg || 'Select Partner Organization'}
+                </Button>
+              }
+            >
+              {project.partner_organizations.map((partner: any) => (
+                <Menu.Item
+                  key={partner.name}
+                  onPress={() => {
+                    setInvitePartnerOrg(partner.name);
+                    setShowPartnerMenu(false);
+                  }}
+                  title={partner.name}
+                />
+              ))}
+            </Menu>
+            <Text variant="bodySmall" style={styles.helperText}>
+              This member will only see questions and responses for {invitePartnerOrg || 'the selected partner'}
+            </Text>
+          </>
+        )}
+
+        {inviteRole === 'partner' && (!project?.partner_organizations || project.partner_organizations.length === 0) && (
+          <View style={styles.warningBox}>
+            <Text variant="bodySmall" style={styles.warningText}>
+              ⚠️ No partner organizations configured for this project. Please add partner organizations in project settings before inviting partner members.
+            </Text>
+          </View>
+        )}
+
         <Text variant="labelMedium" style={styles.sectionLabel}>
           Permissions
         </Text>
@@ -526,7 +603,9 @@ const MembersScreen: React.FC = () => {
               style={styles.permissionItem}
             />
           ))}
-      </Dialog.Content>
+        </View>
+        </ScrollView>
+      </Dialog.ScrollArea>
       <Dialog.Actions>
         <Button onPress={() => setShowInviteDialog(false)} disabled={isInviting}>
           Cancel
@@ -938,6 +1017,35 @@ const styles = StyleSheet.create({
   editMemberName: {
     fontWeight: 'bold',
     marginBottom: 8,
+  },
+  helperText: {
+    color: '#6c757d',
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  warningBox: {
+    backgroundColor: '#fff3cd',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff9800',
+    padding: 12,
+    marginVertical: 12,
+    borderRadius: 4,
+  },
+  warningText: {
+    color: '#856404',
+  },
+  inviteDialog: {
+    maxHeight: '85%',
+  },
+  inviteDialogScrollArea: {
+    maxHeight: 450,
+    paddingHorizontal: 0,
+  },
+  dialogContentContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 8,
   },
 });
 

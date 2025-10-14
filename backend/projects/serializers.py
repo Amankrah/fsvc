@@ -6,11 +6,15 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
     invited_by_details = UserSerializer(source='invited_by', read_only=True)
     permissions_list = serializers.SerializerMethodField()
-    
+    is_partner = serializers.SerializerMethodField()
+    partner_config = serializers.SerializerMethodField()
+    accessible_question_sources = serializers.SerializerMethodField()
+
     class Meta:
         model = ProjectMember
         fields = [
             'id', 'user', 'user_details', 'role', 'permissions', 'permissions_list',
+            'partner_organization', 'is_partner', 'partner_config', 'accessible_question_sources',
             'joined_at', 'invited_by', 'invited_by_details'
         ]
         read_only_fields = ['id', 'joined_at', 'invited_by']
@@ -18,7 +22,29 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     def get_permissions_list(self, obj):
         """Get permissions as a list"""
         return obj.get_permissions_list()
-    
+
+    def get_is_partner(self, obj):
+        """Check if member is a partner"""
+        return obj.is_partner()
+
+    def get_partner_config(self, obj):
+        """Get partner database configuration (without sensitive data for non-owners)"""
+        config = obj.get_partner_config()
+        if not config:
+            return None
+
+        # Only return safe fields, hide API keys from serialization
+        return {
+            'name': config.get('name'),
+            'contact_email': config.get('contact_email'),
+            'has_database_endpoint': bool(config.get('database_endpoint')),
+            'has_api_key': bool(config.get('api_key')),
+        }
+
+    def get_accessible_question_sources(self, obj):
+        """Get list of question sources this member can access"""
+        return obj.get_accessible_question_sources()
+
     def validate_user(self, value):
         """Validate that user can be added to project"""
         project = self.context.get('project')
@@ -34,20 +60,49 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         """Validate permissions format"""
         if not value:
             return 'view_project,view_responses'
-        
+
         # If it's a list, convert to string
         if isinstance(value, list):
             return ','.join(value)
-        
+
         # Validate that permissions are valid
         valid_permissions = [choice[0] for choice in ProjectMember.PERMISSION_CHOICES]
         permissions_list = value.split(',') if isinstance(value, str) else value
-        
+
         for perm in permissions_list:
             if perm.strip() not in valid_permissions:
                 raise serializers.ValidationError(f"Invalid permission: {perm}")
-        
+
         return value
+
+    def validate(self, attrs):
+        """Validate member data including partner organization"""
+        project = self.context.get('project')
+        role = attrs.get('role')
+        partner_org = attrs.get('partner_organization')
+
+        # If role is 'partner', partner_organization must be provided
+        if role == 'partner':
+            if not partner_org:
+                raise serializers.ValidationError({
+                    'partner_organization': 'Partner organization is required for partner role.'
+                })
+
+            # Validate that partner organization exists in project config
+            if project:
+                partner_names = [p.get('name') for p in project.partner_organizations]
+                if partner_org not in partner_names:
+                    raise serializers.ValidationError({
+                        'partner_organization': f'Partner organization "{partner_org}" not found in project configuration. Available partners: {", ".join(partner_names)}'
+                    })
+
+        # If partner_organization is provided, role must be 'partner'
+        if partner_org and role != 'partner':
+            raise serializers.ValidationError({
+                'partner_organization': 'Partner organization can only be set for members with role="partner".'
+            })
+
+        return attrs
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -63,10 +118,12 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'created_by', 'created_by_details',
             'created_at', 'updated_at', 'sync_status', 'cloud_id',
-            'settings', 'metadata', 'question_count', 'response_count', 
-            'team_members_count', 'team_members', 'user_permissions'
+            'settings', 'metadata', 'question_count', 'response_count',
+            'team_members_count', 'team_members', 'user_permissions',
+            'has_partners', 'partner_organizations', 'owner_database_endpoint',
+            'targeted_respondents', 'targeted_commodities', 'targeted_countries'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'question_count', 'response_count', 
+        read_only_fields = ['id', 'created_at', 'updated_at', 'question_count', 'response_count',
                            'team_members_count', 'team_members', 'user_permissions', 'created_by']
         
     def validate_name(self, value):
@@ -93,7 +150,46 @@ class ProjectSerializer(serializers.ModelSerializer):
         if value and len(value) > 1000:
             raise serializers.ValidationError("Description cannot exceed 1000 characters.")
         return value
-        
+
+    def validate_partner_organizations(self, value):
+        """Validate that partner user IDs exist and are registered users"""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        if not value:
+            return value
+
+        for partner in value:
+            # Check if user_id is provided
+            user_id = partner.get('user_id')
+            if not user_id:
+                raise serializers.ValidationError(
+                    f"Partner '{partner.get('name', 'unknown')}' must have a user_id. "
+                    "Partners must be registered users on the platform."
+                )
+
+            # Verify that the user exists
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"User with ID '{user_id}' does not exist. "
+                    "Partners must be registered users on the platform."
+                )
+            except ValueError:
+                raise serializers.ValidationError(
+                    f"Invalid user_id format: '{user_id}'"
+                )
+
+            # Optionally verify that the user is not the project creator
+            request = self.context.get('request')
+            if request and user.id == request.user.id:
+                raise serializers.ValidationError(
+                    "You cannot add yourself as a partner organization."
+                )
+
+        return value
+
     def get_question_count(self, obj):
         """Get the number of questions in this project"""
         return obj.questions.count()

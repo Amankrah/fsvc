@@ -7,9 +7,10 @@ interface ProjectCardProps {
   project: Project;
   onPress: (project: Project) => void;
   onMenuPress?: (project: Project) => void;
+  onEditPress?: (project: Project) => void;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress, onEditPress }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -124,6 +125,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress
                 Updated {formatDate(project.updated_at)}
               </Text>
             </View>
+            {onEditPress && (
+              <IconButton
+                icon="pencil"
+                size={20}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPress(project);
+                }}
+                style={styles.editButton}
+              />
+            )}
           </View>
         </Card.Content>
       </Card>
@@ -198,6 +210,9 @@ const styles = StyleSheet.create({
   },
   dateText: {
     color: '#999',
+  },
+  editButton: {
+    margin: 0,
   },
 });
 

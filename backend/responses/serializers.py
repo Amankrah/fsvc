@@ -3,6 +3,10 @@ from .models import Response, Respondent
 from projects.serializers import ProjectSerializer
 from forms.serializers import QuestionSerializer
 from authentication.serializers import UserSerializer
+from .database_router import get_database_router
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RespondentSerializer(serializers.ModelSerializer):
     """Serializer for the Respondent model"""
@@ -15,7 +19,8 @@ class RespondentSerializer(serializers.ModelSerializer):
         model = Respondent
         fields = [
             'id', 'respondent_id', 'project', 'project_details', 'name', 'email', 'phone',
-            'demographics', 'location_data', 'created_at', 'last_response_at', 
+            'respondent_type', 'commodity', 'country',
+            'demographics', 'location_data', 'created_at', 'last_response_at',
             'is_anonymous', 'consent_given', 'sync_status', 'created_by', 'created_by_details',
             'response_count', 'completion_rate'
         ]
@@ -59,19 +64,24 @@ class ResponseSerializer(serializers.ModelSerializer):
     location_summary = serializers.SerializerMethodField()
     device_summary = serializers.SerializerMethodField()
     is_complete = serializers.SerializerMethodField()
+    routing_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = Response
         fields = [
-            'response_id', 'project', 'project_details', 'question', 'question_details', 
+            'response_id', 'project', 'project_details', 'question', 'question_details',
             'respondent', 'respondent_details', 'response_value', 'response_metadata',
-            'collected_at', 'collected_by', 'collected_by_details', 'location_data', 
+            'question_bank_context',
+            'collected_at', 'collected_by', 'collected_by_details', 'location_data',
             'device_info', 'is_validated', 'validation_errors', 'data_quality_score',
-            'sync_status', 'synced_at', 'location_summary', 'device_summary', 'is_complete'
+            'sync_status', 'synced_at', 'location_summary', 'device_summary', 'is_complete',
+            'database_routing_status', 'routing_attempts', 'routing_complete', 'routing_summary'
         ]
-        read_only_fields = ['response_id', 'collected_at', 'synced_at', 'is_validated', 
-                           'validation_errors', 'data_quality_score', 'location_summary', 
-                           'device_summary', 'is_complete']
+        read_only_fields = ['response_id', 'collected_at', 'synced_at', 'is_validated',
+                           'validation_errors', 'data_quality_score', 'location_summary',
+                           'device_summary', 'is_complete', 'question_bank_context',
+                           'database_routing_status', 'routing_attempts', 'routing_complete',
+                           'routing_summary']
     
     def get_location_summary(self, obj):
         """Get location data summary"""
@@ -84,6 +94,10 @@ class ResponseSerializer(serializers.ModelSerializer):
     def get_is_complete(self, obj):
         """Check if response is complete"""
         return obj.is_complete()
+
+    def get_routing_summary(self, obj):
+        """Get database routing summary"""
+        return obj.get_routing_summary()
     
     def validate(self, attrs):
         """Validate that question belongs to the specified project and respondent belongs to same project"""
@@ -131,18 +145,38 @@ class ResponseSerializer(serializers.ModelSerializer):
         return str_value
     
     def create(self, validated_data):
-        """Override create to perform validation and quality scoring"""
+        """Override create to perform validation, quality scoring, and database routing"""
         response = super().create(validated_data)
-        
+
         # Validate the response against question rules
         response.validate_response()
-        
+
         # Calculate quality score
         response.calculate_quality_score()
-        
+
         # Save the validation results and quality score
         response.save(update_fields=['is_validated', 'validation_errors', 'data_quality_score'])
-        
+
+        # Route response to all target databases based on question sources
+        try:
+            router = get_database_router()
+            routing_results = router.route_response(response)
+
+            # Update routing status
+            response.update_routing_status(routing_results)
+
+            logger.info(
+                f"Response {response.response_id} routed to {routing_results.get('total_endpoints', 0)} endpoints. "
+                f"Successful: {routing_results.get('successful_submissions', 0)}, "
+                f"Failed: {routing_results.get('failed_submissions', 0)}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"Error routing response {response.response_id} to databases: {str(e)}"
+            )
+            # Don't fail the response creation if routing fails
+            # The response is saved locally and routing can be retried
+
         return response
     
     def update(self, instance, validated_data):

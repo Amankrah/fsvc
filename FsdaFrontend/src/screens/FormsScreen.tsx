@@ -19,7 +19,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
-import { Project } from '../types';
+import { Project, Question } from '../types';
 
 const FormsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -30,6 +30,7 @@ const FormsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState<{ [key: string]: boolean }>({});
+  const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'owner' | 'partner'>('all');
 
   useFocusEffect(
     useCallback(() => {
@@ -83,15 +84,18 @@ const FormsScreen: React.FC = () => {
   const handleViewQuestions = async (projectId: string) => {
     try {
       const questions = await apiService.getQuestions(projectId);
-      const questionList = Array.isArray(questions) ? questions : questions.results || [];
+      const questionList: Question[] = Array.isArray(questions) ? questions : questions.results || [];
 
-      Alert.alert(
-        'Form Questions',
-        questionList.length > 0
-          ? `This form has ${questionList.length} question${questionList.length !== 1 ? 's' : ''}`
-          : 'This form has no questions yet',
-        [{ text: 'OK' }]
-      );
+      const ownerQuestions = questionList.filter(q => q.is_owner_question !== false);
+      const partnerQuestions = questionList.filter(q => q.is_owner_question === false);
+
+      const message = questionList.length > 0
+        ? `Total: ${questionList.length} question${questionList.length !== 1 ? 's' : ''}\n` +
+          `Owner: ${ownerQuestions.length}\n` +
+          `Partner: ${partnerQuestions.length}`
+        : 'This form has no questions yet';
+
+      Alert.alert('Form Questions', message, [{ text: 'OK' }]);
     } catch (error) {
       Alert.alert('Error', 'Failed to load questions');
     }
@@ -128,6 +132,11 @@ const FormsScreen: React.FC = () => {
                 {item.sync_status === 'pending' && (
                   <View style={styles.pendingChip}>
                     <Text style={styles.pendingChipText}>⏳ Pending</Text>
+                  </View>
+                )}
+                {item.has_partners && (
+                  <View style={styles.partnersChip}>
+                    <Text style={styles.partnersChipText}>🤝 Partners</Text>
                   </View>
                 )}
               </View>
@@ -167,6 +176,29 @@ const FormsScreen: React.FC = () => {
             <Text variant="bodyMedium" style={styles.description}>
               {item.description}
             </Text>
+          )}
+
+          {(item.targeted_respondents || item.targeted_commodities) && (
+            <View style={styles.targetingInfo}>
+              {item.targeted_respondents && item.targeted_respondents.length > 0 && (
+                <View style={styles.targetingRow}>
+                  <Text variant="bodySmall" style={styles.targetingLabel}>Respondents:</Text>
+                  <Text variant="bodySmall" style={styles.targetingValue}>
+                    {item.targeted_respondents.slice(0, 3).join(', ')}
+                    {item.targeted_respondents.length > 3 && ` +${item.targeted_respondents.length - 3} more`}
+                  </Text>
+                </View>
+              )}
+              {item.targeted_commodities && item.targeted_commodities.length > 0 && (
+                <View style={styles.targetingRow}>
+                  <Text variant="bodySmall" style={styles.targetingLabel}>Commodities:</Text>
+                  <Text variant="bodySmall" style={styles.targetingValue}>
+                    {item.targeted_commodities.slice(0, 3).join(', ')}
+                    {item.targeted_commodities.length > 3 && ` +${item.targeted_commodities.length - 3} more`}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
 
           <View style={styles.stats}>
@@ -426,6 +458,41 @@ const styles = StyleSheet.create({
     color: '#ff9800',
     fontSize: 11,
     fontWeight: '600',
+  },
+  partnersChip: {
+    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.4)',
+  },
+  partnersChipText: {
+    color: '#64c8ff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  targetingInfo: {
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  targetingRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  targetingLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  targetingValue: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    flex: 1,
   },
   menuButton: {
     backgroundColor: 'rgba(75, 30, 133, 0.6)',
