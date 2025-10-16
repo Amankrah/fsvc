@@ -86,20 +86,39 @@ const FormBuilderScreen: React.FC = () => {
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [responseTypes, setResponseTypes] = useState<ResponseTypeInfo[]>([]);
 
-  // New question form state
-  const [newQuestion, setNewQuestion] = useState<CreateQuestionData>({
+  // New question form state - matching QuestionBank structure
+  const [newQuestion, setNewQuestion] = useState<any>({
     question_text: '',
+    question_category: 'production',
     response_type: 'text_short',
     is_required: true,
     allow_multiple: false,
     options: [],
     validation_rules: {},
-    is_owner_question: true,
     targeted_respondents: [],
+    targeted_commodities: [],
+    targeted_countries: [],
+    data_source: 'internal',
+    research_partner_name: '',
+    research_partner_contact: '',
+    work_package: '',
+    priority_score: 5,
+    is_active: true,
+    tags: [],
   });
   const [optionInput, setOptionInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Text');
   const [selectedTargetedRespondents, setSelectedTargetedRespondents] = useState<RespondentType[]>([]);
+  const [selectedCommodities, setSelectedCommodities] = useState<string[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  
+  // QuestionBank field choices
+  const [questionBankChoices, setQuestionBankChoices] = useState<any>({
+    categories: [],
+    data_sources: [],
+    commodities: [],
+    respondents: [],
+  });
 
   // Import/Export state
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
@@ -110,6 +129,7 @@ const FormBuilderScreen: React.FC = () => {
   useEffect(() => {
     loadProjectAndQuestions();
     loadResponseTypes();
+    loadQuestionBankChoices();
   }, []);
 
   const loadProjectAndQuestions = async () => {
@@ -152,6 +172,15 @@ const FormBuilderScreen: React.FC = () => {
     }
   };
 
+  const loadQuestionBankChoices = async () => {
+    try {
+      const choices = await apiService.getQuestionBankChoices();
+      setQuestionBankChoices(choices);
+    } catch (error) {
+      console.error('Error loading QuestionBank choices:', error);
+    }
+  };
+
   const handleAddQuestion = async () => {
     if (!newQuestion.question_text.trim()) {
       Alert.alert('Validation Error', 'Please enter a question text');
@@ -168,16 +197,22 @@ const FormBuilderScreen: React.FC = () => {
       setSaving(true);
       const questionBankData = {
         question_text: newQuestion.question_text,
-        question_category: 'general', // Default category, can be made configurable
-        targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : ['farmers'],
-        targeted_commodities: project?.targeted_commodities || [],
-        targeted_countries: project?.targeted_countries || [],
+        question_category: newQuestion.question_category,
+        targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : [],
+        targeted_commodities: selectedCommodities,
+        targeted_countries: selectedCountries,
         response_type: newQuestion.response_type,
         is_required: newQuestion.is_required,
         allow_multiple: newQuestion.allow_multiple,
         options: newQuestion.options,
         validation_rules: newQuestion.validation_rules,
-        is_active: true,
+        data_source: newQuestion.data_source,
+        research_partner_name: newQuestion.research_partner_name,
+        research_partner_contact: newQuestion.research_partner_contact,
+        work_package: newQuestion.work_package,
+        priority_score: newQuestion.priority_score,
+        is_active: newQuestion.is_active,
+        tags: newQuestion.tags,
         base_project: projectId,
       };
 
@@ -187,16 +222,27 @@ const FormBuilderScreen: React.FC = () => {
       // Reset form
       setNewQuestion({
         question_text: '',
+        question_category: 'production',
         response_type: 'text_short',
         is_required: true,
         allow_multiple: false,
         options: [],
         validation_rules: {},
-        is_owner_question: true,
         targeted_respondents: [],
+        targeted_commodities: [],
+        targeted_countries: [],
+        data_source: 'internal',
+        research_partner_name: '',
+        research_partner_contact: '',
+        work_package: '',
+        priority_score: 5,
+        is_active: true,
+        tags: [],
       });
       setOptionInput('');
       setSelectedTargetedRespondents([]);
+      setSelectedCommodities([]);
+      setSelectedCountries([]);
       setShowAddDialog(false);
       Alert.alert('Success', 'Question added to your Question Bank');
     } catch (error: any) {
@@ -212,6 +258,8 @@ const FormBuilderScreen: React.FC = () => {
       prev.includes(respondent) ? prev.filter(r => r !== respondent) : [...prev, respondent]
     );
   };
+
+  const COUNTRY_OPTIONS = ['Ghana', 'Nigeria', 'Kenya', 'Tanzania', 'Uganda', 'Ethiopia', 'South Africa', 'Senegal', 'Mali', 'Burkina Faso', 'Côte d\'Ivoire', 'Cameroon', 'Other'];
 
   const handleOpenEditDialog = (question: Question) => {
     setEditingQuestion(question);
@@ -657,7 +705,99 @@ const FormBuilderScreen: React.FC = () => {
                 />
 
                 <Text variant="labelLarge" style={styles.label}>
-                  Question Type
+                  Question Category *
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                  {questionBankChoices.categories && questionBankChoices.categories.map((cat: any) => (
+                    <Chip
+                      key={cat.value}
+                      selected={newQuestion.question_category === cat.value}
+                      onPress={() => setNewQuestion({ ...newQuestion, question_category: cat.value })}
+                      style={[
+                        styles.categoryChip,
+                        newQuestion.question_category === cat.value && styles.selectedCategoryChip
+                      ]}
+                      textStyle={styles.categoryChipText}>
+                      {cat.label}
+                    </Chip>
+                  ))}
+                </ScrollView>
+
+                <Text variant="labelLarge" style={styles.label}>
+                  Data Source
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                  {questionBankChoices.data_sources && questionBankChoices.data_sources.map((source: any) => (
+                    <Chip
+                      key={source.value}
+                      selected={newQuestion.data_source === source.value}
+                      onPress={() => setNewQuestion({ ...newQuestion, data_source: source.value })}
+                      style={[
+                        styles.categoryChip,
+                        newQuestion.data_source === source.value && styles.selectedCategoryChip
+                      ]}
+                      textStyle={styles.categoryChipText}>
+                      {source.label}
+                    </Chip>
+                  ))}
+                </ScrollView>
+
+                {newQuestion.data_source !== 'internal' && (
+                  <View style={styles.partnerSelectionSection}>
+                    <TextInput
+                      label="Research Partner Name"
+                      value={newQuestion.research_partner_name}
+                      onChangeText={(text) => setNewQuestion({ ...newQuestion, research_partner_name: text })}
+                      mode="outlined"
+                      style={styles.input}
+                      textColor="#ffffff"
+                      theme={{
+                        colors: {
+                          primary: '#64c8ff',
+                          onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                          outline: 'rgba(100, 200, 255, 0.5)',
+                        },
+                      }}
+                    />
+                    <TextInput
+                      label="Partner Contact Email"
+                      value={newQuestion.research_partner_contact}
+                      onChangeText={(text) => setNewQuestion({ ...newQuestion, research_partner_contact: text })}
+                      mode="outlined"
+                      keyboardType="email-address"
+                      style={styles.input}
+                      textColor="#ffffff"
+                      theme={{
+                        colors: {
+                          primary: '#64c8ff',
+                          onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                          outline: 'rgba(100, 200, 255, 0.5)',
+                        },
+                      }}
+                    />
+                  </View>
+                )}
+
+                <TextInput
+                  label="Work Package (Optional)"
+                  value={newQuestion.work_package}
+                  onChangeText={(text) => setNewQuestion({ ...newQuestion, work_package: text })}
+                  mode="outlined"
+                  placeholder="e.g., WP1, WP2"
+                  style={styles.input}
+                  textColor="#ffffff"
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  theme={{
+                    colors: {
+                      primary: '#64c8ff',
+                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                      outline: 'rgba(100, 200, 255, 0.5)',
+                    },
+                  }}
+                />
+
+                <Text variant="labelLarge" style={styles.label}>
+                  Response Type
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
                   {RESPONSE_TYPE_CATEGORIES.map((category) => (
@@ -724,7 +864,7 @@ const FormBuilderScreen: React.FC = () => {
                       </Button>
                     </View>
                     <View style={styles.optionsList}>
-                      {newQuestion.options?.map((option, index) => (
+                      {newQuestion.options?.map((option: string, index: number) => (
                         <Chip
                           key={index}
                           onClose={() => removeOption(index)}
@@ -764,6 +904,60 @@ const FormBuilderScreen: React.FC = () => {
                     </View>
                   </View>
                 )}
+
+                <View style={styles.respondentsSection}>
+                  <Text variant="labelLarge" style={styles.label}>
+                    Targeted Commodities
+                  </Text>
+                  <Text variant="bodySmall" style={styles.labelHint}>
+                    Select commodities this question applies to (leave empty for all)
+                  </Text>
+                  <View style={styles.respondentChipsContainer}>
+                    {questionBankChoices.commodities && questionBankChoices.commodities.map((commodity: any) => (
+                      <Chip
+                        key={commodity.value}
+                        selected={selectedCommodities.includes(commodity.value)}
+                        onPress={() => {
+                          setSelectedCommodities(prev =>
+                            prev.includes(commodity.value)
+                              ? prev.filter(c => c !== commodity.value)
+                              : [...prev, commodity.value]
+                          );
+                        }}
+                        style={[
+                          styles.respondentChip,
+                          selectedCommodities.includes(commodity.value) && styles.selectedRespondentChip
+                        ]}
+                        textStyle={styles.respondentChipText}>
+                        {commodity.label}
+                      </Chip>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.respondentsSection}>
+                  <Text variant="labelLarge" style={styles.label}>
+                    Priority Score (1-10)
+                  </Text>
+                  <Text variant="bodySmall" style={styles.labelHint}>
+                    Higher priority questions are selected first (10 = highest)
+                  </Text>
+                  <View style={styles.respondentChipsContainer}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+                      <Chip
+                        key={score}
+                        selected={newQuestion.priority_score === score}
+                        onPress={() => setNewQuestion({ ...newQuestion, priority_score: score })}
+                        style={[
+                          styles.respondentChip,
+                          newQuestion.priority_score === score && styles.selectedRespondentChip
+                        ]}
+                        textStyle={styles.respondentChipText}>
+                        {score}
+                      </Chip>
+                    ))}
+                  </View>
+                </View>
 
                 <Divider style={styles.dividerInDialog} />
 
@@ -994,7 +1188,7 @@ const FormBuilderScreen: React.FC = () => {
                       </Button>
                     </View>
                     <View style={styles.optionsList}>
-                      {newQuestion.options?.map((option, index) => (
+                      {newQuestion.options?.map((option: string, index: number) => (
                         <Chip
                           key={index}
                           onClose={() => removeOption(index)}
