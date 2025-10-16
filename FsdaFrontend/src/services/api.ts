@@ -186,7 +186,8 @@ class ApiService {
 
   // Form/Question endpoints
   async getQuestions(projectId: string) {
-    return await this.get(`/forms/questions/?project_id=${projectId}`);
+    // Set page_size to a large number to get all questions (backend max is 100, but we can request more)
+    return await this.get(`/forms/questions/?project_id=${projectId}&page_size=1000`);
   }
 
   async getQuestion(id: string) {

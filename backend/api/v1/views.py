@@ -93,7 +93,11 @@ def dashboard_stats(request):
         ).count()
         
         # Response completion rate - user-specific
-        total_questions = Question.objects.filter(project__in=user_projects).count()
+        # Count actual Question instances in user's projects
+        from forms.models import Question
+        total_questions = Question.objects.filter(
+            project__in=user_projects
+        ).count()
         completed_responses = ResponseModel.objects.filter(
             project__in=user_projects,
             response_value__isnull=False

@@ -192,6 +192,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_question_count(self, obj):
         """Get the number of questions in this project"""
+        # Count actual Question instances in the project, not QuestionBank items
         return obj.questions.count()
     
     def get_response_count(self, obj):

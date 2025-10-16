@@ -29,13 +29,13 @@ class QuestionImportExport:
 
     # Column descriptions for template
     COLUMN_DESCRIPTIONS = {
-        'question_text': 'The actual question text (REQUIRED)',
-        'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (REQUIRED)',
-        'question_source': 'Source: owner, partner_name, or owner,partner_name (REQUIRED)',
-        'targeted_respondents': 'Comma-separated: farmers,processors,retailers (REQUIRED)',
-        'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (REQUIRED)',
-        'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (REQUIRED)',
-        'is_required': 'true or false - Is this question required? (default: true)',
+        'question_text': 'The actual question text (must be filled)',
+        'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (must be filled)',
+        'question_source': 'Source: owner, partner_name, or owner,partner_name (must be filled)',
+        'targeted_respondents': 'Comma-separated: farmers,processors,retailers_food_vendors (must be filled)',
+        'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (must be filled)',
+        'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (must be filled)',
+        'is_required': 'true or false - Should respondents be required to answer this question? (default: true)',
         'options': 'For choice questions only: Option1|Option2|Option3 (pipe-separated)',
     }
 

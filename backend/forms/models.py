@@ -115,7 +115,16 @@ class QuestionBank(models.Model):
         blank=True,
         help_text="Contact email for the research partner"
     )
-    
+    is_owner_question = models.BooleanField(
+        default=False,
+        help_text="Whether this question is created by the project owner"
+    )
+    question_sources = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of sources (owner and/or partner names) for this question"
+    )
+
     # Work package and project linking
     work_package = models.CharField(
         max_length=100,
@@ -227,8 +236,17 @@ class QuestionBank(models.Model):
             
         return True
     
-    def create_question_instance(self, project, order_index=0):
+    def create_question_instance(self, project, order_index=None):
         """Create a Question instance from this QuestionBank item for a specific project"""
+        from django.db.models import Max
+        
+        # Auto-calculate order_index if not provided
+        if order_index is None:
+            max_order = Question.objects.filter(project=project).aggregate(
+                max_order=Max('order_index')
+            )['max_order']
+            order_index = (max_order or -1) + 1
+        
         return Question.objects.create(
             project=project,
             question_bank_source=self,
@@ -239,6 +257,9 @@ class QuestionBank(models.Model):
             options=self.options,
             validation_rules=self.validation_rules,
             order_index=order_index,
+            targeted_respondents=self.targeted_respondents,
+            is_owner_question=self.is_owner_question,
+            question_sources=self.question_sources,
         )
     
     @classmethod
@@ -622,36 +643,81 @@ class Question(models.Model):
                                              commodity=None, country=None, 
                                              categories=None, work_packages=None):
         """Generate dynamic questions from QuestionBank for a specific project"""
+        from django.db.models import Max
+        
         questions = []
         
-        # Get applicable questions from QuestionBank
-        bank_questions = QuestionBank.get_questions_for_respondent(
-            respondent_type=respondent_type,
-            commodity=commodity,
-            country=country
-        )
-        
+        # Get all active questions and filter in Python (SQLite compatible)
+        all_bank_questions = list(QuestionBank.objects.filter(is_active=True))
+
+        # Filter by respondent type
+        bank_questions = [
+            q for q in all_bank_questions
+            if respondent_type in (q.targeted_respondents or [])
+        ]
+
+        # Filter by commodity
+        if commodity:
+            commodities = [c.strip() for c in commodity.split(',')]
+            bank_questions = [
+                q for q in bank_questions
+                if not q.targeted_commodities or
+                   any(c in (q.targeted_commodities or []) for c in commodities)
+            ]
+
+        # Filter by country
+        if country:
+            bank_questions = [
+                q for q in bank_questions
+                if not q.targeted_countries or country in (q.targeted_countries or [])
+            ]
+
         # Filter by categories if specified
         if categories:
-            bank_questions = bank_questions.filter(question_category__in=categories)
-        
+            bank_questions = [q for q in bank_questions if q.question_category in categories]
+
         # Filter by work packages if specified
         if work_packages:
-            bank_questions = bank_questions.filter(work_package__in=work_packages)
+            bank_questions = [q for q in bank_questions if q.work_package in work_packages]
+
+        # Sort by priority
+        bank_questions.sort(key=lambda q: (-q.priority_score, q.question_category))
         
-        # Create Question instances
-        current_order = cls.objects.filter(project=project).count()
+        # Get the maximum order_index to avoid conflicts (more reliable than count)
+        max_order = cls.objects.filter(project=project).aggregate(
+            max_order=Max('order_index')
+        )['max_order']
+        current_order = (max_order or -1) + 1
         
         for bank_question in bank_questions:
-            question = bank_question.create_question_instance(
+            # Check if question already exists to avoid duplicates
+            existing = cls.objects.filter(
                 project=project,
-                order_index=current_order
+                question_text=bank_question.question_text
+            ).first()
+            
+            if existing:
+                # Skip if question already exists
+                continue
+            
+            # Create question with proper order_index
+            question = cls.objects.create(
+                project=project,
+                question_bank_source=bank_question,
+                question_text=bank_question.question_text,
+                response_type=bank_question.response_type,
+                is_required=bank_question.is_required,
+                allow_multiple=bank_question.allow_multiple,
+                options=bank_question.options,
+                validation_rules=bank_question.validation_rules,
+                order_index=current_order,
+                assigned_respondent_type=respondent_type,
+                assigned_commodity=commodity or '',
+                assigned_country=country or '',
+                targeted_respondents=bank_question.targeted_respondents,
+                is_owner_question=bank_question.is_owner_question,
+                question_sources=bank_question.question_sources,
             )
-            # Set assignment metadata
-            question.assigned_respondent_type = respondent_type
-            question.assigned_commodity = commodity or ''
-            question.assigned_country = country or ''
-            question.save()
             
             questions.append(question)
             current_order += 1
