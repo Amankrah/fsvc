@@ -64,7 +64,13 @@ const DataCollectionScreen: React.FC = () => {
   const [currentLocationQuestion, setCurrentLocationQuestion] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', address: '' });
 
-  // Project-specific metadata (from project configuration) - REQUIRED for question generation
+  // Available options from QuestionBank (dynamically fetched)
+  const [availableRespondentTypes, setAvailableRespondentTypes] = useState<Array<{value: string, display: string}>>([]);
+  const [availableCommodities, setAvailableCommodities] = useState<Array<{value: string, display: string}>>([]);
+  const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // Project-specific metadata (from QuestionBank) - REQUIRED for question generation
   const [selectedRespondentType, setSelectedRespondentType] = useState<RespondentType | ''>('');
   const [selectedCommodities, setSelectedCommodities] = useState<CommodityType[]>([]); // Multiple commodities
   const [selectedCountry, setSelectedCountry] = useState('');
@@ -73,6 +79,7 @@ const DataCollectionScreen: React.FC = () => {
 
   useEffect(() => {
     loadProject();
+    loadAvailableOptions();
     // Auto-generate respondent ID on mount
     if (useAutoId) {
       generateNewRespondentId();
@@ -95,6 +102,28 @@ const DataCollectionScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to load project details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableOptions = async () => {
+    try {
+      setLoadingOptions(true);
+      const response = await apiService.getAvailableQuestionBankOptions(projectId);
+      
+      // Set the available options from QuestionBank
+      setAvailableRespondentTypes(response.available_options.respondent_types || []);
+      setAvailableCommodities(response.available_options.commodities || []);
+      setAvailableCountries(response.available_options.countries || []);
+      
+      console.log('Available options loaded:', response.summary);
+    } catch (error: any) {
+      console.error('Error loading available options:', error);
+      Alert.alert(
+        'Warning', 
+        'Could not load available question options. Question generation may not work properly.'
+      );
+    } finally {
+      setLoadingOptions(false);
     }
   };
 
@@ -707,67 +736,83 @@ const DataCollectionScreen: React.FC = () => {
                       Respondent Profile & Question Generation *
                     </Text>
                     <Text variant="bodySmall" style={styles.sectionSubtitle}>
-                      Select respondent profile to generate targeted questions
+                      Select respondent profile to generate targeted questions from Question Bank
                     </Text>
                   </View>
 
-                  {project && (
+                  {loadingOptions ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="#64c8ff" />
+                      <Text variant="bodySmall" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                        Loading available options...
+                      </Text>
+                    </View>
+                  ) : (
                     <View style={styles.dynamicForm}>
-                      {/* Respondent Type Selection - From Project Configuration */}
-                      {project.targeted_respondents && project.targeted_respondents.length > 0 && (
+                      {/* Respondent Type Selection - From QuestionBank */}
+                      {availableRespondentTypes.length > 0 ? (
                         <View style={styles.fieldContainer}>
                           <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Respondent Type * (from project)
+                            Respondent Type * ({availableRespondentTypes.length} available in Question Bank)
                           </Text>
                           <View style={styles.choiceContainer}>
-                            {project.targeted_respondents.map((respondent) => (
+                            {availableRespondentTypes.map((respondent) => (
                               <TouchableOpacity
-                                key={respondent}
+                                key={respondent.value}
                                 style={[
                                   styles.choiceButton,
-                                  selectedRespondentType === respondent && styles.choiceButtonSelected
+                                  selectedRespondentType === respondent.value && styles.choiceButtonSelected
                                 ]}
-                                onPress={() => setSelectedRespondentType(respondent)}
+                                onPress={() => setSelectedRespondentType(respondent.value as RespondentType)}
                               >
                                 <Text style={[
                                   styles.choiceButtonText,
-                                  selectedRespondentType === respondent && styles.choiceButtonTextSelected
+                                  selectedRespondentType === respondent.value && styles.choiceButtonTextSelected
                                 ]}>
-                                  {respondent}
+                                  {respondent.display}
                                 </Text>
                               </TouchableOpacity>
                             ))}
                           </View>
                         </View>
+                      ) : (
+                        <View style={styles.fieldContainer}>
+                          <Text variant="bodyMedium" style={{ color: '#ff6b6b', textAlign: 'center' }}>
+                            No respondent types available in Question Bank
+                          </Text>
+                          <Text variant="bodySmall" style={{ color: 'rgba(255, 255, 255, 0.6)', textAlign: 'center', marginTop: 4 }}>
+                            Please add questions to the Question Bank first
+                          </Text>
+                        </View>
                       )}
 
-                      {/* Commodity Selection - From Project Configuration - MULTIPLE SELECTION */}
-                      {project.targeted_commodities && project.targeted_commodities.length > 0 && (
+                      {/* Commodity Selection - From QuestionBank - MULTIPLE SELECTION */}
+                      {availableCommodities.length > 0 && (
                         <View style={styles.fieldContainer}>
                           <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Commodity of Interest (from project) - Select one or more
+                            Commodity of Interest ({availableCommodities.length} available) - Select one or more
                           </Text>
                           <View style={styles.choiceContainer}>
-                            {project.targeted_commodities.map((commodity) => (
+                            {availableCommodities.map((commodity) => (
                               <TouchableOpacity
-                                key={commodity}
+                                key={commodity.value}
                                 style={[
                                   styles.choiceButton,
-                                  selectedCommodities.includes(commodity) && styles.choiceButtonSelected
+                                  selectedCommodities.includes(commodity.value as CommodityType) && styles.choiceButtonSelected
                                 ]}
                                 onPress={() => {
-                                  if (selectedCommodities.includes(commodity)) {
-                                    setSelectedCommodities(selectedCommodities.filter(c => c !== commodity));
+                                  if (selectedCommodities.includes(commodity.value as CommodityType)) {
+                                    setSelectedCommodities(selectedCommodities.filter(c => c !== commodity.value));
                                   } else {
-                                    setSelectedCommodities([...selectedCommodities, commodity]);
+                                    setSelectedCommodities([...selectedCommodities, commodity.value as CommodityType]);
                                   }
                                 }}
                               >
                                 <Text style={[
                                   styles.choiceButtonText,
-                                  selectedCommodities.includes(commodity) && styles.choiceButtonTextSelected
+                                  selectedCommodities.includes(commodity.value as CommodityType) && styles.choiceButtonTextSelected
                                 ]}>
-                                  {commodity}
+                                  {commodity.display}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -780,11 +825,11 @@ const DataCollectionScreen: React.FC = () => {
                         </View>
                       )}
 
-                      {/* Country Selection - From Project Configuration */}
-                      {project.targeted_countries && project.targeted_countries.length > 0 && (
+                      {/* Country Selection - From QuestionBank */}
+                      {availableCountries.length > 0 && (
                         <View style={styles.fieldContainer}>
                           <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Country/Region (from project)
+                            Country/Region ({availableCountries.length} available)
                           </Text>
                           <View style={styles.choiceContainer}>
                             <TouchableOpacity
@@ -801,7 +846,7 @@ const DataCollectionScreen: React.FC = () => {
                                 Any Country
                               </Text>
                             </TouchableOpacity>
-                            {project.targeted_countries.map((country) => (
+                            {availableCountries.map((country) => (
                               <TouchableOpacity
                                 key={country}
                                 style={[
@@ -827,7 +872,7 @@ const DataCollectionScreen: React.FC = () => {
                         mode="outlined"
                         onPress={generateDynamicQuestions}
                         loading={generatingQuestions}
-                        disabled={generatingQuestions || !selectedRespondentType}
+                        disabled={generatingQuestions || !selectedRespondentType || availableRespondentTypes.length === 0}
                         style={styles.generateButton}
                         icon="auto-fix"
                       >
@@ -843,7 +888,9 @@ const DataCollectionScreen: React.FC = () => {
                         </View>
                       ) : (
                         <Text variant="bodySmall" style={styles.warningInfo}>
-                          You must generate questions before starting the survey
+                          {availableRespondentTypes.length === 0 
+                            ? 'No questions available in Question Bank for this project'
+                            : 'You must generate questions before starting the survey'}
                         </Text>
                       )}
                     </View>

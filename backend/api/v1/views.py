@@ -94,10 +94,17 @@ def dashboard_stats(request):
         
         # Response completion rate - user-specific
         # Count actual Question instances in user's projects
-        from forms.models import Question
+        from forms.models import Question, QuestionBank
         total_questions = Question.objects.filter(
             project__in=user_projects
         ).count()
+        
+        # Count user's own QuestionBank templates (private to each user)
+        questionbank_count = QuestionBank.objects.filter(
+            owner=user,
+            is_active=True
+        ).count()
+        
         completed_responses = ResponseModel.objects.filter(
             project__in=user_projects,
             response_value__isnull=False
@@ -122,6 +129,7 @@ def dashboard_stats(request):
             'failed_sync': failed_sync,
             'recent_responses': recent_responses,
             'completion_rate': round(completion_rate, 1),
+            'questionbank_templates': questionbank_count,  # User's own QuestionBank templates
             'user_permissions': {
                 'can_manage_users': user_can_manage,
                 'can_create_projects': user_can_create_projects,
@@ -129,7 +137,8 @@ def dashboard_stats(request):
             },
             'summary': {
                 'projects_with_responses': user_projects.filter(responses__isnull=False).distinct().count(),
-                'total_questions': total_questions,
+                'total_questions': total_questions,  # Generated questions in projects
+                'questionbank_templates': questionbank_count,  # User's own templates
                 'avg_respondents_per_project': round(total_respondents / max(active_projects, 1), 1),
                 'personal_projects': personal_projects.count() if user.is_superuser else active_projects,
             }

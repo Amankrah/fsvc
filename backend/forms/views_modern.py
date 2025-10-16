@@ -457,6 +457,32 @@ class ModernQuestionViewSet(BaseModelViewSet):
             if not project.can_user_edit(request.user):
                 raise ValidationError("You don't have permission to generate questions for this project")
             
+            # DEBUG: Log parameters
+            print("\n" + "="*60)
+            print("GENERATE DYNAMIC QUESTIONS DEBUG")
+            print("="*60)
+            print(f"Project: {project.name} ({project_id})")
+            print(f"Respondent Type: '{respondent_type}'")
+            print(f"Commodity: '{commodity}'")
+            print(f"Country: '{country}'")
+            print(f"Categories: {categories}")
+            print(f"Work Packages: {work_packages}")
+            print(f"Replace Existing: {replace_existing}")
+            
+            # Check QuestionBank items available
+            total_bank_items = QuestionBank.objects.filter(is_active=True).count()
+            print(f"Total active QuestionBank items: {total_bank_items}")
+            
+            logger.info(f"========== GENERATE DYNAMIC QUESTIONS DEBUG ==========")
+            logger.info(f"Project: {project.name} ({project_id})")
+            logger.info(f"Respondent Type: {respondent_type}")
+            logger.info(f"Commodity: {commodity}")
+            logger.info(f"Country: {country}")
+            logger.info(f"Categories: {categories}")
+            logger.info(f"Work Packages: {work_packages}")
+            logger.info(f"Replace Existing: {replace_existing}")
+            logger.info(f"Total active QuestionBank items: {total_bank_items}")
+            
             with transaction.atomic():
                 # Create dynamic question session
                 session = DynamicQuestionSession.objects.create(
@@ -478,14 +504,22 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     logger.info(f"Removed {existing_count} existing questions from project {project_id}")
                 
                 # Generate dynamic questions
+                print(f"Calling Question.generate_dynamic_questions_for_project...")
+                logger.info(f"Calling Question.generate_dynamic_questions_for_project...")
                 generated_questions = Question.generate_dynamic_questions_for_project(
                     project=project,
                     respondent_type=respondent_type,
                     commodity=commodity,
                     country=country,
                     categories=categories,
-                    work_packages=work_packages
+                    work_packages=work_packages,
+                    user=request.user  # Pass user for access control
                 )
+                
+                print(f"✅ Generated {len(generated_questions)} questions")
+                print("="*60 + "\n")
+                logger.info(f"Generated {len(generated_questions)} questions")
+                logger.info(f"======================================================")
                 
                 # Update session with results
                 session.questions_generated = len(generated_questions)
@@ -552,12 +586,13 @@ class ModernQuestionViewSet(BaseModelViewSet):
             data_sources = serializer.validated_data.get('data_sources', [])
             limit = serializer.validated_data.get('limit')
             
-            # Get applicable questions from QuestionBank
+            # Get applicable questions from QuestionBank - filtered by user ownership
             questions = QuestionBank.get_questions_for_respondent(
                 respondent_type=respondent_type,
                 commodity=commodity,
                 country=country,
-                limit=limit
+                limit=limit,
+                user=request.user  # Pass user to apply ownership filtering
             )
             
             # Apply additional filters
@@ -569,15 +604,6 @@ class ModernQuestionViewSet(BaseModelViewSet):
             
             if data_sources:
                 questions = questions.filter(data_source__in=data_sources)
-            
-            # Apply user access filter
-            user = request.user
-            if not user.is_superuser:
-                questions = questions.filter(
-                    Q(base_project__isnull=True) |
-                    Q(base_project__created_by=user) |
-                    Q(base_project__members__user=user)
-                )
             
             questions = questions.filter(is_active=True).distinct()
             
@@ -611,6 +637,107 @@ class ModernQuestionViewSet(BaseModelViewSet):
             logger.error(f"Error in preview_dynamic_questions: {e}")
             return Response(
                 {'error': 'Failed to preview questions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def get_available_options(self, request):
+        """Get available respondent types, commodities, and countries from QuestionBank for a project"""
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Check project access
+            from projects.models import Project
+            project = Project.objects.get(id=project_id)
+            if not project.can_user_access(request.user):
+                raise ValidationError("You don't have permission to access this project")
+            
+            # Get all active question bank items accessible to this user
+            user = request.user
+            question_bank_items = QuestionBank.get_accessible_items(user).filter(is_active=True)
+            
+            # Extract unique values for each field
+            available_respondent_types = set()
+            available_commodities = set()
+            available_countries = set()
+            available_categories = set()
+            available_work_packages = set()
+            
+            for item in question_bank_items:
+                # Respondent types (from JSON field)
+                if item.targeted_respondents:
+                    available_respondent_types.update(item.targeted_respondents)
+                
+                # Commodities (from JSON field)
+                if item.targeted_commodities:
+                    available_commodities.update(item.targeted_commodities)
+                
+                # Countries (from JSON field)
+                if item.targeted_countries:
+                    available_countries.update(item.targeted_countries)
+                
+                # Categories
+                if item.question_category:
+                    available_categories.add(item.question_category)
+                
+                # Work packages
+                if item.work_package:
+                    available_work_packages.add(item.work_package)
+            
+            # Get display names for respondent types and commodities
+            respondent_choices = dict(QuestionBank.RESPONDENT_CHOICES)
+            commodity_choices = dict(QuestionBank.COMMODITY_CHOICES)
+            category_choices = dict(QuestionBank.CATEGORY_CHOICES)
+            
+            respondent_types_with_display = [
+                {'value': rt, 'display': respondent_choices.get(rt, rt)}
+                for rt in sorted(available_respondent_types)
+            ]
+            
+            commodities_with_display = [
+                {'value': c, 'display': commodity_choices.get(c, c)}
+                for c in sorted(available_commodities)
+            ]
+            
+            categories_with_display = [
+                {'value': cat, 'display': category_choices.get(cat, cat)}
+                for cat in sorted(available_categories)
+            ]
+            
+            return Response({
+                'available_options': {
+                    'respondent_types': respondent_types_with_display,
+                    'commodities': commodities_with_display,
+                    'countries': sorted(list(available_countries)),
+                    'categories': categories_with_display,
+                    'work_packages': sorted(list(available_work_packages)),
+                },
+                'summary': {
+                    'total_question_bank_items': question_bank_items.count(),
+                    'respondent_types_count': len(available_respondent_types),
+                    'commodities_count': len(available_commodities),
+                    'countries_count': len(available_countries),
+                    'categories_count': len(available_categories),
+                    'work_packages_count': len(available_work_packages),
+                }
+            })
+            
+        except Project.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Error in get_available_options: {e}")
+            return Response(
+                {'error': 'Failed to get available options'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -766,18 +893,13 @@ class QuestionBankViewSet(BaseModelViewSet):
     cache_timeout = 600  # 10 minutes for question bank
     
     def get_queryset(self):
-        """Optimized queryset with user access filtering"""
-        queryset = QuestionBank.objects.select_related('base_project')
+        """Optimized queryset with user access filtering - each user sees only their own QuestionBanks"""
+        queryset = QuestionBank.objects.select_related('base_project', 'owner')
         
-        # Filter by user access - users can only see questions from their projects
-        # or public questions (questions without base_project)
+        # Filter by owner - users can ONLY see their own QuestionBank items
         user = self.request.user
         if not user.is_superuser:
-            queryset = queryset.filter(
-                Q(base_project__isnull=True) |  # Public questions
-                Q(base_project__created_by=user) |  # User's own projects
-                Q(base_project__members__user=user)  # Projects user is member of
-            )
+            queryset = queryset.filter(owner=user)
         
         # Filter by active status by default
         if self.request.query_params.get('include_inactive', '').lower() != 'true':
@@ -787,13 +909,12 @@ class QuestionBankViewSet(BaseModelViewSet):
     
     def perform_create(self, serializer):
         """Enhanced question bank creation with user tracking"""
-        # Set created_by to current user
+        # Set owner and created_by to current user
+        serializer.validated_data['owner'] = self.request.user
         serializer.validated_data['created_by'] = str(self.request.user)
         
-        # If base_project is provided, check user permissions
-        base_project = serializer.validated_data.get('base_project')
-        if base_project and not base_project.can_user_edit(self.request.user):
-            raise ValidationError("You don't have permission to add questions to this project")
+        # QuestionBanks are private to the user - no need to check base_project permissions
+        # as each user can only create questions for themselves
         
         with transaction.atomic():
             question_bank = serializer.save()
@@ -803,10 +924,9 @@ class QuestionBankViewSet(BaseModelViewSet):
         """Enhanced question bank update with permission checks"""
         instance = self.get_object()
         
-        # Check if user can edit this question bank item
-        if instance.base_project and not instance.base_project.can_user_edit(self.request.user):
-            if not self.request.user.is_superuser:
-                raise ValidationError("You don't have permission to edit this question")
+        # Check if user is the owner of this question bank item
+        if instance.owner != self.request.user and not self.request.user.is_superuser:
+            raise ValidationError("You don't have permission to edit this question - it belongs to another user")
         
         with transaction.atomic():
             question_bank = serializer.save()
@@ -814,10 +934,9 @@ class QuestionBankViewSet(BaseModelViewSet):
     
     def perform_destroy(self, instance):
         """Enhanced question bank deletion with permission checks"""
-        # Check permissions
-        if instance.base_project and not instance.base_project.can_user_edit(self.request.user):
-            if not self.request.user.is_superuser:
-                raise ValidationError("You don't have permission to delete this question")
+        # Check if user is the owner of this question bank item
+        if instance.owner != self.request.user and not self.request.user.is_superuser:
+            raise ValidationError("You don't have permission to delete this question - it belongs to another user")
         
         # Soft delete by setting is_active to False instead of actual deletion
         # to preserve data integrity for generated questions
@@ -844,12 +963,13 @@ class QuestionBankViewSet(BaseModelViewSet):
             limit = serializer.validated_data.get('limit')
             include_inactive = serializer.validated_data.get('include_inactive', False)
             
-            # Use the model's class method to get applicable questions
+            # Use the model's class method to get applicable questions - filtered by user ownership
             questions = QuestionBank.get_questions_for_respondent(
                 respondent_type=respondent_type,
                 commodity=commodity,
                 country=country,
-                limit=limit
+                limit=limit,
+                user=request.user  # Pass user to apply ownership filtering
             )
             
             # Apply additional filters
@@ -861,15 +981,6 @@ class QuestionBankViewSet(BaseModelViewSet):
             
             if data_sources:
                 questions = questions.filter(data_source__in=data_sources)
-            
-            # Apply user access filter
-            user = request.user
-            if not user.is_superuser:
-                questions = questions.filter(
-                    Q(base_project__isnull=True) |
-                    Q(base_project__created_by=user) |
-                    Q(base_project__members__user=user)
-                )
             
             # Apply active filter
             if not include_inactive:

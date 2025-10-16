@@ -9,22 +9,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RespondentSerializer(serializers.ModelSerializer):
-    """Serializer for the Respondent model"""
+    """Serializer for the Respondent model aligned with QuestionBank"""
     project_details = ProjectSerializer(source='project', read_only=True)
     created_by_details = UserSerializer(source='created_by', read_only=True)
     response_count = serializers.SerializerMethodField()
     completion_rate = serializers.SerializerMethodField()
+    respondent_type_display = serializers.SerializerMethodField()
+    commodity_display = serializers.SerializerMethodField()
+    profile_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = Respondent
         fields = [
             'id', 'respondent_id', 'project', 'project_details', 'name', 'email', 'phone',
-            'respondent_type', 'commodity', 'country',
+            'respondent_type', 'respondent_type_display', 'commodity', 'commodity_display', 'country',
             'demographics', 'location_data', 'created_at', 'last_response_at',
             'is_anonymous', 'consent_given', 'sync_status', 'created_by', 'created_by_details',
-            'response_count', 'completion_rate'
+            'response_count', 'completion_rate', 'profile_summary'
         ]
-        read_only_fields = ['id', 'created_at', 'last_response_at', 'response_count', 'completion_rate']
+        read_only_fields = ['id', 'created_at', 'last_response_at', 'response_count', 'completion_rate',
+                           'respondent_type_display', 'commodity_display', 'profile_summary']
     
     def get_response_count(self, obj):
         """Get the total number of responses by this respondent"""
@@ -33,6 +37,18 @@ class RespondentSerializer(serializers.ModelSerializer):
     def get_completion_rate(self, obj):
         """Get the completion rate for this respondent"""
         return obj.get_completion_rate()
+    
+    def get_respondent_type_display(self, obj):
+        """Get human-readable display name for respondent type"""
+        return obj.get_respondent_type_display_name()
+    
+    def get_commodity_display(self, obj):
+        """Get human-readable display name for commodity"""
+        return obj.get_commodity_display_name()
+    
+    def get_profile_summary(self, obj):
+        """Get profile summary for this respondent"""
+        return obj.get_profile_summary()
     
     def validate_respondent_id(self, value):
         """Validate respondent_id uniqueness"""
@@ -56,7 +72,7 @@ class RespondentSerializer(serializers.ModelSerializer):
         return value
 
 class ResponseSerializer(serializers.ModelSerializer):
-    """Updated serializer for the restructured Response model"""
+    """Updated serializer for the restructured Response model with QuestionBank alignment"""
     project_details = ProjectSerializer(source='project', read_only=True)
     question_details = QuestionSerializer(source='question', read_only=True)
     respondent_details = RespondentSerializer(source='respondent', read_only=True)
@@ -65,23 +81,31 @@ class ResponseSerializer(serializers.ModelSerializer):
     device_summary = serializers.SerializerMethodField()
     is_complete = serializers.SerializerMethodField()
     routing_summary = serializers.SerializerMethodField()
+    question_bank_summary = serializers.SerializerMethodField()
+    is_from_question_bank = serializers.SerializerMethodField()
+    value_chain_position = serializers.SerializerMethodField()
     
     class Meta:
         model = Response
         fields = [
             'response_id', 'project', 'project_details', 'question', 'question_details',
             'respondent', 'respondent_details', 'response_value', 'response_metadata',
-            'question_bank_context',
+            'question_bank_context', 'question_category', 'question_data_source',
+            'research_partner_name', 'work_package', 'is_owner_question', 'question_sources',
             'collected_at', 'collected_by', 'collected_by_details', 'location_data',
             'device_info', 'is_validated', 'validation_errors', 'data_quality_score',
             'sync_status', 'synced_at', 'location_summary', 'device_summary', 'is_complete',
-            'database_routing_status', 'routing_attempts', 'routing_complete', 'routing_summary'
+            'database_routing_status', 'routing_attempts', 'routing_complete', 'routing_summary',
+            'question_bank_summary', 'is_from_question_bank', 'value_chain_position'
         ]
         read_only_fields = ['response_id', 'collected_at', 'synced_at', 'is_validated',
                            'validation_errors', 'data_quality_score', 'location_summary',
                            'device_summary', 'is_complete', 'question_bank_context',
+                           'question_category', 'question_data_source', 'research_partner_name',
+                           'work_package', 'is_owner_question', 'question_sources',
                            'database_routing_status', 'routing_attempts', 'routing_complete',
-                           'routing_summary']
+                           'routing_summary', 'question_bank_summary', 'is_from_question_bank',
+                           'value_chain_position']
     
     def get_location_summary(self, obj):
         """Get location data summary"""
@@ -98,6 +122,18 @@ class ResponseSerializer(serializers.ModelSerializer):
     def get_routing_summary(self, obj):
         """Get database routing summary"""
         return obj.get_routing_summary()
+    
+    def get_question_bank_summary(self, obj):
+        """Get question bank context summary"""
+        return obj.get_question_bank_summary()
+    
+    def get_is_from_question_bank(self, obj):
+        """Check if response is from question bank generated question"""
+        return obj.is_from_question_bank()
+    
+    def get_value_chain_position(self, obj):
+        """Get value chain position for this response"""
+        return obj.get_value_chain_position()
     
     def validate(self, attrs):
         """Validate that question belongs to the specified project and respondent belongs to same project"""

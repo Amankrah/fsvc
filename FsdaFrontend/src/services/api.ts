@@ -126,6 +126,11 @@ class ApiService {
     return response.data;
   }
 
+  // Dashboard endpoints
+  async getDashboardStats() {
+    return await this.get('/v1/dashboard-stats/');
+  }
+
   // Project endpoints
   async getProjects() {
     return await this.get('/projects/projects/');
@@ -185,6 +190,7 @@ class ApiService {
   }
 
   // Form/Question endpoints
+  // Question endpoints (project-specific question instances)
   async getQuestions(projectId: string) {
     // Set page_size to a large number to get all questions (backend max is 100, but we can request more)
     return await this.get(`/forms/questions/?project_id=${projectId}&page_size=1000`);
@@ -244,6 +250,11 @@ class ApiService {
     return await this.post('/forms/questions/generate_dynamic_questions/', data);
   }
 
+  // Get available options from QuestionBank for a project
+  async getAvailableQuestionBankOptions(projectId: string) {
+    return await this.get(`/forms/questions/get_available_options/?project_id=${projectId}`);
+  }
+
   async previewDynamicQuestions(data: {
     respondent_type: string;
     commodity?: string;
@@ -270,11 +281,20 @@ class ApiService {
     is_active?: boolean;
     search?: string;
     ordering?: string;
-    limit?: number;
-    offset?: number;
+    page_size?: number;
+    page?: number;
   }) {
-    const queryString = params ? new URLSearchParams(params as any).toString() : '';
-    return await this.get(`/forms/question-bank/${queryString ? '?' + queryString : ''}`);
+    // Build query string manually to ensure proper type conversion
+    const queryParams: string[] = [];
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.push(`${key}=${encodeURIComponent(String(value))}`);
+        }
+      });
+    }
+    const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+    return await this.get(`/forms/question-bank/${queryString}`);
   }
 
   async getQuestionBankItem(id: string) {

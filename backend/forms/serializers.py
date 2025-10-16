@@ -9,6 +9,8 @@ class QuestionBankSerializer(serializers.ModelSerializer):
     base_project_details = ProjectSerializer(source='base_project', read_only=True)
     targeted_respondents_display = serializers.ReadOnlyField(source='get_targeted_respondents_display')
     targeted_commodities_display = serializers.ReadOnlyField(source='get_targeted_commodities_display')
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
+    can_edit = serializers.SerializerMethodField()
     
     class Meta:
         model = QuestionBank
@@ -18,10 +20,25 @@ class QuestionBankSerializer(serializers.ModelSerializer):
             'research_partner_name', 'research_partner_contact', 'work_package',
             'base_project', 'base_project_details', 'response_type', 'is_required',
             'allow_multiple', 'options', 'validation_rules', 'priority_score',
-            'is_active', 'tags', 'created_at', 'updated_at', 'created_by',
-            'targeted_respondents_display', 'targeted_commodities_display'
+            'is_active', 'tags', 'owner', 'owner_username', 'is_public',
+            'created_at', 'updated_at', 'created_by',
+            'targeted_respondents_display', 'targeted_commodities_display', 'can_edit'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username', 'can_edit']
+    
+    def get_can_edit(self, obj):
+        """Check if current user can edit this QuestionBank item"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            return obj.can_user_edit(request.user)
+        return False
+    
+    def create(self, validated_data):
+        """Set owner to current user when creating"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['owner'] = request.user
+        return super().create(validated_data)
     
     def validate_question_text(self, value):
         """Validate question text"""

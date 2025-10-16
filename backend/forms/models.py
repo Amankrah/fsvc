@@ -193,10 +193,24 @@ class QuestionBank(models.Model):
         help_text="Additional tags for question organization"
     )
     
+    # Ownership and access control
+    owner = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='owned_question_banks',
+        null=True,
+        blank=True,
+        help_text="Owner of this QuestionBank item"
+    )
+    is_public = models.BooleanField(
+        default=False,
+        help_text="If True, this QuestionBank item is accessible to all users"
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.CharField(max_length=200, blank=True)
+    created_by = models.CharField(max_length=200, blank=True)  # Legacy field, kept for backward compatibility
     
     class Meta:
         ordering = ['-priority_score', 'question_category', 'created_at']
@@ -205,10 +219,26 @@ class QuestionBank(models.Model):
             models.Index(fields=['data_source']),
             models.Index(fields=['is_active']),
             models.Index(fields=['priority_score']),
+            models.Index(fields=['owner']),
+            models.Index(fields=['is_public']),
         ]
     
     def __str__(self):
         return f"{self.question_category}: {self.question_text[:50]}..."
+    
+    def can_user_access(self, user):
+        """Check if a user can access this QuestionBank item - only owner can access"""
+        if user.is_superuser:
+            return True
+        # Only the owner can access their QuestionBank items
+        return self.owner == user
+    
+    def can_user_edit(self, user):
+        """Check if a user can edit this QuestionBank item - only owner can edit"""
+        if user.is_superuser:
+            return True
+        # Only the owner can edit their QuestionBank items
+        return self.owner == user
     
     def get_targeted_respondents_display(self):
         """Get human-readable list of targeted respondents"""
@@ -263,10 +293,24 @@ class QuestionBank(models.Model):
         )
     
     @classmethod
+    def get_accessible_items(cls, user):
+        """Get QuestionBank items accessible to a user - only returns items owned by the user"""
+        if user.is_superuser:
+            return cls.objects.all()
+        
+        # User can ONLY access their own QuestionBank items
+        # QuestionBanks are private to each user
+        return cls.objects.filter(owner=user)
+    
+    @classmethod
     def get_questions_for_respondent(cls, respondent_type, commodity=None, country=None, 
-                                   category=None, work_package=None, limit=None):
+                                   category=None, work_package=None, limit=None, user=None):
         """Get applicable questions for a specific respondent type with optional filters"""
         queryset = cls.objects.filter(is_active=True)
+        
+        # Filter by user access if provided
+        if user:
+            queryset = cls.get_accessible_items(user).filter(is_active=True)
         
         # Filter by respondent type
         queryset = queryset.filter(targeted_respondents__contains=[respondent_type])
@@ -641,47 +685,83 @@ class Question(models.Model):
     @classmethod
     def generate_dynamic_questions_for_project(cls, project, respondent_type, 
                                              commodity=None, country=None, 
-                                             categories=None, work_packages=None):
+                                             categories=None, work_packages=None, user=None):
         """Generate dynamic questions from QuestionBank for a specific project"""
         from django.db.models import Max
+        import logging
+        logger = logging.getLogger(__name__)
         
         questions = []
         
-        # Get all active questions and filter in Python (SQLite compatible)
-        all_bank_questions = list(QuestionBank.objects.filter(is_active=True))
+        # Get all active questions accessible to the user
+        if user:
+            all_bank_questions = list(QuestionBank.get_accessible_items(user).filter(is_active=True))
+        else:
+            all_bank_questions = list(QuestionBank.objects.filter(is_active=True))
+        print(f"[QuestionGen] Step 1: Found {len(all_bank_questions)} active QuestionBank items")
+        logger.info(f"[QuestionGen] Step 1: Found {len(all_bank_questions)} active QuestionBank items")
+
+        # DEBUG: Show first few questions' targeted_respondents
+        for i, q in enumerate(all_bank_questions[:3]):
+            print(f"[QuestionGen] Sample Question {i+1}: '{q.question_text[:50]}...' - Targeted: {q.targeted_respondents}")
+            logger.info(f"[QuestionGen] Sample Question {i+1}: '{q.question_text[:50]}...' - Targeted: {q.targeted_respondents}")
 
         # Filter by respondent type
         bank_questions = [
             q for q in all_bank_questions
             if respondent_type in (q.targeted_respondents or [])
         ]
+        print(f"[QuestionGen] Step 2: After respondent_type filter ('{respondent_type}'): {len(bank_questions)} questions")
+        logger.info(f"[QuestionGen] Step 2: After respondent_type filter ('{respondent_type}'): {len(bank_questions)} questions")
+        
+        # DEBUG: If no questions, show why
+        if len(bank_questions) == 0:
+            print(f"[QuestionGen] ❌ No questions found for respondent_type='{respondent_type}'")
+            print(f"[QuestionGen] Available respondent types in QuestionBank:")
+            all_respondent_types = set()
+            for q in all_bank_questions:
+                if q.targeted_respondents:
+                    all_respondent_types.update(q.targeted_respondents)
+            print(f"[QuestionGen] {sorted(all_respondent_types)}")
+            logger.warning(f"[QuestionGen] No questions found for respondent_type='{respondent_type}'")
+            logger.warning(f"[QuestionGen] Available respondent types in QuestionBank:")
+            logger.warning(f"[QuestionGen] {sorted(all_respondent_types)}")
 
         # Filter by commodity
         if commodity:
             commodities = [c.strip() for c in commodity.split(',')]
+            before_count = len(bank_questions)
             bank_questions = [
                 q for q in bank_questions
                 if not q.targeted_commodities or
                    any(c in (q.targeted_commodities or []) for c in commodities)
             ]
+            logger.info(f"[QuestionGen] Step 3: After commodity filter ({commodities}): {len(bank_questions)} questions (was {before_count})")
 
         # Filter by country
         if country:
+            before_count = len(bank_questions)
             bank_questions = [
                 q for q in bank_questions
                 if not q.targeted_countries or country in (q.targeted_countries or [])
             ]
+            logger.info(f"[QuestionGen] Step 4: After country filter ('{country}'): {len(bank_questions)} questions (was {before_count})")
 
         # Filter by categories if specified
         if categories:
+            before_count = len(bank_questions)
             bank_questions = [q for q in bank_questions if q.question_category in categories]
+            logger.info(f"[QuestionGen] Step 5: After categories filter ({categories}): {len(bank_questions)} questions (was {before_count})")
 
         # Filter by work packages if specified
         if work_packages:
+            before_count = len(bank_questions)
             bank_questions = [q for q in bank_questions if q.work_package in work_packages]
+            logger.info(f"[QuestionGen] Step 6: After work_packages filter ({work_packages}): {len(bank_questions)} questions (was {before_count})")
 
         # Sort by priority
         bank_questions.sort(key=lambda q: (-q.priority_score, q.question_category))
+        logger.info(f"[QuestionGen] Step 7: Sorted {len(bank_questions)} questions by priority")
         
         # Get the maximum order_index to avoid conflicts (more reliable than count)
         max_order = cls.objects.filter(project=project).aggregate(
@@ -689,15 +769,25 @@ class Question(models.Model):
         )['max_order']
         current_order = (max_order or -1) + 1
         
-        for bank_question in bank_questions:
-            # Check if question already exists to avoid duplicates
+        logger.info(f"[QuestionGen] Step 8: Creating questions starting at order_index {current_order}")
+        skipped_count = 0
+        
+        for i, bank_question in enumerate(bank_questions):
+            # Check if question already exists with the SAME context (text + respondent + commodity + country)
+            # This allows the same question text for different commodities/contexts
             existing = cls.objects.filter(
                 project=project,
-                question_text=bank_question.question_text
+                question_text=bank_question.question_text,
+                assigned_respondent_type=respondent_type,
+                assigned_commodity=commodity or '',
+                assigned_country=country or ''
             ).first()
             
             if existing:
-                # Skip if question already exists
+                # Skip if question already exists with the same context
+                skipped_count += 1
+                print(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...' (same context)")
+                logger.info(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...'")
                 continue
             
             # Create question with proper order_index
@@ -719,9 +809,13 @@ class Question(models.Model):
                 question_sources=bank_question.question_sources,
             )
             
+            logger.info(f"[QuestionGen] Created question {i+1}: '{bank_question.question_text[:50]}...'")
             questions.append(question)
             current_order += 1
         
+        print(f"[QuestionGen] Step 9: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
+        print("="*60 + "\n")
+        logger.info(f"[QuestionGen] Step 9: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
         return questions
     
     @classmethod

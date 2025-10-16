@@ -256,6 +256,34 @@ def get_default_response_type():
 
 class Respondent(models.Model):
     """Model to track individuals who are answering questions"""
+    # Respondent type choices (aligned with QuestionBank.RESPONDENT_CHOICES)
+    RESPONDENT_CHOICES = [
+        ('input_suppliers', 'Input Suppliers'),
+        ('farmers', 'Farmers'),
+        ('aggregators_lbcs', 'Aggregators/LBCs'),
+        ('processors', 'Processors'),
+        ('processors_eu', 'Processors EU'),
+        ('retailers_food_vendors', 'Retailers/Food Vendors'),
+        ('retailers_food_vendors_eu', 'Retailers/Food Vendors EU'),
+        ('local_consumers', 'Local Consumers'),
+        ('consumers_eu_prolific', 'Consumers EU (Prolific)'),
+        ('client_business_eu_prolific', 'Client/Business EU (Prolific)'),
+        ('government', 'Government'),
+        ('ngos', 'NGOs'),
+        ('certification_schemes', 'Certification Schemes'),
+        ('coop', 'COOP'),
+        ('chief', 'Chief'),
+    ]
+    
+    # Commodity choices (aligned with QuestionBank.COMMODITY_CHOICES)
+    COMMODITY_CHOICES = [
+        ('cocoa', 'Cocoa'),
+        ('maize', 'Maize'),
+        ('palm_oil', 'Palm Oil'),
+        ('groundnut', 'Groundnut'),
+        ('honey', 'Honey'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     respondent_id = models.CharField(max_length=255, unique=True, db_index=True)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='respondents')
@@ -263,15 +291,17 @@ class Respondent(models.Model):
     # Project-specific metadata (aligned with question bank)
     respondent_type = models.CharField(
         max_length=50,
+        choices=RESPONDENT_CHOICES,
         blank=True,
         null=True,
-        help_text="Type of respondent from project's targeted_respondents"
+        help_text="Type of respondent from QuestionBank.RESPONDENT_CHOICES"
     )
     commodity = models.CharField(
         max_length=50,
+        choices=COMMODITY_CHOICES,
         blank=True,
         null=True,
-        help_text="Commodity from project's targeted_commodities"
+        help_text="Commodity from QuestionBank.COMMODITY_CHOICES"
     )
     country = models.CharField(
         max_length=100,
@@ -329,9 +359,88 @@ class Respondent(models.Model):
         from django.utils import timezone
         self.last_response_at = timezone.now()
         self.save(update_fields=['last_response_at'])
+    
+    def get_respondent_type_display_name(self):
+        """Get human-readable display name for respondent type"""
+        respondent_dict = dict(self.RESPONDENT_CHOICES)
+        return respondent_dict.get(self.respondent_type, self.respondent_type or 'Unknown')
+    
+    def get_commodity_display_name(self):
+        """Get human-readable display name for commodity"""
+        commodity_dict = dict(self.COMMODITY_CHOICES)
+        return commodity_dict.get(self.commodity, self.commodity or 'Unknown')
+    
+    def get_profile_summary(self):
+        """Get a summary of respondent profile"""
+        return {
+            'respondent_id': self.respondent_id,
+            'respondent_type': self.get_respondent_type_display_name(),
+            'commodity': self.get_commodity_display_name(),
+            'country': self.country,
+            'name': self.name,
+            'total_responses': self.get_response_count(),
+            'completion_rate': self.get_completion_rate(),
+            'last_response_at': self.last_response_at.isoformat() if self.last_response_at else None,
+        }
+    
+    def get_responses_by_category(self):
+        """Get respondent's responses grouped by question category"""
+        from django.db.models import Count
+        return self.responses.values('question_category').annotate(
+            total=Count('response_id')
+        ).order_by('question_category')
+    
+    def get_applicable_question_bank_items(self):
+        """Get question bank items applicable to this respondent"""
+        from forms.models import QuestionBank
+        
+        if not self.respondent_type:
+            return QuestionBank.objects.none()
+        
+        return QuestionBank.get_questions_for_respondent(
+            respondent_type=self.respondent_type,
+            commodity=self.commodity,
+            country=self.country
+        )
 
 class Response(models.Model):
-    """Enhanced Response model with proper response types"""
+    """Enhanced Response model with proper response types and question bank alignment"""
+    # Question category choices (aligned with QuestionBank.CATEGORY_CHOICES)
+    CATEGORY_CHOICES = [
+        ('production', 'Production'),
+        ('processing', 'Processing'),
+        ('distribution', 'Distribution'),
+        ('consumption', 'Consumption'),
+        ('waste_management', 'Waste Management'),
+        ('input_supply', 'Input Supply'),
+        ('market_access', 'Market Access'),
+        ('quality_standards', 'Quality Standards'),
+        ('certification', 'Certification'),
+        ('sustainability', 'Sustainability'),
+        ('climate_impact', 'Climate Impact'),
+        ('social_impact', 'Social Impact'),
+        ('economic_impact', 'Economic Impact'),
+        ('governance', 'Governance'),
+        ('policy', 'Policy'),
+        ('technology', 'Technology'),
+        ('logistics', 'Logistics'),
+        ('finance', 'Finance'),
+        ('nutrition', 'Nutrition'),
+        ('food_safety', 'Food Safety'),
+    ]
+    
+    # Data source choices (aligned with QuestionBank.DATA_SOURCE_CHOICES)
+    DATA_SOURCE_CHOICES = [
+        ('internal', 'Internal Research Team'),
+        ('partner_university', 'Partner University'),
+        ('partner_ngo', 'Partner NGO'),
+        ('partner_government', 'Partner Government Agency'),
+        ('partner_private', 'Partner Private Organization'),
+        ('partner_international', 'Partner International Organization'),
+        ('consultant', 'External Consultant'),
+        ('collaborative', 'Collaborative Development'),
+    ]
+    
     # Primary identifiers
     response_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -341,11 +450,47 @@ class Response(models.Model):
     respondent = models.ForeignKey(Respondent, on_delete=models.CASCADE, related_name='responses')
     response_type = models.ForeignKey(ResponseType, on_delete=models.CASCADE, related_name='responses', default=get_default_response_type)
 
-    # Question bank context (copied from respondent at response time for historical accuracy)
+    # Question bank context (copied from question and respondent at response time for historical accuracy)
     question_bank_context = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Context from question bank: respondent_type, commodity, country"
+        help_text="Full context from question bank including: respondent_type, commodity, country, category, data_source, etc."
+    )
+    
+    # Question metadata from QuestionBank (for easier querying and analytics)
+    question_category = models.CharField(
+        max_length=30,
+        choices=CATEGORY_CHOICES,
+        blank=True,
+        help_text="Category from QuestionBank for value chain analysis"
+    )
+    question_data_source = models.CharField(
+        max_length=30,
+        choices=DATA_SOURCE_CHOICES,
+        blank=True,
+        default='internal',
+        help_text="Data source/research partner from QuestionBank"
+    )
+    research_partner_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Name of research partner from QuestionBank"
+    )
+    work_package = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Work package identifier from QuestionBank"
+    )
+    
+    # Question ownership information (aligned with Question model)
+    is_owner_question = models.BooleanField(
+        default=True,
+        help_text="Whether this response is for a project owner question"
+    )
+    question_sources = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of sources (owner and/or partner names) for this question"
     )
     
     # Response data - keeping backward compatibility
@@ -413,6 +558,10 @@ class Response(models.Model):
             models.Index(fields=['collected_by']),
             models.Index(fields=['collected_at']),
             models.Index(fields=['sync_status']),
+            models.Index(fields=['question_category']),
+            models.Index(fields=['question_data_source']),
+            models.Index(fields=['work_package']),
+            models.Index(fields=['is_owner_question']),
         ]
         # Ensure one response per question per respondent
         unique_together = ['question', 'respondent']
@@ -428,13 +577,57 @@ class Response(models.Model):
         if not self.response_type and self.question:
             self.response_type = self.question.get_expected_response_type()
 
-        # Auto-populate question bank context from respondent
-        if not self.question_bank_context and self.respondent:
-            self.question_bank_context = {
-                'respondent_type': self.respondent.respondent_type,
-                'commodity': self.respondent.commodity,
-                'country': self.respondent.country,
-            }
+        # Auto-populate question metadata from QuestionBank source
+        if self.question and self.question.question_bank_source:
+            bank_source = self.question.question_bank_source
+            self.question_category = bank_source.question_category
+            self.question_data_source = bank_source.data_source
+            self.research_partner_name = bank_source.research_partner_name
+            self.work_package = bank_source.work_package
+        
+        # Auto-populate question ownership from Question model
+        if self.question:
+            self.is_owner_question = self.question.is_owner_question
+            self.question_sources = self.question.question_sources
+
+        # Auto-populate comprehensive question bank context
+        if not self.question_bank_context:
+            context = {}
+            
+            # Respondent context
+            if self.respondent:
+                context.update({
+                    'respondent_type': self.respondent.respondent_type,
+                    'commodity': self.respondent.commodity,
+                    'country': self.respondent.country,
+                })
+            
+            # Question bank context
+            if self.question and self.question.question_bank_source:
+                bank_source = self.question.question_bank_source
+                context.update({
+                    'question_category': bank_source.question_category,
+                    'data_source': bank_source.data_source,
+                    'research_partner_name': bank_source.research_partner_name,
+                    'research_partner_contact': bank_source.research_partner_contact,
+                    'work_package': bank_source.work_package,
+                    'targeted_respondents': bank_source.targeted_respondents,
+                    'targeted_commodities': bank_source.targeted_commodities,
+                    'targeted_countries': bank_source.targeted_countries,
+                    'is_owner_question': bank_source.is_owner_question,
+                    'question_sources': bank_source.question_sources,
+                    'priority_score': bank_source.priority_score,
+                })
+            
+            # Question assignment context
+            if self.question:
+                context.update({
+                    'assigned_respondent_type': self.question.assigned_respondent_type,
+                    'assigned_commodity': self.question.assigned_commodity,
+                    'assigned_country': self.question.assigned_country,
+                })
+            
+            self.question_bank_context = context
 
         # Auto-populate structured fields based on response type
         self._process_response_data()
@@ -711,3 +904,127 @@ class Response(models.Model):
             self.routing_attempts < max_attempts and
             len(self.get_failed_endpoints()) > 0
         )
+    
+    def get_question_bank_summary(self):
+        """Get a summary of question bank context for this response"""
+        return {
+            'question_category': self.question_category,
+            'data_source': self.question_data_source,
+            'research_partner': self.research_partner_name,
+            'work_package': self.work_package,
+            'is_owner_question': self.is_owner_question,
+            'question_sources': self.question_sources,
+            'respondent_type': self.question_bank_context.get('respondent_type'),
+            'commodity': self.question_bank_context.get('commodity'),
+            'country': self.question_bank_context.get('country'),
+        }
+    
+    def is_from_question_bank(self):
+        """Check if this response is from a question bank generated question"""
+        return self.question.question_bank_source is not None if self.question else False
+    
+    def get_value_chain_position(self):
+        """Get the value chain position from question category"""
+        value_chain_mapping = {
+            'input_supply': 'upstream',
+            'production': 'upstream',
+            'processing': 'midstream',
+            'distribution': 'midstream',
+            'logistics': 'midstream',
+            'market_access': 'midstream',
+            'consumption': 'downstream',
+            'waste_management': 'downstream',
+        }
+        return value_chain_mapping.get(self.question_category, 'cross_cutting')
+    
+    def should_route_to_partner(self):
+        """Check if this response should be routed to research partner"""
+        return (
+            self.question_data_source != 'internal' and
+            self.research_partner_name and
+            len(self.question_sources) > 0
+        )
+    
+    def get_partner_endpoints(self):
+        """Get list of partner endpoints this response should be sent to"""
+        if not self.question:
+            return []
+        return self.question.get_database_endpoints()
+    
+    @classmethod
+    def get_responses_by_category(cls, project, category=None):
+        """Get responses grouped by question category"""
+        queryset = cls.objects.filter(project=project)
+        if category:
+            queryset = queryset.filter(question_category=category)
+        return queryset.select_related('question', 'respondent', 'response_type')
+    
+    @classmethod
+    def get_responses_by_data_source(cls, project, data_source=None):
+        """Get responses grouped by data source/research partner"""
+        queryset = cls.objects.filter(project=project)
+        if data_source:
+            queryset = queryset.filter(question_data_source=data_source)
+        return queryset.select_related('question', 'respondent', 'response_type')
+    
+    @classmethod
+    def get_responses_by_work_package(cls, project, work_package=None):
+        """Get responses grouped by work package"""
+        queryset = cls.objects.filter(project=project)
+        if work_package:
+            queryset = queryset.filter(work_package=work_package)
+        return queryset.select_related('question', 'respondent', 'response_type')
+    
+    @classmethod
+    def get_analytics_summary(cls, project, group_by='category'):
+        """
+        Get analytics summary of responses grouped by various dimensions
+        
+        Args:
+            project: The project to analyze
+            group_by: Grouping dimension - 'category', 'data_source', 'work_package', 'respondent_type'
+        """
+        from django.db.models import Count, Q
+        
+        queryset = cls.objects.filter(project=project)
+        
+        if group_by == 'category':
+            return queryset.values('question_category').annotate(
+                total_responses=Count('response_id'),
+                owner_responses=Count('response_id', filter=Q(is_owner_question=True)),
+                partner_responses=Count('response_id', filter=Q(is_owner_question=False)),
+            ).order_by('question_category')
+        
+        elif group_by == 'data_source':
+            return queryset.values('question_data_source', 'research_partner_name').annotate(
+                total_responses=Count('response_id')
+            ).order_by('question_data_source')
+        
+        elif group_by == 'work_package':
+            return queryset.values('work_package').annotate(
+                total_responses=Count('response_id')
+            ).order_by('work_package')
+        
+        elif group_by == 'respondent_type':
+            # Extract respondent_type from question_bank_context
+            responses = queryset.all()
+            summary = {}
+            for response in responses:
+                resp_type = response.question_bank_context.get('respondent_type', 'unknown')
+                if resp_type not in summary:
+                    summary[resp_type] = {
+                        'respondent_type': resp_type,
+                        'total_responses': 0,
+                        'categories': set(),
+                    }
+                summary[resp_type]['total_responses'] += 1
+                if response.question_category:
+                    summary[resp_type]['categories'].add(response.question_category)
+            
+            # Convert sets to lists for JSON serialization
+            for key in summary:
+                summary[key]['categories'] = list(summary[key]['categories'])
+            
+            return list(summary.values())
+        
+        return []

@@ -20,7 +20,6 @@ import {
   Switch,
   ActivityIndicator,
   Divider,
-  Menu,
   ProgressBar,
 } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
@@ -76,7 +75,7 @@ const RESPONSE_TYPE_CATEGORIES = [
 
 const FormBuilderScreen: React.FC = () => {
   const route = useRoute<FormBuilderRouteProp>();
-  const { projectId, projectName } = route.params;
+  const { projectId } = route.params;
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [project, setProject] = useState<Project | null>(null);
@@ -100,10 +99,7 @@ const FormBuilderScreen: React.FC = () => {
   });
   const [optionInput, setOptionInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Text');
-  const [selectedPartnerIndex, setSelectedPartnerIndex] = useState<number | null>(null);
-  const [partnerDataStorage, setPartnerDataStorage] = useState('');
   const [selectedTargetedRespondents, setSelectedTargetedRespondents] = useState<RespondentType[]>([]);
-  const [menuVisible, setMenuVisible] = useState(false);
 
   // Import/Export state
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
@@ -119,12 +115,16 @@ const FormBuilderScreen: React.FC = () => {
   const loadProjectAndQuestions = async () => {
     try {
       setLoading(true);
-      const [projectData, questionsData] = await Promise.all([
+      const [projectData, questionBankData] = await Promise.all([
         apiService.getProject(projectId),
-        apiService.getQuestions(projectId),
+        apiService.getQuestionBank({ page_size: 1000 }),
       ]);
       setProject(projectData);
-      setQuestions(Array.isArray(questionsData) ? questionsData : questionsData.results || []);
+      // Extract questions from QuestionBank response
+      const questionsList = Array.isArray(questionBankData) 
+        ? questionBankData 
+        : questionBankData.results || [];
+      setQuestions(questionsList);
     } catch (error: any) {
       console.error('Error loading project and questions:', error);
       Alert.alert('Error', 'Failed to load project data');
@@ -135,8 +135,9 @@ const FormBuilderScreen: React.FC = () => {
 
   const loadQuestions = async () => {
     try {
-      const data = await apiService.getQuestions(projectId);
-      setQuestions(Array.isArray(data) ? data : data.results || []);
+      const data = await apiService.getQuestionBank({ page_size: 1000 });
+      const questionsList = Array.isArray(data) ? data : data.results || [];
+      setQuestions(questionsList);
     } catch (error: any) {
       console.error('Error loading questions:', error);
     }
@@ -163,34 +164,24 @@ const FormBuilderScreen: React.FC = () => {
       return;
     }
 
-    // Validate partner question requirements
-    if (!newQuestion.is_owner_question) {
-      if (selectedPartnerIndex === null) {
-        Alert.alert('Validation Error', 'Please select a partner organization');
-        return;
-      }
-      if (!partnerDataStorage.trim()) {
-        Alert.alert('Validation Error', 'Please provide partner data storage endpoint');
-        return;
-      }
-    }
-
     try {
       setSaving(true);
-      const questionData: CreateQuestionData = {
-        ...newQuestion,
-        order_index: questions.length,
-        is_owner_question: newQuestion.is_owner_question,
-        targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : undefined,
+      const questionBankData = {
+        question_text: newQuestion.question_text,
+        question_category: 'general', // Default category, can be made configurable
+        targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : ['farmers'],
+        targeted_commodities: project?.targeted_commodities || [],
+        targeted_countries: project?.targeted_countries || [],
+        response_type: newQuestion.response_type,
+        is_required: newQuestion.is_required,
+        allow_multiple: newQuestion.allow_multiple,
+        options: newQuestion.options,
+        validation_rules: newQuestion.validation_rules,
+        is_active: true,
+        base_project: projectId,
       };
 
-      // Add partner-specific fields if it's a partner question
-      if (!newQuestion.is_owner_question && selectedPartnerIndex !== null && project?.partner_organizations) {
-        questionData.partner_organization = project.partner_organizations[selectedPartnerIndex];
-        questionData.partner_data_storage = partnerDataStorage.trim();
-      }
-
-      await apiService.createQuestion(projectId, questionData);
+      await apiService.createQuestionBankItem(questionBankData);
       await loadQuestions();
 
       // Reset form
@@ -205,11 +196,9 @@ const FormBuilderScreen: React.FC = () => {
         targeted_respondents: [],
       });
       setOptionInput('');
-      setSelectedPartnerIndex(null);
-      setPartnerDataStorage('');
       setSelectedTargetedRespondents([]);
       setShowAddDialog(false);
-      Alert.alert('Success', 'Question added successfully');
+      Alert.alert('Success', 'Question added to your Question Bank');
     } catch (error: any) {
       console.error('Error adding question:', error);
       Alert.alert('Error', error.response?.data?.error || 'Failed to add question');
@@ -238,18 +227,6 @@ const FormBuilderScreen: React.FC = () => {
     });
     setSelectedTargetedRespondents(question.targeted_respondents || []);
 
-    // Set partner info if it's a partner question
-    if (!question.is_owner_question && question.partner_organization && project?.partner_organizations) {
-      const partnerIndex = project.partner_organizations.findIndex(
-        p => p.name === question.partner_organization?.name
-      );
-      setSelectedPartnerIndex(partnerIndex !== -1 ? partnerIndex : null);
-      setPartnerDataStorage(question.partner_data_storage || '');
-    } else {
-      setSelectedPartnerIndex(null);
-      setPartnerDataStorage('');
-    }
-
     // Set category based on response type
     const category = RESPONSE_TYPE_CATEGORIES.find(cat =>
       cat.types.includes(question.response_type)
@@ -273,38 +250,19 @@ const FormBuilderScreen: React.FC = () => {
       return;
     }
 
-    // Validate partner question requirements
-    if (!newQuestion.is_owner_question) {
-      if (selectedPartnerIndex === null) {
-        Alert.alert('Validation Error', 'Please select a partner organization');
-        return;
-      }
-      if (!partnerDataStorage.trim()) {
-        Alert.alert('Validation Error', 'Please provide partner data storage endpoint');
-        return;
-      }
-    }
-
     try {
       setSaving(true);
-      const questionData: Partial<CreateQuestionData> = {
+      const questionBankData = {
         question_text: newQuestion.question_text,
         response_type: newQuestion.response_type,
         is_required: newQuestion.is_required,
         allow_multiple: newQuestion.allow_multiple,
         options: newQuestion.options,
         validation_rules: newQuestion.validation_rules,
-        is_owner_question: newQuestion.is_owner_question,
         targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : undefined,
       };
 
-      // Add partner-specific fields if it's a partner question
-      if (!newQuestion.is_owner_question && selectedPartnerIndex !== null && project?.partner_organizations) {
-        questionData.partner_organization = project.partner_organizations[selectedPartnerIndex];
-        questionData.partner_data_storage = partnerDataStorage.trim();
-      }
-
-      await apiService.updateQuestion(editingQuestion.id, questionData);
+      await apiService.updateQuestionBankItem(editingQuestion.id, questionBankData);
       await loadQuestions();
 
       // Reset form
@@ -319,8 +277,6 @@ const FormBuilderScreen: React.FC = () => {
         targeted_respondents: [],
       });
       setOptionInput('');
-      setSelectedPartnerIndex(null);
-      setPartnerDataStorage('');
       setSelectedTargetedRespondents([]);
       setEditingQuestion(null);
       setShowEditDialog(false);
@@ -334,16 +290,16 @@ const FormBuilderScreen: React.FC = () => {
   };
 
   const handleDeleteQuestion = async (questionId: string) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this question?', [
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this question from your Question Bank?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
-            await apiService.deleteQuestion(questionId);
+            await apiService.deleteQuestionBankItem(questionId);
             await loadQuestions();
-            Alert.alert('Success', 'Question deleted successfully');
+            Alert.alert('Success', 'Question deleted from Question Bank');
           } catch (error) {
             console.error('Error deleting question:', error);
             Alert.alert('Error', 'Failed to delete question');
@@ -355,7 +311,7 @@ const FormBuilderScreen: React.FC = () => {
 
   const handleDuplicateQuestion = async (questionId: string) => {
     try {
-      await apiService.duplicateQuestion(questionId, projectId);
+      await apiService.duplicateQuestionBankItem(questionId);
       await loadQuestions();
       Alert.alert('Success', 'Question duplicated successfully');
     } catch (error) {
@@ -474,13 +430,13 @@ const FormBuilderScreen: React.FC = () => {
 
         setImportProgress(0.3);
 
-        // Upload and import
+        // Upload and import to QuestionBank
         const result = await apiService.importQuestions(fileToUpload);
 
         setImportProgress(1.0);
         setImportResult(result);
 
-        // Reload questions
+        // Reload questions from QuestionBank
         await loadQuestions();
 
         // Show success with details
@@ -501,7 +457,7 @@ const FormBuilderScreen: React.FC = () => {
       } catch (error: any) {
         console.error('Error importing questions:', error);
 
-        let errorMessage = 'Failed to import questions';
+        let errorMessage = 'Failed to import questions to Question Bank';
         const details: string[] = [];
 
         if (error.details && Array.isArray(error.details)) {
@@ -783,61 +739,6 @@ const FormBuilderScreen: React.FC = () => {
 
                 <Divider style={styles.dividerInDialog} />
 
-                <View style={styles.switchRow}>
-                  <View style={styles.switchLabelContainer}>
-                    <Text variant="bodyMedium" style={styles.switchLabel}>Owner Question</Text>
-                    <Text variant="bodySmall" style={styles.switchHint}>
-                      Toggle off for partner questions
-                    </Text>
-                  </View>
-                  <Switch
-                    value={newQuestion.is_owner_question}
-                    onValueChange={(value) => setNewQuestion({ ...newQuestion, is_owner_question: value })}
-                    thumbColor={newQuestion.is_owner_question ? '#64c8ff' : '#ccc'}
-                    trackColor={{ false: '#767577', true: 'rgba(100, 200, 255, 0.5)' }}
-                  />
-                </View>
-
-                {!newQuestion.is_owner_question && project?.partner_organizations && project.partner_organizations.length > 0 && (
-                  <View style={styles.partnerSelectionSection}>
-                    <Text variant="labelLarge" style={styles.label}>
-                      Partner Organization *
-                    </Text>
-                    <View style={styles.partnerChipsContainer}>
-                      {project.partner_organizations.map((partner, index) => (
-                        <Chip
-                          key={index}
-                          selected={selectedPartnerIndex === index}
-                          onPress={() => setSelectedPartnerIndex(index)}
-                          style={[
-                            styles.partnerSelectChip,
-                            selectedPartnerIndex === index && styles.selectedPartnerChip
-                          ]}
-                          textStyle={styles.partnerSelectChipText}>
-                          {partner.name}
-                        </Chip>
-                      ))}
-                    </View>
-                    <TextInput
-                      label="Partner Data Storage Endpoint *"
-                      value={partnerDataStorage}
-                      onChangeText={setPartnerDataStorage}
-                      mode="outlined"
-                      placeholder="https://partner-api.example.com/data"
-                      style={styles.input}
-                      textColor="#ffffff"
-                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      theme={{
-                        colors: {
-                          primary: '#64c8ff',
-                          onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                          outline: 'rgba(100, 200, 255, 0.5)',
-                        },
-                      }}
-                    />
-                  </View>
-                )}
-
                 {project?.targeted_respondents && project.targeted_respondents.length > 0 && (
                   <View style={styles.respondentsSection}>
                     <Text variant="labelLarge" style={styles.label}>
@@ -931,10 +832,10 @@ const FormBuilderScreen: React.FC = () => {
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
             <Text variant="headlineSmall" style={styles.title}>
-              Form Builder
+              Question Bank
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              {projectName}
+              Your reusable question templates
             </Text>
           </View>
           <View style={styles.questionCountContainer}>
@@ -956,10 +857,10 @@ const FormBuilderScreen: React.FC = () => {
               <Text style={styles.emptyIcon}>📝</Text>
             </View>
             <Text variant="headlineSmall" style={styles.emptyTitle}>
-              No Questions Yet
+              No Questions in Your Bank
             </Text>
             <Text variant="bodyLarge" style={styles.emptySubtitle}>
-              Start building your form by adding questions
+              Start building your question library by adding reusable templates
             </Text>
           </View>
         ) : (
@@ -1107,61 +1008,6 @@ const FormBuilderScreen: React.FC = () => {
                 )}
 
                 <Divider style={styles.dividerInDialog} />
-
-                <View style={styles.switchRow}>
-                  <View style={styles.switchLabelContainer}>
-                    <Text variant="bodyMedium" style={styles.switchLabel}>Owner Question</Text>
-                    <Text variant="bodySmall" style={styles.switchHint}>
-                      Toggle off for partner questions
-                    </Text>
-                  </View>
-                  <Switch
-                    value={newQuestion.is_owner_question}
-                    onValueChange={(value) => setNewQuestion({ ...newQuestion, is_owner_question: value })}
-                    thumbColor={newQuestion.is_owner_question ? '#64c8ff' : '#ccc'}
-                    trackColor={{ false: '#767577', true: 'rgba(100, 200, 255, 0.5)' }}
-                  />
-                </View>
-
-                {!newQuestion.is_owner_question && project?.partner_organizations && project.partner_organizations.length > 0 && (
-                  <View style={styles.partnerSelectionSection}>
-                    <Text variant="labelLarge" style={styles.label}>
-                      Partner Organization *
-                    </Text>
-                    <View style={styles.partnerChipsContainer}>
-                      {project.partner_organizations.map((partner, index) => (
-                        <Chip
-                          key={index}
-                          selected={selectedPartnerIndex === index}
-                          onPress={() => setSelectedPartnerIndex(index)}
-                          style={[
-                            styles.partnerSelectChip,
-                            selectedPartnerIndex === index && styles.selectedPartnerChip
-                          ]}
-                          textStyle={styles.partnerSelectChipText}>
-                          {partner.name}
-                        </Chip>
-                      ))}
-                    </View>
-                    <TextInput
-                      label="Partner Data Storage Endpoint *"
-                      value={partnerDataStorage}
-                      onChangeText={setPartnerDataStorage}
-                      mode="outlined"
-                      placeholder="https://partner-api.example.com/data"
-                      style={styles.input}
-                      textColor="#ffffff"
-                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      theme={{
-                        colors: {
-                          primary: '#64c8ff',
-                          onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                          outline: 'rgba(100, 200, 255, 0.5)',
-                        },
-                      }}
-                    />
-                  </View>
-                )}
 
                 {project?.targeted_respondents && project.targeted_respondents.length > 0 && (
                   <View style={styles.respondentsSection}>
@@ -1317,7 +1163,7 @@ const FormBuilderScreen: React.FC = () => {
                     Import Questions
                   </Text>
                   <Text variant="bodyMedium" style={styles.importSectionDescription}>
-                    Upload your completed CSV or Excel file to add questions to the question bank.
+                    Upload your completed CSV or Excel file to add questions to your Question Bank.
                   </Text>
 
                   {importing ? (

@@ -84,7 +84,7 @@ const DashboardScreen: React.FC = () => {
   // Stats
   const [stats, setStats] = useState({
     totalProjects: 0,
-    totalQuestions: 0,
+    totalQuestions: 0, // User's own QuestionBank templates (private to each user)
     totalResponses: 0, // Actually counts respondents, not individual responses
     totalMembers: 0,
   });
@@ -96,14 +96,20 @@ const DashboardScreen: React.FC = () => {
       setProjects(projectList);
       setFilteredProjects(projectList);
 
+      // Load QuestionBank count from dashboard stats endpoint (more efficient and accurate)
+      const dashboardStats = await apiService.getDashboardStats();
+      const questionBankCount = dashboardStats.questionbank_templates || 0;
+      
+      // Debug logging to verify we're getting the correct count
+      console.log('QuestionBank count from dashboard_stats:', questionBankCount);
+
       // Calculate stats
-      const totalQuestions = projectList.reduce((sum: number, p: Project) => sum + (p.question_count || 0), 0);
       const totalResponses = projectList.reduce((sum: number, p: Project) => sum + (p.response_count || 0), 0); // response_count now returns respondents count
       const totalMembers = projectList.reduce((sum: number, p: Project) => sum + (p.team_members_count || 1), 0);
 
       setStats({
         totalProjects: projectList.length,
-        totalQuestions,
+        totalQuestions: questionBankCount, // User's own QuestionBank templates only
         totalResponses,
         totalMembers,
       });
