@@ -18,24 +18,34 @@ class QuestionImportExport:
     # Template column definitions
     TEMPLATE_COLUMNS = [
         'question_text',
+        'question_category',
         'response_type',
-        'question_source',
         'targeted_respondents',
         'targeted_commodities',
         'targeted_countries',
+        'data_source',
+        'research_partner_name',
+        'research_partner_contact',
+        'work_package',
+        'priority_score',
         'is_required',
         'options',
     ]
 
     # Column descriptions for template
     COLUMN_DESCRIPTIONS = {
-        'question_text': 'The actual question text (must be filled)',
-        'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (must be filled)',
-        'question_source': 'Source: owner, partner_name, or owner,partner_name (must be filled)',
-        'targeted_respondents': 'Comma-separated: farmers,processors,retailers_food_vendors (must be filled)',
-        'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (must be filled)',
-        'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (must be filled)',
-        'is_required': 'true or false - Should respondents be required to answer this question? (default: true)',
+        'question_text': 'The actual question text (REQUIRED)',
+        'question_category': 'Category: production, processing, distribution, etc. (REQUIRED)',
+        'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (REQUIRED)',
+        'targeted_respondents': 'Comma-separated: farmers,processors,retailers_food_vendors (REQUIRED)',
+        'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (REQUIRED)',
+        'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (REQUIRED)',
+        'data_source': 'Source: internal, partner_university, partner_ngo, etc. (default: internal)',
+        'research_partner_name': 'Name of research partner (optional, for non-internal sources)',
+        'research_partner_contact': 'Partner email contact (optional)',
+        'work_package': 'Work package ID, e.g., WP1, WP2 (optional)',
+        'priority_score': 'Priority 1-10, higher = selected first (default: 5)',
+        'is_required': 'true or false - Should this question be required? (default: true)',
         'options': 'For choice questions only: Option1|Option2|Option3 (pipe-separated)',
     }
 
@@ -68,11 +78,16 @@ class QuestionImportExport:
         # Write example row
         example_row = [
             'What is your primary source of income?',
+            'production',
             'choice_single',
-            'owner',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
+            'internal',
+            '',
+            '',
+            'WP1',
+            '5',
             'true',
             'Farming|Trading|Processing|Other',
         ]
@@ -111,11 +126,16 @@ class QuestionImportExport:
         # Write example row
         example_row = [
             'What is your primary source of income?',
+            'production',
             'choice_single',
-            'owner',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
+            'internal',
+            '',
+            '',
+            'WP1',
+            '5',
             'true',
             'Farming|Trading|Processing|Other',
         ]
@@ -124,7 +144,7 @@ class QuestionImportExport:
             cell.fill = example_fill
 
         # Adjust column widths
-        column_widths = [50, 25, 30, 35, 30, 25, 15, 40]
+        column_widths = [50, 25, 20, 35, 30, 25, 25, 30, 30, 15, 12, 15, 40]
         for col_idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
@@ -176,7 +196,7 @@ class QuestionImportExport:
             reader = csv.DictReader(io.StringIO(content))
 
             # Validate headers
-            required_cols = ['question_text', 'response_type', 'question_source', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
+            required_cols = ['question_text', 'question_category', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
             if not all(col in reader.fieldnames for col in required_cols):
                 errors.append(f"CSV must contain all required columns: {', '.join(required_cols)}")
                 return [], errors
@@ -219,7 +239,7 @@ class QuestionImportExport:
                     headers.append(cell.value)
 
             # Validate headers
-            required_cols = ['question_text', 'response_type', 'question_source', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
+            required_cols = ['question_text', 'question_category', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
             if not all(col in headers for col in required_cols):
                 errors.append(f"Excel must contain all required columns: {', '.join(required_cols)}")
                 return [], errors
@@ -261,52 +281,45 @@ class QuestionImportExport:
 
         # Required fields
         question_text = str(row.get('question_text', '')).strip()
+        question_category = str(row.get('question_category', '')).strip().lower()
         response_type = str(row.get('response_type', '')).strip().lower()
-        question_source = str(row.get('question_source', '')).strip()
 
         if not question_text:
             errors.append("question_text is required")
+
+        if not question_category:
+            errors.append("question_category is required")
+        elif question_category not in cls.VALID_CATEGORIES:
+            errors.append(f"Invalid question_category '{question_category}'. Valid: {', '.join(cls.VALID_CATEGORIES)}")
 
         if not response_type:
             errors.append("response_type is required")
         elif response_type not in cls.VALID_RESPONSE_TYPES:
             errors.append(f"Invalid response_type '{response_type}'. Valid: {', '.join(cls.VALID_RESPONSE_TYPES)}")
 
-        if not question_source:
-            errors.append("question_source is required")
+        # Parse data source and partner info
+        data_source = str(row.get('data_source', 'internal')).strip().lower()
+        if data_source and data_source not in cls.VALID_DATA_SOURCES:
+            errors.append(f"Invalid data_source '{data_source}'. Valid: {', '.join(cls.VALID_DATA_SOURCES)}")
+        if not data_source:
+            data_source = 'internal'
 
-        # Parse question source (owner, partner_name, or owner,partner_name)
-        # NEW: Support multiple sources
-        question_sources = []
-        is_owner_question = False
-        data_source = 'internal'
-        research_partner_name = ''
+        research_partner_name = str(row.get('research_partner_name', '')).strip()
+        research_partner_contact = str(row.get('research_partner_contact', '')).strip()
+        work_package = str(row.get('work_package', '')).strip()
 
-        if question_source:
-            sources = [s.strip() for s in question_source.split(',')]
-            question_sources = sources  # Store all sources
-
-            if 'owner' in sources:
-                is_owner_question = True
-                data_source = 'internal'
-
-            # Check if there are partner names
-            partner_sources = [s for s in sources if s.lower() != 'owner']
-            if partner_sources:
-                research_partner_name = ', '.join(partner_sources)  # Join all partners
-                if not is_owner_question:
-                    data_source = 'partner_organization'
-
-                # Validate partner names against project configuration
-                if project and hasattr(project, 'partner_organizations'):
-                    registered_partners = [p.get('name') for p in project.partner_organizations]
-                    for partner_name in partner_sources:
-                        if partner_name not in registered_partners:
-                            errors.append(
-                                f"question_source contains unregistered partner '{partner_name}'. "
-                                f"Registered partners: {', '.join(registered_partners) if registered_partners else 'None'}. "
-                                f"Please add this partner to the project before importing questions."
-                            )
+        # Parse priority score
+        priority_score = 5  # Default
+        try:
+            priority_value = row.get('priority_score', 5)
+            if priority_value:
+                priority_score = int(priority_value)
+                if priority_score < 1 or priority_score > 10:
+                    errors.append("priority_score must be between 1 and 10")
+                    priority_score = 5
+        except (ValueError, TypeError):
+            errors.append("priority_score must be a number between 1 and 10")
+            priority_score = 5
 
         # Parse boolean fields
         is_required = cls._parse_boolean(row.get('is_required'), default=True)
@@ -340,21 +353,6 @@ class QuestionImportExport:
         if not targeted_countries:
             errors.append("targeted_countries is required")
 
-        # Determine question category based on response type
-        question_category = 'general'
-        if response_type in ['text_short', 'text_long']:
-            question_category = 'general'
-        elif response_type in ['numeric_integer', 'numeric_decimal', 'scale_rating']:
-            question_category = 'production'
-        elif response_type in ['choice_single', 'choice_multiple']:
-            question_category = 'general'
-        elif response_type in ['date', 'datetime']:
-            question_category = 'general'
-        elif response_type in ['geopoint', 'geoshape']:
-            question_category = 'general'
-        elif response_type in ['image', 'audio', 'video', 'file', 'signature', 'barcode']:
-            question_category = 'general'
-
         # Build question data
         question_data = {
             'question_text': question_text,
@@ -369,13 +367,11 @@ class QuestionImportExport:
             'targeted_countries': targeted_countries,
             'data_source': data_source,
             'research_partner_name': research_partner_name,
-            'research_partner_contact': '',
-            'work_package': '',
-            'priority_score': 1,
+            'research_partner_contact': research_partner_contact,
+            'work_package': work_package,
+            'priority_score': priority_score,
             'tags': [],
             'is_active': True,
-            'is_owner_question': is_owner_question,
-            'question_sources': question_sources,  # NEW: Add multi-source support
         }
 
         return question_data, errors
@@ -398,7 +394,7 @@ class QuestionImportExport:
         return [item.strip() for item in str(value).split(',') if item.strip()]
 
     @classmethod
-    def import_questions_to_bank(cls, questions_data: List[Dict[str, Any]], created_by: str = '') -> Dict[str, Any]:
+    def import_questions_to_bank(cls, questions_data: List[Dict[str, Any]], created_by: str = '', owner=None) -> Dict[str, Any]:
         """Import questions to QuestionBank"""
         created_count = 0
         updated_count = 0
@@ -406,11 +402,15 @@ class QuestionImportExport:
 
         for question_data in questions_data:
             try:
-                # Check if question already exists (by question_text and category)
-                existing = QuestionBank.objects.filter(
-                    question_text=question_data['question_text'],
-                    question_category=question_data['question_category']
-                ).first()
+                # Check if question already exists (by question_text, category, and owner)
+                query_filter = {
+                    'question_text': question_data['question_text'],
+                    'question_category': question_data['question_category']
+                }
+                if owner:
+                    query_filter['owner'] = owner
+                
+                existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
                     # Update existing question
@@ -421,6 +421,8 @@ class QuestionImportExport:
                 else:
                     # Create new question
                     question_data['created_by'] = created_by
+                    if owner:
+                        question_data['owner'] = owner
                     QuestionBank.objects.create(**question_data)
                     created_count += 1
 

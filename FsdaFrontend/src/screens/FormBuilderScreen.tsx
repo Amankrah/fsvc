@@ -117,7 +117,7 @@ const FormBuilderScreen: React.FC = () => {
     categories: [],
     data_sources: [],
     commodities: [],
-    respondents: [],
+    respondent_types: [],
   });
 
   // Import/Export state
@@ -261,19 +261,30 @@ const FormBuilderScreen: React.FC = () => {
 
   const COUNTRY_OPTIONS = ['Ghana', 'Nigeria', 'Kenya', 'Tanzania', 'Uganda', 'Ethiopia', 'South Africa', 'Senegal', 'Mali', 'Burkina Faso', 'Côte d\'Ivoire', 'Cameroon', 'Other'];
 
-  const handleOpenEditDialog = (question: Question) => {
+  const handleOpenEditDialog = (question: any) => {
     setEditingQuestion(question);
     setNewQuestion({
       question_text: question.question_text,
+      question_category: question.question_category || 'production',
       response_type: question.response_type,
       is_required: question.is_required,
       allow_multiple: question.allow_multiple || false,
       options: question.options || [],
       validation_rules: question.validation_rules || {},
-      is_owner_question: question.is_owner_question !== undefined ? question.is_owner_question : true,
       targeted_respondents: question.targeted_respondents || [],
+      targeted_commodities: question.targeted_commodities || [],
+      targeted_countries: question.targeted_countries || [],
+      data_source: question.data_source || 'internal',
+      research_partner_name: question.research_partner_name || '',
+      research_partner_contact: question.research_partner_contact || '',
+      work_package: question.work_package || '',
+      priority_score: question.priority_score || 5,
+      is_active: question.is_active !== undefined ? question.is_active : true,
+      tags: question.tags || [],
     });
     setSelectedTargetedRespondents(question.targeted_respondents || []);
+    setSelectedCommodities(question.targeted_commodities || []);
+    setSelectedCountries(question.targeted_countries || []);
 
     // Set category based on response type
     const category = RESPONSE_TYPE_CATEGORIES.find(cat =>
@@ -302,12 +313,22 @@ const FormBuilderScreen: React.FC = () => {
       setSaving(true);
       const questionBankData = {
         question_text: newQuestion.question_text,
+        question_category: newQuestion.question_category,
         response_type: newQuestion.response_type,
         is_required: newQuestion.is_required,
         allow_multiple: newQuestion.allow_multiple,
         options: newQuestion.options,
         validation_rules: newQuestion.validation_rules,
-        targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : undefined,
+        targeted_respondents: selectedTargetedRespondents,
+        targeted_commodities: selectedCommodities,
+        targeted_countries: selectedCountries,
+        data_source: newQuestion.data_source,
+        research_partner_name: newQuestion.research_partner_name,
+        research_partner_contact: newQuestion.research_partner_contact,
+        work_package: newQuestion.work_package,
+        priority_score: newQuestion.priority_score,
+        is_active: newQuestion.is_active,
+        tags: newQuestion.tags,
       };
 
       await apiService.updateQuestionBankItem(editingQuestion.id, questionBankData);
@@ -316,16 +337,27 @@ const FormBuilderScreen: React.FC = () => {
       // Reset form
       setNewQuestion({
         question_text: '',
+        question_category: 'production',
         response_type: 'text_short',
         is_required: true,
         allow_multiple: false,
         options: [],
         validation_rules: {},
-        is_owner_question: true,
         targeted_respondents: [],
+        targeted_commodities: [],
+        targeted_countries: [],
+        data_source: 'internal',
+        research_partner_name: '',
+        research_partner_contact: '',
+        work_package: '',
+        priority_score: 5,
+        is_active: true,
+        tags: [],
       });
       setOptionInput('');
       setSelectedTargetedRespondents([]);
+      setSelectedCommodities([]);
+      setSelectedCountries([]);
       setEditingQuestion(null);
       setShowEditDialog(false);
       Alert.alert('Success', 'Question updated successfully');
@@ -879,38 +911,44 @@ const FormBuilderScreen: React.FC = () => {
 
                 <Divider style={styles.dividerInDialog} />
 
-                {project?.targeted_respondents && project.targeted_respondents.length > 0 && (
-                  <View style={styles.respondentsSection}>
-                    <Text variant="labelLarge" style={styles.label}>
-                      Targeted Respondents
-                    </Text>
-                    <Text variant="bodySmall" style={styles.labelHint}>
-                      Select from project's respondent types
-                    </Text>
+                <View style={styles.respondentsSection}>
+                  <Text variant="labelLarge" style={styles.label}>
+                    Targeted Respondents *
+                  </Text>
+                  <Text variant="bodySmall" style={styles.labelHint}>
+                    Select respondent types this question targets
+                  </Text>
+                  <ScrollView style={{ maxHeight: 150 }}>
                     <View style={styles.respondentChipsContainer}>
-                      {project.targeted_respondents.map((respondent) => (
+                      {questionBankChoices.respondent_types && questionBankChoices.respondent_types.map((respondent: any) => (
                         <Chip
-                          key={respondent}
-                          selected={selectedTargetedRespondents.includes(respondent)}
-                          onPress={() => toggleTargetedRespondent(respondent)}
+                          key={respondent.value}
+                          selected={selectedTargetedRespondents.includes(respondent.value)}
+                          onPress={() => {
+                            setSelectedTargetedRespondents(prev =>
+                              prev.includes(respondent.value)
+                                ? prev.filter(r => r !== respondent.value)
+                                : [...prev, respondent.value]
+                            );
+                          }}
                           style={[
                             styles.respondentChip,
-                            selectedTargetedRespondents.includes(respondent) && styles.selectedRespondentChip
+                            selectedTargetedRespondents.includes(respondent.value) && styles.selectedRespondentChip
                           ]}
                           textStyle={styles.respondentChipText}>
-                          {respondent}
+                          {respondent.label}
                         </Chip>
                       ))}
                     </View>
-                  </View>
-                )}
+                  </ScrollView>
+                </View>
 
                 <View style={styles.respondentsSection}>
                   <Text variant="labelLarge" style={styles.label}>
-                    Targeted Commodities
+                    Targeted Commodities *
                   </Text>
                   <Text variant="bodySmall" style={styles.labelHint}>
-                    Select commodities this question applies to (leave empty for all)
+                    Select commodities this question applies to
                   </Text>
                   <View style={styles.respondentChipsContainer}>
                     {questionBankChoices.commodities && questionBankChoices.commodities.map((commodity: any) => (
@@ -933,6 +971,38 @@ const FormBuilderScreen: React.FC = () => {
                       </Chip>
                     ))}
                   </View>
+                </View>
+
+                <View style={styles.respondentsSection}>
+                  <Text variant="labelLarge" style={styles.label}>
+                    Targeted Countries *
+                  </Text>
+                  <Text variant="bodySmall" style={styles.labelHint}>
+                    Select countries this question applies to
+                  </Text>
+                  <ScrollView style={{ maxHeight: 120 }}>
+                    <View style={styles.respondentChipsContainer}>
+                      {COUNTRY_OPTIONS.map((country) => (
+                        <Chip
+                          key={country}
+                          selected={selectedCountries.includes(country)}
+                          onPress={() => {
+                            setSelectedCountries(prev =>
+                              prev.includes(country)
+                                ? prev.filter(c => c !== country)
+                                : [...prev, country]
+                            );
+                          }}
+                          style={[
+                            styles.respondentChip,
+                            selectedCountries.includes(country) && styles.selectedRespondentChip
+                          ]}
+                          textStyle={styles.respondentChipText}>
+                          {country}
+                        </Chip>
+                      ))}
+                    </View>
+                  </ScrollView>
                 </View>
 
                 <View style={styles.respondentsSection}>

@@ -1131,7 +1131,8 @@ class QuestionBankViewSet(BaseModelViewSet):
             # Import questions to question bank
             result = QuestionImportExport.import_questions_to_bank(
                 questions_data,
-                created_by=str(request.user)
+                created_by=str(request.user),
+                owner=request.user
             )
 
             # Prepare response
