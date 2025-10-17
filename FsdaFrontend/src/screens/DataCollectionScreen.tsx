@@ -31,7 +31,6 @@ import {
   RespondentType,
   CommodityType,
   DynamicQuestionGenerationResult,
-  Project
 } from '../types';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { generateRespondentId } from '../utils/respondentIdGenerator';
@@ -48,7 +47,6 @@ const DataCollectionScreen: React.FC = () => {
   const navigation = useNavigation<DataCollectionNavigationProp>();
   const { projectId, projectName } = route.params;
 
-  const [project, setProject] = useState<Project | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -95,8 +93,7 @@ const DataCollectionScreen: React.FC = () => {
   const loadProject = async () => {
     try {
       setLoading(true);
-      const projectData = await apiService.getProject(projectId);
-      setProject(projectData);
+      await apiService.getProject(projectId);
     } catch (error: any) {
       console.error('Error loading project:', error);
       Alert.alert('Error', 'Failed to load project details');
@@ -128,7 +125,38 @@ const DataCollectionScreen: React.FC = () => {
   };
 
 
-  const generateDynamicQuestions = async () => {
+  const loadExistingQuestions = async () => {
+    if (!selectedRespondentType) {
+      return [];
+    }
+
+    try {
+      // Load all questions for this project
+      const allQuestions = await apiService.getQuestions(projectId);
+      const questionsList: Question[] = Array.isArray(allQuestions) 
+        ? allQuestions 
+        : allQuestions.results || [];
+
+      // Filter questions matching the selected criteria
+      const commodityStr = selectedCommodities.join(',') || '';
+      const countryStr = selectedCountry || '';
+
+      const matchingQuestions = questionsList.filter((q: Question) => {
+        const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
+        const matchesCommodity = q.assigned_commodity === commodityStr;
+        const matchesCountry = q.assigned_country === countryStr;
+        
+        return matchesRespondent && matchesCommodity && matchesCountry;
+      });
+
+      return matchingQuestions.sort((a, b) => a.order_index - b.order_index);
+    } catch (error) {
+      console.error('Error loading existing questions:', error);
+      return [];
+    }
+  };
+
+  const generateDynamicQuestions = async (forceRegenerate: boolean = false) => {
     if (!selectedRespondentType) {
       Alert.alert('Required', 'Please select a respondent type');
       return;
@@ -137,6 +165,34 @@ const DataCollectionScreen: React.FC = () => {
     try {
       setGeneratingQuestions(true);
 
+      // First, check if questions already exist for this combination
+      if (!forceRegenerate) {
+        const existingQuestions = await loadExistingQuestions();
+        
+        if (existingQuestions.length > 0) {
+          setQuestions(existingQuestions);
+          setQuestionsGenerated(true);
+          
+          Alert.alert(
+            'Questions Loaded!',
+            `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
+            [
+              {
+                text: 'Use These',
+                onPress: () => {},
+              },
+              {
+                text: 'Regenerate',
+                onPress: () => generateDynamicQuestions(true),
+                style: 'destructive',
+              },
+            ]
+          );
+          return;
+        }
+      }
+
+      // Generate new questions
       const commoditiesText = selectedCommodities.length > 0 ? selectedCommodities.join(', ') : 'all commodities';
 
       const generationData = {
@@ -150,16 +206,16 @@ const DataCollectionScreen: React.FC = () => {
 
       const result: DynamicQuestionGenerationResult = await apiService.generateDynamicQuestions(generationData);
 
-      // Set ONLY the generated questions (do not merge with existing)
-      const generatedQuestions = result.questions.sort((a: Question, b: Question) => a.order_index - b.order_index);
-      setQuestions(generatedQuestions);
+      // Load ALL questions for this context (including newly generated + existing ones)
+      const allContextQuestions = await loadExistingQuestions();
+      setQuestions(allContextQuestions);
       setQuestionsGenerated(true);
 
-      Alert.alert(
-        'Questions Generated!',
-        `Successfully generated ${result.summary.questions_generated} questions for ${selectedRespondentType} respondents.`,
-        [{ text: 'OK' }]
-      );
+      const message = result.summary.questions_generated > 0
+        ? `Successfully generated ${result.summary.questions_generated} new question${result.summary.questions_generated !== 1 ? 's' : ''} for ${selectedRespondentType} respondents.\n\nTotal questions available: ${allContextQuestions.length}`
+        : `No new questions generated. All questions for this combination already exist.\n\nUsing ${allContextQuestions.length} existing question${allContextQuestions.length !== 1 ? 's' : ''}.`;
+
+      Alert.alert('Questions Ready!', message, [{ text: 'OK' }]);
 
     } catch (error: any) {
       console.error('Error generating dynamic questions:', error);
@@ -283,31 +339,43 @@ const DataCollectionScreen: React.FC = () => {
 
       await Promise.all(responsePromises);
 
-      // Automatically reset for next respondent - CLEAR EVERYTHING including questions and context
-      setResponses({});
-      setShowRespondentForm(true);
-      setCurrentQuestionIndex(0);
-      setQuestions([]); // Clear questions - must regenerate for next respondent
-      setQuestionsGenerated(false); // Reset generation flag
-      setSelectedRespondentType(''); // Clear respondent type
-      setSelectedCommodities([]); // Clear commodities
-      setSelectedCountry(''); // Clear country
-      if (useAutoId) {
-        generateNewRespondentId();
-      } else {
-        setRespondentId('');
-      }
-
-      Alert.alert('Success', 'Response submitted successfully! Ready for next respondent.', [
-        {
-          text: 'Continue Collecting',
-        },
-        {
-          text: 'Finish & Go Back',
-          onPress: () => navigation.goBack(),
-          style: 'cancel',
-        },
-      ]);
+      Alert.alert(
+        'Success', 
+        'Response submitted successfully! Ready for next respondent.', 
+        [
+          {
+            text: 'Continue Collecting',
+            onPress: () => {
+              // Reset for next respondent BUT keep questions and settings
+              setResponses({});
+              setCurrentQuestionIndex(0);
+              
+              // Generate new respondent ID based on auto-ID setting
+              if (useAutoId) {
+                // Auto-generate new ID and continue immediately (no form shown)
+                generateNewRespondentId();
+                // Stay in questionnaire - don't show respondent form
+              } else {
+                // Manual ID: show form to enter new respondent ID
+                setRespondentId('');
+                setShowRespondentForm(true);
+              }
+              
+              // IMPORTANT: Keep these for question reuse
+              // - questions (same questionnaire)
+              // - questionsGenerated (true)
+              // - selectedRespondentType (e.g., farmers)
+              // - selectedCommodities (e.g., cocoa, maize)
+              // - selectedCountry (e.g., Ghana)
+            },
+          },
+          {
+            text: 'Finish & Go Back',
+            onPress: () => navigation.goBack(),
+            style: 'cancel',
+          },
+        ]
+      );
     } catch (error: any) {
       console.error('Error submitting responses:', error);
       const errorMessage = error.message || error.response?.data?.error || error.response?.data?.respondent_id?.[0] || 'Failed to submit responses';
@@ -870,7 +938,7 @@ const DataCollectionScreen: React.FC = () => {
                       {/* Generate Button */}
                       <Button
                         mode="outlined"
-                        onPress={generateDynamicQuestions}
+                        onPress={() => generateDynamicQuestions()}
                         loading={generatingQuestions}
                         disabled={generatingQuestions || !selectedRespondentType || availableRespondentTypes.length === 0}
                         style={styles.generateButton}
@@ -1193,19 +1261,65 @@ const DataCollectionScreen: React.FC = () => {
     );
   };
 
+  const handleChangeRespondent = () => {
+    Alert.alert(
+      'Change Respondent Type',
+      'This will reset the current questionnaire. Unsaved responses will be lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Change',
+          style: 'destructive',
+          onPress: () => {
+            setShowRespondentForm(true);
+            setQuestionsGenerated(false);
+            setQuestions([]);
+            setResponses({});
+            setCurrentQuestionIndex(0);
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.progressContainer}>
-        <Text variant="labelLarge" style={styles.progressText}>
-          Question {currentQuestionIndex + 1} of {questions.length}
-        </Text>
+        <View style={styles.progressHeader}>
+          <View style={styles.progressTextContainer}>
+            <Text variant="labelLarge" style={styles.progressText}>
+              Question {currentQuestionIndex + 1} of {questions.length}
+            </Text>
+            {selectedRespondentType && (
+              <Text variant="bodySmall" style={styles.respondentTypeIndicator}>
+                {selectedRespondentType}
+                {selectedCommodities.length > 0 && ` • ${selectedCommodities.join(', ')}`}
+                {selectedCountry && ` • ${selectedCountry}`}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.changeRespondentButton}
+            onPress={handleChangeRespondent}
+          >
+            <Text style={styles.changeRespondentText}>Change</Text>
+          </TouchableOpacity>
+        </View>
         <ProgressBar progress={progress} color="#64c8ff" style={styles.progressBar} />
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Respondent ID Badge - Shows which respondent is currently answering */}
+        {respondentId && (
+          <View style={styles.respondentIdBadge}>
+            <Text style={styles.respondentIdLabel}>Current Respondent:</Text>
+            <Text style={styles.respondentIdText}>{respondentId}</Text>
+          </View>
+        )}
+
         <Card style={styles.questionCard}>
           <Card.Content>
             <View style={styles.questionHeader}>
@@ -1345,15 +1459,64 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     backgroundColor: '#1a1a3a',
   },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTextContainer: {
+    flex: 1,
+  },
   progressText: {
     color: '#ffffff',
-    marginBottom: 8,
-    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  respondentTypeIndicator: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  changeRespondentButton: {
+    backgroundColor: 'rgba(255, 152, 0, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.5)',
+  },
+  changeRespondentText: {
+    color: '#ff9800',
+    fontSize: 12,
+    fontWeight: '600',
   },
   progressBar: {
     height: 8,
     borderRadius: 4,
     backgroundColor: 'rgba(100, 200, 255, 0.2)',
+  },
+  respondentIdBadge: {
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.3)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  respondentIdLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  respondentIdText: {
+    color: '#64c8ff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   questionCard: {
     backgroundColor: 'rgba(75, 30, 133, 0.15)',

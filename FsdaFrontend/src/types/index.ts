@@ -261,6 +261,17 @@ export interface Question {
   partner_data_storage?: string;
   targeted_respondents: RespondentType[];
   question_sources?: string[];  // Array of source names: ['owner', 'Partner A', etc.]
+  // QuestionBank fields (when question is from QuestionBank)
+  question_category?: QuestionCategory;
+  data_source?: DataSourceType;
+  research_partner_name?: string;
+  research_partner_contact?: string;
+  work_package?: string;
+  priority_score?: number;
+  targeted_commodities?: CommodityType[];
+  targeted_countries?: string[];
+  tags?: string[];
+  is_active?: boolean;
 }
 
 export interface CreateQuestionData {
@@ -359,6 +370,7 @@ export type RespondentType =
 export type CommodityType = 'cocoa' | 'maize' | 'palm_oil' | 'groundnut' | 'honey';
 
 export type QuestionCategory =
+  | 'general'
   | 'production'
   | 'processing'
   | 'distribution'

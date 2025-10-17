@@ -7,6 +7,7 @@ import {
   Platform,
   TouchableOpacity,
   Image,
+  RefreshControl,
 } from 'react-native';
 import {
   Text,
@@ -55,6 +56,7 @@ const ResponsesScreen: React.FC = () => {
   const { projectId, projectName } = route.params;
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [filteredRespondents, setFilteredRespondents] = useState<Respondent[]>([]);
@@ -96,6 +98,15 @@ const ResponsesScreen: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadRespondents();
+    } catch (error) {
+      // Error already logged in loadRespondents
+    }
+    setRefreshing(false);
+  };
 
   const loadRespondentResponses = async (respondentId: string) => {
     try {
@@ -205,7 +216,18 @@ const ResponsesScreen: React.FC = () => {
     const paginatedData = filteredRespondents.slice(from, to);
 
     return (
-      <>
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#4b1e85"
+            colors={["#4b1e85"]}
+          />
+        }>
         <View style={styles.statsContainer}>
           <Card style={styles.statCard}>
             <Card.Content style={styles.statContent}>
@@ -232,13 +254,10 @@ const ResponsesScreen: React.FC = () => {
 
         <DataTable style={styles.dataTable}>
           <DataTable.Header style={styles.tableHeader}>
-            <DataTable.Title textStyle={styles.headerText}>ID</DataTable.Title>
+            <DataTable.Title textStyle={styles.headerText}>Respondent ID</DataTable.Title>
             <DataTable.Title textStyle={styles.headerText}>Name</DataTable.Title>
             <DataTable.Title textStyle={styles.headerText} numeric>
               Responses
-            </DataTable.Title>
-            <DataTable.Title textStyle={styles.headerText} numeric>
-              Progress
             </DataTable.Title>
           </DataTable.Header>
 
@@ -257,9 +276,6 @@ const ResponsesScreen: React.FC = () => {
                 </DataTable.Cell>
                 <DataTable.Cell textStyle={styles.cellText} numeric>
                   {respondent.response_count}
-                </DataTable.Cell>
-                <DataTable.Cell textStyle={styles.cellText} numeric>
-                  {Math.round(respondent.completion_rate)}%
                 </DataTable.Cell>
               </DataTable.Row>
             </TouchableOpacity>
@@ -281,7 +297,7 @@ const ResponsesScreen: React.FC = () => {
             }}
           />
         </DataTable>
-      </>
+      </ScrollView>
     );
   };
 
@@ -425,14 +441,25 @@ const ResponsesScreen: React.FC = () => {
 
         <View style={styles.detailStats}>
           <Chip style={styles.detailChip} textStyle={styles.chipText}>
-            {selectedRespondent.response_count} Responses
+            📊 {selectedRespondent.response_count} Responses
           </Chip>
           <Chip style={styles.detailChip} textStyle={styles.chipText}>
-            {Math.round(selectedRespondent.completion_rate)}% Complete
+            🆔 {selectedRespondent.respondent_id}
           </Chip>
         </View>
 
-        <ScrollView style={styles.responsesContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={[styles.responsesContainer, { flex: 1 }]}
+          contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#4b1e85"
+              colors={["#4b1e85"]}
+            />
+          }>
           {respondentResponses.map((response) => {
             const formattedValue = formatResponseValue(response);
             const isImage = response.question_details?.response_type === 'image';
@@ -633,7 +660,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
   },
   statsContainer: {
     flexDirection: 'row',

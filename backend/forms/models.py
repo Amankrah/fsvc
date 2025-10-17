@@ -41,6 +41,7 @@ class QuestionBank(models.Model):
     
     # Question category choices based on food system value chain
     CATEGORY_CHOICES = [
+        ('general', 'General'),  # Catch-all for uncategorized questions
         ('production', 'Production'),
         ('processing', 'Processing'),
         ('distribution', 'Distribution'),
