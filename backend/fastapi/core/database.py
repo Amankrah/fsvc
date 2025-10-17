@@ -31,7 +31,7 @@ from projects.models import Project
 from forms.models import Question
 from responses.models import Response, Respondent, ResponseType
 from authentication.models import User
-from analytics_results.models import AnalyticsResult
+# from analytics_results.models import AnalyticsResult  # App not yet created
 
 # Create SQLAlchemy engine using Django's database settings
 def get_django_db_url():
@@ -118,17 +118,22 @@ async def get_project_data(project_id: str):
                     'response_id': str(response.response_id),
                     'question_text': response.question.question_text,
                     'response_type': response.response_type.name,
+                    'response_type_display': response.response_type.display_name,
+                    'response_data_type': response.response_type.data_type,
+                    'analytics_category': response.response_type.analytics_category,
                     'response_value': response.response_value,
                     'numeric_value': float(response.numeric_value) if response.numeric_value else None,
                     'datetime_value': response.datetime_value.isoformat() if response.datetime_value else None,
                     'choice_selections': response.choice_selections,
                     'respondent_id': response.respondent.respondent_id,
+                    'respondent_type': response.respondent.respondent_type,
                     'collected_at': response.collected_at.isoformat(),
                     'collected_by': response.collected_by.username if response.collected_by else None,
                     'location_data': response.location_data,
                     'device_info': response.device_info,
                     'is_validated': response.is_validated,
                     'data_quality_score': response.data_quality_score,
+                    'question_category': response.question_category,
                 })
             
             return data

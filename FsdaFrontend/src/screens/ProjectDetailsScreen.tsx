@@ -60,7 +60,17 @@ const ProjectDetailsScreen: React.FC = () => {
     );
   }
 
-  const menuItems = [
+  interface MenuItem {
+    title: string;
+    description: string;
+    icon: string;
+    route: keyof RootStackParamList;
+    color: string;
+    requiresName?: boolean;
+    disabled?: boolean;
+  }
+
+  const menuItems: MenuItem[] = [
     {
       title: 'Build Forms & Questionnaires',
       description: 'Create and manage data collection forms',
@@ -86,11 +96,10 @@ const ProjectDetailsScreen: React.FC = () => {
     },
     {
       title: 'Analytics',
-      description: 'View insights and analytics (Coming Soon)',
+      description: 'View descriptive statistics and data insights',
       icon: 'chart-box-outline',
       route: 'Analytics' as keyof RootStackParamList,
       color: '#03dac6',
-      disabled: true,
     },
     {
       title: 'Project Members',
