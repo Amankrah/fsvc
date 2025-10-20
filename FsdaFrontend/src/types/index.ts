@@ -235,6 +235,15 @@ export interface ValidationRule {
   accepted_formats?: string[];
 }
 
+export interface ConditionalLogic {
+  enabled: boolean;
+  parent_question_id: string;
+  show_if: {
+    operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'greater_or_equal' | 'less_or_equal' | 'in' | 'not_in' | 'is_empty' | 'is_not_empty' | 'between';
+    value: any;
+  };
+}
+
 export interface Question {
   id: string;
   project: string;
@@ -272,6 +281,9 @@ export interface Question {
   targeted_countries?: string[];
   tags?: string[];
   is_active?: boolean;
+  // Conditional Logic fields
+  is_follow_up?: boolean;
+  conditional_logic?: ConditionalLogic | null;
 }
 
 export interface CreateQuestionData {
@@ -435,6 +447,9 @@ export interface QuestionBank {
   created_by?: string;
   targeted_respondents_display?: string[];
   targeted_commodities_display?: string[];
+  // Conditional Logic fields
+  is_follow_up?: boolean;
+  conditional_logic?: ConditionalLogic | null;
 }
 
 export interface CreateQuestionBankData {

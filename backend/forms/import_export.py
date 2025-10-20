@@ -30,6 +30,10 @@ class QuestionImportExport:
         'priority_score',
         'is_required',
         'options',
+        'is_follow_up',
+        'parent_question_text',
+        'condition_operator',
+        'condition_value',
     ]
 
     # Column descriptions for template
@@ -47,6 +51,10 @@ class QuestionImportExport:
         'priority_score': 'Priority 1-10, higher = selected first (default: 5)',
         'is_required': 'true or false - Should this question be required? (default: true)',
         'options': 'For choice questions only: Option1|Option2|Option3 (pipe-separated)',
+        'is_follow_up': 'true or false - Is this a follow-up/conditional question? (default: false)',
+        'parent_question_text': 'Text of parent question (for follow-up questions only)',
+        'condition_operator': 'Operator: equals, contains, greater_than, in, etc. (for follow-up questions)',
+        'condition_value': 'Value(s) to compare against. For "in" operator: Val1|Val2|Val3',
     }
 
     # Valid choices
@@ -90,8 +98,34 @@ class QuestionImportExport:
             '5',
             'true',
             'Farming|Trading|Processing|Other',
+            'false',
+            '',
+            '',
+            '',
         ]
         writer.writerow(example_row)
+
+        # Write a follow-up question example
+        followup_row = [
+            'How many hectares of farmland do you own?',
+            'production',
+            'numeric_decimal',
+            'farmers',
+            'cocoa,maize',
+            'Ghana,Nigeria',
+            'internal',
+            '',
+            '',
+            'WP1',
+            '5',
+            'true',
+            '',
+            'true',
+            'What is your primary source of income?',
+            'equals',
+            'Farming',
+        ]
+        writer.writerow(followup_row)
 
         return response
 
@@ -123,7 +157,7 @@ class QuestionImportExport:
             cell.fill = desc_fill
             cell.alignment = Alignment(wrap_text=True, vertical='top')
 
-        # Write example row
+        # Write example row (regular question)
         example_row = [
             'What is your primary source of income?',
             'production',
@@ -138,13 +172,41 @@ class QuestionImportExport:
             '5',
             'true',
             'Farming|Trading|Processing|Other',
+            'false',
+            '',
+            '',
+            '',
         ]
         for col_idx, value in enumerate(example_row, start=1):
             cell = sheet.cell(row=3, column=col_idx, value=value)
             cell.fill = example_fill
 
+        # Write follow-up question example
+        followup_row = [
+            'How many hectares of farmland do you own?',
+            'production',
+            'numeric_decimal',
+            'farmers',
+            'cocoa,maize',
+            'Ghana,Nigeria',
+            'internal',
+            '',
+            '',
+            'WP1',
+            '5',
+            'true',
+            '',
+            'true',
+            'What is your primary source of income?',
+            'equals',
+            'Farming',
+        ]
+        for col_idx, value in enumerate(followup_row, start=1):
+            cell = sheet.cell(row=4, column=col_idx, value=value)
+            cell.fill = PatternFill(start_color="FFF4CC", end_color="FFF4CC", fill_type="solid")
+
         # Adjust column widths
-        column_widths = [50, 25, 20, 35, 30, 25, 25, 30, 30, 15, 12, 15, 40]
+        column_widths = [50, 25, 20, 35, 30, 25, 25, 30, 30, 15, 12, 15, 40, 15, 40, 20, 30]
         for col_idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
@@ -323,6 +385,7 @@ class QuestionImportExport:
 
         # Parse boolean fields
         is_required = cls._parse_boolean(row.get('is_required'), default=True)
+        is_follow_up = cls._parse_boolean(row.get('is_follow_up'), default=False)
 
         # Parse options (pipe-separated)
         options = []
@@ -333,6 +396,58 @@ class QuestionImportExport:
         # Validate options for choice types
         if response_type in ['choice_single', 'choice_multiple'] and not options:
             errors.append(f"options required for response_type '{response_type}'")
+
+        # Parse conditional logic fields
+        parent_question_text = str(row.get('parent_question_text', '')).strip()
+        condition_operator = str(row.get('condition_operator', '')).strip().lower()
+        condition_value_str = str(row.get('condition_value', '')).strip()
+
+        conditional_logic = None
+        if is_follow_up:
+            # Validate follow-up question fields
+            if not parent_question_text:
+                errors.append("parent_question_text required for follow-up questions")
+            if not condition_operator:
+                errors.append("condition_operator required for follow-up questions")
+            else:
+                # Validate operator
+                valid_operators = ['equals', 'not_equals', 'contains', 'not_contains',
+                                  'greater_than', 'less_than', 'greater_or_equal',
+                                  'less_or_equal', 'in', 'not_in', 'is_empty',
+                                  'is_not_empty', 'between']
+                if condition_operator not in valid_operators:
+                    errors.append(f"Invalid condition_operator '{condition_operator}'. Valid: {', '.join(valid_operators)}")
+
+            # Build conditional logic (parent_question_id will be resolved during import)
+            if not errors:
+                condition_value = None
+                condition_values = None
+
+                # Parse value(s) based on operator
+                if condition_operator in ['in', 'not_in', 'between']:
+                    # Multiple values (pipe-separated)
+                    condition_values = [v.strip() for v in condition_value_str.split('|') if v.strip()]
+                    if not condition_values:
+                        errors.append(f"condition_value required for operator '{condition_operator}'")
+                elif condition_operator not in ['is_empty', 'is_not_empty']:
+                    # Single value
+                    condition_value = condition_value_str
+                    if not condition_value:
+                        errors.append(f"condition_value required for operator '{condition_operator}'")
+
+                # Build conditional logic structure (parent_question_id placeholder)
+                conditional_logic = {
+                    'enabled': True,
+                    'parent_question_text': parent_question_text,  # Store text for now, will resolve to ID during import
+                    'show_if': {
+                        'operator': condition_operator,
+                    }
+                }
+
+                if condition_value is not None:
+                    conditional_logic['show_if']['value'] = condition_value
+                if condition_values is not None:
+                    conditional_logic['show_if']['values'] = condition_values
 
         # Parse list fields (comma-separated)
         targeted_respondents = cls._parse_list_field(row.get('targeted_respondents'))
@@ -353,6 +468,31 @@ class QuestionImportExport:
         if not targeted_countries:
             errors.append("targeted_countries is required")
 
+        # Determine question ownership and sources based on data_source
+        is_owner_question = True
+        question_sources = ['owner']
+        
+        if data_source == 'internal':
+            # Internal questions belong to owner only
+            is_owner_question = True
+            question_sources = ['owner']
+        elif data_source == 'collaborative':
+            # Collaborative questions belong to both owner and partner
+            is_owner_question = True
+            if research_partner_name:
+                question_sources = ['owner', research_partner_name]
+            else:
+                question_sources = ['owner']
+                errors.append("Collaborative questions require research_partner_name")
+        elif research_partner_name:
+            # Partner questions belong to the partner only
+            is_owner_question = False
+            question_sources = [research_partner_name]
+        else:
+            # Fallback: if no partner name specified, treat as owner
+            is_owner_question = True
+            question_sources = ['owner']
+
         # Build question data
         question_data = {
             'question_text': question_text,
@@ -370,8 +510,12 @@ class QuestionImportExport:
             'research_partner_contact': research_partner_contact,
             'work_package': work_package,
             'priority_score': priority_score,
+            'is_owner_question': is_owner_question,
+            'question_sources': question_sources,
             'tags': [],
             'is_active': True,
+            'is_follow_up': is_follow_up,
+            'conditional_logic': conditional_logic,
         }
 
         return question_data, errors
@@ -399,8 +543,14 @@ class QuestionImportExport:
         created_count = 0
         updated_count = 0
         errors = []
+        question_text_to_id = {}  # Map question text to QuestionBank ID
 
+        # First pass: Import/update regular questions
         for question_data in questions_data:
+            # Skip follow-up questions in first pass
+            if question_data.get('is_follow_up'):
+                continue
+
             try:
                 # Check if question already exists (by question_text, category, and owner)
                 query_filter = {
@@ -409,7 +559,64 @@ class QuestionImportExport:
                 }
                 if owner:
                     query_filter['owner'] = owner
-                
+
+                existing = QuestionBank.objects.filter(**query_filter).first()
+
+                if existing:
+                    # Update existing question
+                    for key, value in question_data.items():
+                        setattr(existing, key, value)
+                    existing.save()
+                    updated_count += 1
+                    question_text_to_id[question_data['question_text']] = existing.id
+                else:
+                    # Create new question
+                    question_data['created_by'] = created_by
+                    if owner:
+                        question_data['owner'] = owner
+                    new_question = QuestionBank.objects.create(**question_data)
+                    created_count += 1
+                    question_text_to_id[question_data['question_text']] = new_question.id
+
+            except Exception as e:
+                errors.append(f"Failed to import '{question_data.get('question_text', 'Unknown')}': {str(e)}")
+
+        # Second pass: Import/update follow-up questions (resolve parent references)
+        for question_data in questions_data:
+            # Only process follow-up questions
+            if not question_data.get('is_follow_up'):
+                continue
+
+            try:
+                # Resolve parent question ID from text
+                conditional_logic = question_data.get('conditional_logic')
+                if conditional_logic:
+                    parent_text = conditional_logic.get('parent_question_text')
+                    if parent_text in question_text_to_id:
+                        # Convert parent_question_text to parent_question_id
+                        conditional_logic['parent_question_id'] = str(question_text_to_id[parent_text])
+                        del conditional_logic['parent_question_text']
+                    else:
+                        # Try to find existing parent question
+                        parent_query = {'question_text': parent_text}
+                        if owner:
+                            parent_query['owner'] = owner
+                        parent_question = QuestionBank.objects.filter(**parent_query).first()
+                        if parent_question:
+                            conditional_logic['parent_question_id'] = str(parent_question.id)
+                            del conditional_logic['parent_question_text']
+                        else:
+                            errors.append(f"Parent question '{parent_text}' not found for follow-up question '{question_data.get('question_text')}'")
+                            continue
+
+                # Check if question already exists
+                query_filter = {
+                    'question_text': question_data['question_text'],
+                    'question_category': question_data['question_category']
+                }
+                if owner:
+                    query_filter['owner'] = owner
+
                 existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
@@ -427,7 +634,7 @@ class QuestionImportExport:
                     created_count += 1
 
             except Exception as e:
-                errors.append(f"Failed to import '{question_data.get('question_text', 'Unknown')}': {str(e)}")
+                errors.append(f"Failed to import follow-up '{question_data.get('question_text', 'Unknown')}': {str(e)}")
 
         return {
             'created': created_count,

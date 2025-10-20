@@ -833,38 +833,89 @@ class AnalyticsUtils:
     
     @staticmethod
     def run_basic_statistics(df: pd.DataFrame, variables: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Run basic statistical analysis only."""
+        """Run basic statistical analysis only - for numeric response types."""
         if df.empty:
             return {'error': 'No data available for analysis'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns:
+                # Filter to only NUMERIC response types
+                if 'response_data_type' in df.columns:
+                    numeric_df = df[df['response_data_type'] == 'numeric'].copy()
+                elif 'analytics_category' in df.columns:
+                    numeric_df = df[df['analytics_category'] == 'descriptive'].copy()
+                else:
+                    # Fallback: use rows where numeric_value is not null
+                    numeric_df = df[df['numeric_value'].notna()].copy()
+
+                if numeric_df.empty:
+                    return {
+                        'results': {},
+                        'summary': {
+                            'variables_analyzed': 0,
+                            'variable_names': [],
+                            'observations': 0,
+                            'message': 'No numeric response types found. This analysis requires questions with numeric, decimal, or rating scale response types.'
+                        }
+                    }
+
+                # Pivot the numeric data from long to wide format
+                pivoted = numeric_df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='numeric_value',
+                    aggfunc='first'
+                )
+
+                df_to_analyze = pivoted
+            else:
+                # Already in wide format
+                df_to_analyze = df
+
             # Select variables or use all numeric ones
             if variables:
-                numeric_cols = [col for col in variables if col in df.columns and 
-                               pd.api.types.is_numeric_dtype(df[col])]
+                numeric_cols = [col for col in variables if col in df_to_analyze.columns and
+                               pd.api.types.is_numeric_dtype(df_to_analyze[col])]
             else:
-                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
+                numeric_cols = df_to_analyze.select_dtypes(include=[np.number]).columns.tolist()
+
             if not numeric_cols:
-                return {'error': 'No numeric variables found for basic statistics'}
-            
-            basic_stats = calculate_basic_stats(df, numeric_cols)
-            percentiles = calculate_percentiles(df, numeric_cols)
-            
+                return {
+                    'results': {},
+                    'summary': {
+                        'variables_analyzed': 0,
+                        'variable_names': [],
+                        'observations': len(df_to_analyze),
+                        'message': 'No numeric variables found. Add numeric, decimal, or rating scale questions to your survey.'
+                    }
+                }
+
+            basic_stats = calculate_basic_stats(df_to_analyze, numeric_cols)
+            percentiles = calculate_percentiles(df_to_analyze, numeric_cols)
+
+            # Merge basic stats and percentiles for each variable
+            results = {}
+            for col in numeric_cols:
+                results[col] = {
+                    **basic_stats.get(col, {}),
+                    'percentiles': percentiles.get(col, {})
+                }
+
             result = {
-                'basic_statistics': basic_stats,
-                'percentiles': percentiles,
+                'results': results,
                 'summary': {
                     'variables_analyzed': len(numeric_cols),
                     'variable_names': numeric_cols,
-                    'observations': len(df)
+                    'observations': len(df_to_analyze)
                 }
             }
-            
+
             return AnalyticsUtils.convert_numpy_types(result)
-            
+
         except Exception as e:
             logger.error(f"Error in basic statistics: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {'error': f'Basic statistics failed: {str(e)}'}
     
     @staticmethod

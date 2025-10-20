@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -26,6 +26,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import apiService from '../services/api';
+import { evaluateConditionalLogic, filterQuestionsWithConditions } from '../utils/conditionalLogic';
 import {
   Question,
   RespondentType,
@@ -62,6 +63,11 @@ const DataCollectionScreen: React.FC = () => {
   const [currentLocationQuestion, setCurrentLocationQuestion] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', address: '' });
 
+  // Filter questions based on conditional logic - only show questions that meet conditions
+  const visibleQuestions = useMemo(() => {
+    return filterQuestionsWithConditions(questions, responses);
+  }, [questions, responses]);
+
   // Available options from QuestionBank (dynamically fetched)
   const [availableRespondentTypes, setAvailableRespondentTypes] = useState<Array<{value: string, display: string}>>([]);
   const [availableCommodities, setAvailableCommodities] = useState<Array<{value: string, display: string}>>([]);
@@ -82,8 +88,28 @@ const DataCollectionScreen: React.FC = () => {
     if (useAutoId) {
       generateNewRespondentId();
     }
-    // DO NOT load questions automatically - they must be generated per respondent
   }, []);
+
+  // Auto-load existing questions when specifications change
+  useEffect(() => {
+    const autoLoadQuestions = async () => {
+      if (selectedRespondentType && !generatingQuestions) {
+        // Silently check if questions exist for this combination
+        const existingQuestions = await loadExistingQuestions();
+        if (existingQuestions.length > 0) {
+          setQuestions(existingQuestions);
+          setQuestionsGenerated(true);
+          console.log(`Auto-loaded ${existingQuestions.length} existing questions for ${selectedRespondentType}`);
+        } else {
+          // No existing questions found - reset state
+          setQuestions([]);
+          setQuestionsGenerated(false);
+        }
+      }
+    };
+
+    autoLoadQuestions();
+  }, [selectedRespondentType, selectedCommodities, selectedCountry]);
 
   const generateNewRespondentId = () => {
     const autoId = generateRespondentId(projectId);
@@ -156,7 +182,7 @@ const DataCollectionScreen: React.FC = () => {
     }
   };
 
-  const generateDynamicQuestions = async (forceRegenerate: boolean = false) => {
+  const generateDynamicQuestions = async (forceRegenerate: boolean = false, silent: boolean = false) => {
     if (!selectedRespondentType) {
       Alert.alert('Required', 'Please select a respondent type');
       return;
@@ -168,26 +194,29 @@ const DataCollectionScreen: React.FC = () => {
       // First, check if questions already exist for this combination
       if (!forceRegenerate) {
         const existingQuestions = await loadExistingQuestions();
-        
+
         if (existingQuestions.length > 0) {
           setQuestions(existingQuestions);
           setQuestionsGenerated(true);
-          
-          Alert.alert(
-            'Questions Loaded!',
-            `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
-            [
-              {
-                text: 'Use These',
-                onPress: () => {},
-              },
-              {
-                text: 'Regenerate',
-                onPress: () => generateDynamicQuestions(true),
-                style: 'destructive',
-              },
-            ]
-          );
+
+          // If silent mode, just load without showing alert
+          if (!silent) {
+            Alert.alert(
+              'Questions Loaded!',
+              `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
+              [
+                {
+                  text: 'Use These',
+                  onPress: () => {},
+                },
+                {
+                  text: 'Regenerate',
+                  onPress: () => generateDynamicQuestions(true, false),
+                  style: 'destructive',
+                },
+              ]
+            );
+          }
           return;
         }
       }
@@ -269,12 +298,12 @@ const DataCollectionScreen: React.FC = () => {
   };
 
   const handleNext = () => {
-    const currentQuestion = questions[currentQuestionIndex];
+    const currentQuestion = visibleQuestions[currentQuestionIndex];
     if (currentQuestion.is_required && !responses[currentQuestion.id]) {
       Alert.alert('Required', 'This question is required');
       return;
     }
-    if (currentQuestionIndex < questions.length - 1) {
+    if (currentQuestionIndex < visibleQuestions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -286,8 +315,8 @@ const DataCollectionScreen: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // Check if all required questions are answered
-    const unansweredRequired = questions.filter(
+    // Check if all required VISIBLE questions are answered (respect conditional logic)
+    const unansweredRequired = visibleQuestions.filter(
       (q) => q.is_required && !responses[q.id]
     );
 
@@ -935,23 +964,35 @@ const DataCollectionScreen: React.FC = () => {
                         </View>
                       )}
 
-                      {/* Generate Button */}
-                      <Button
-                        mode="outlined"
-                        onPress={() => generateDynamicQuestions()}
-                        loading={generatingQuestions}
-                        disabled={generatingQuestions || !selectedRespondentType || availableRespondentTypes.length === 0}
-                        style={styles.generateButton}
-                        icon="auto-fix"
-                      >
-                        {generatingQuestions ? 'Generating...' : 'Generate Questions'}
-                      </Button>
+                      {/* Generate Button - Only show if no questions loaded yet */}
+                      {!questionsGenerated || questions.length === 0 ? (
+                        <Button
+                          mode="outlined"
+                          onPress={() => generateDynamicQuestions()}
+                          loading={generatingQuestions}
+                          disabled={generatingQuestions || !selectedRespondentType || availableRespondentTypes.length === 0}
+                          style={styles.generateButton}
+                          icon="auto-fix"
+                        >
+                          {generatingQuestions ? 'Generating...' : 'Generate Questions'}
+                        </Button>
+                      ) : (
+                        <Button
+                          mode="outlined"
+                          onPress={() => generateDynamicQuestions(false, false)}
+                          disabled={generatingQuestions}
+                          style={[styles.generateButton, { borderColor: '#4caf50' }]}
+                          icon="refresh"
+                        >
+                          Regenerate Questions
+                        </Button>
+                      )}
 
                       {questionsGenerated && questions.length > 0 ? (
                         <View style={styles.successIndicator}>
                           <Text style={styles.successIcon}>✓</Text>
                           <Text variant="bodyMedium" style={styles.questionsInfo}>
-                            {questions.length} question(s) generated and ready!
+                            {questions.length} question(s) ready! (Reusable questions loaded)
                           </Text>
                         </View>
                       ) : (
@@ -987,8 +1028,8 @@ const DataCollectionScreen: React.FC = () => {
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length);
+  const currentQuestion = visibleQuestions[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / visibleQuestions.length);
 
   const renderLocationDialog = () => {
     if (!currentLocationQuestion) return null;
@@ -1291,7 +1332,7 @@ const DataCollectionScreen: React.FC = () => {
         <View style={styles.progressHeader}>
           <View style={styles.progressTextContainer}>
             <Text variant="labelLarge" style={styles.progressText}>
-              Question {currentQuestionIndex + 1} of {questions.length}
+              Question {currentQuestionIndex + 1} of {visibleQuestions.length}
             </Text>
             {selectedRespondentType && (
               <Text variant="bodySmall" style={styles.respondentTypeIndicator}>
@@ -1353,7 +1394,7 @@ const DataCollectionScreen: React.FC = () => {
           Previous
         </Button>
 
-        {currentQuestionIndex < questions.length - 1 ? (
+        {currentQuestionIndex < visibleQuestions.length - 1 ? (
           <Button
             mode="contained"
             onPress={handleNext}

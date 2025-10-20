@@ -23,9 +23,11 @@ class DataType(Enum):
     CATEGORICAL = "categorical"
     BINARY = "binary"
     ORDINAL = "ordinal"
+    RATING_SCALE = "rating_scale"
     TEXT = "text"
     DATETIME = "datetime"
     GEOGRAPHIC = "geographic"
+    MEDIA = "media"
     EMPTY = "empty"
     UNKNOWN = "unknown"
 
@@ -448,18 +450,22 @@ class StandardizedDataProfiler:
         try:
             # Remove missing values for analysis
             clean_series = series.dropna()
-            
+
             if len(clean_series) == 0:
                 return DataType.EMPTY
-            
+
+            # Check for media types (file paths or data URLs)
+            if series.name and any(media_term in str(series.name).lower() for media_term in ['image', 'audio', 'video', 'file', 'signature', 'media']):
+                return DataType.MEDIA
+
             # Check for geographic coordinates
             if series.name and any(geo_term in str(series.name).lower() for geo_term in ['lat', 'lon', 'latitude', 'longitude']):
                 return DataType.GEOGRAPHIC
-            
+
             # Check for datetime
             if pd.api.types.is_datetime64_any_dtype(series):
                 return DataType.DATETIME
-            
+
             # Check if binary
             try:
                 unique_vals = clean_series.unique()
@@ -477,7 +483,7 @@ class StandardizedDataProfiler:
                     logger.debug(f"Error converting to string for binary check: {e2}")
                     # If all else fails, treat as text
                     return DataType.TEXT
-            
+
             # Check if numeric
             if pd.api.types.is_numeric_dtype(clean_series):
                 try:
@@ -489,7 +495,15 @@ class StandardizedDataProfiler:
                         except Exception:
                             # If we can't get unique values, default to continuous
                             return DataType.NUMERIC_CONTINUOUS
-                    
+
+                    # Check for rating scales (1-5, 1-7, 1-10, etc.)
+                    if series.name and any(rating_term in str(series.name).lower() for rating_term in ['rating', 'scale', 'score', 'likert']):
+                        if 3 <= len(unique_vals) <= 11:  # Typical rating scale range
+                            min_val = clean_series.min()
+                            max_val = clean_series.max()
+                            if (min_val == 1 or min_val == 0) and max_val <= 10:
+                                return DataType.RATING_SCALE
+
                     if len(unique_vals) > 20 or self._has_floating_point_values(clean_series):
                         return DataType.NUMERIC_CONTINUOUS
                     else:
@@ -498,11 +512,11 @@ class StandardizedDataProfiler:
                     logger.debug(f"Error determining continuous vs discrete: {e}")
                     # If there's an error determining continuous vs discrete, default to discrete
                     return DataType.NUMERIC_DISCRETE
-            
+
             # Check if ordinal (ordered categorical)
             if hasattr(series, 'cat') and series.cat.ordered:
                 return DataType.ORDINAL
-            
+
             # Check if categorical
             try:
                 # Get unique values safely
@@ -512,7 +526,7 @@ class StandardizedDataProfiler:
                     except Exception:
                         # If we can't get unique values, treat as text
                         return DataType.TEXT
-                
+
                 if len(unique_vals) <= 50:
                     return DataType.CATEGORICAL
                 else:
@@ -521,7 +535,7 @@ class StandardizedDataProfiler:
                 logger.debug(f"Error in categorical classification: {e}")
                 # If we can't determine unique values, default to text
                 return DataType.TEXT
-                
+
         except Exception as e:
             logger.error(f"Error classifying variable type for series {series.name}: {e}")
             return DataType.UNKNOWN

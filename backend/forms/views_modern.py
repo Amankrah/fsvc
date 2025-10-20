@@ -120,6 +120,89 @@ class ModernQuestionViewSet(BaseModelViewSet):
             logger.info(f"Question deleted: {instance.id} from project {project_id}")
     
     @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """
+        Bulk delete questions with multiple filter options
+        
+        Options:
+        - question_ids: List of question IDs to delete
+        - project_id: Delete all questions from a project
+        - question_bank_source_id: Delete all questions generated from a specific QuestionBank
+        - assigned_respondent_type: Delete all questions for a specific respondent type
+        """
+        question_ids = request.data.get('question_ids', [])
+        project_id = request.data.get('project_id')
+        question_bank_source_id = request.data.get('question_bank_source_id')
+        assigned_respondent_type = request.data.get('assigned_respondent_type')
+        
+        if not any([question_ids, project_id, question_bank_source_id, assigned_respondent_type]):
+            return Response(
+                {'error': 'Must provide at least one filter: question_ids, project_id, question_bank_source_id, or assigned_respondent_type'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                queryset = self.get_queryset()
+                
+                # Apply filters
+                if question_ids:
+                    queryset = queryset.filter(id__in=question_ids)
+                
+                if project_id:
+                    from projects.models import Project
+                    try:
+                        project = Project.objects.get(id=project_id)
+                        # Check permissions
+                        if not project.can_user_edit(request.user):
+                            raise ValidationError(f"No permission to delete questions from project {project_id}")
+                        queryset = queryset.filter(project_id=project_id)
+                    except Project.DoesNotExist:
+                        return Response(
+                            {'error': f'Project {project_id} not found'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                
+                if question_bank_source_id:
+                    queryset = queryset.filter(question_bank_source_id=question_bank_source_id)
+                
+                if assigned_respondent_type:
+                    queryset = queryset.filter(assigned_respondent_type=assigned_respondent_type)
+                
+                # Get count before deletion
+                question_count = queryset.count()
+                
+                if question_count == 0:
+                    return Response(
+                        {'message': 'No questions found matching the filters', 'deleted_count': 0},
+                        status=status.HTTP_200_OK
+                    )
+                
+                # Get unique project IDs for cache clearing
+                project_ids = queryset.values_list('project_id', flat=True).distinct()
+                
+                # Delete questions
+                queryset.delete()
+                
+                # Clear cache for affected projects
+                for pid in project_ids:
+                    self._clear_project_cache(pid)
+                
+                logger.info(f"Bulk deleted {question_count} questions by {request.user}")
+                
+                return Response({
+                    'message': f'Successfully deleted {question_count} question{"s" if question_count != 1 else ""}',
+                    'deleted_count': question_count
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.exception("Error in bulk delete")
+            return Response(
+                {'error': f'Failed to delete questions: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
     def bulk_create(self, request):
         """Optimized bulk creation of questions with validation"""
         if not isinstance(request.data, list):
@@ -944,6 +1027,146 @@ class QuestionBankViewSet(BaseModelViewSet):
         instance.save()
         
         logger.info(f"QuestionBank soft deleted: {instance.id} by {self.request.user}")
+    
+    @action(detail=True, methods=['delete'])
+    def hard_delete(self, request, pk=None):
+        """
+        Permanently delete a QuestionBank item and optionally all generated questions.
+        
+        Query params:
+        - delete_generated_questions: If 'true', also deletes all Questions generated from this QuestionBank
+        """
+        try:
+            instance = self.get_object()
+            
+            # Check permissions
+            if instance.owner != request.user and not request.user.is_superuser:
+                return Response(
+                    {'error': "You don't have permission to delete this QuestionBank item"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            delete_generated = request.query_params.get('delete_generated_questions', '').lower() == 'true'
+            
+            with transaction.atomic():
+                generated_count = 0
+                
+                if delete_generated:
+                    # Delete all questions generated from this QuestionBank
+                    generated_questions = Question.objects.filter(question_bank_source=instance)
+                    generated_count = generated_questions.count()
+                    
+                    # Get project IDs for cache clearing
+                    project_ids = generated_questions.values_list('project_id', flat=True).distinct()
+                    
+                    # Delete generated questions
+                    generated_questions.delete()
+                    
+                    # Clear cache for affected projects
+                    from forms.views_modern import ModernQuestionViewSet
+                    viewset = ModernQuestionViewSet()
+                    for project_id in project_ids:
+                        viewset._clear_project_cache(project_id)
+                
+                # Hard delete the QuestionBank item
+                question_text = instance.question_text[:50]
+                instance.delete()
+                
+                logger.info(f"QuestionBank hard deleted: {pk} by {request.user}, generated questions deleted: {generated_count}")
+                
+                return Response({
+                    'message': f'QuestionBank "{question_text}..." permanently deleted',
+                    'deleted_generated_questions': generated_count
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.exception("Error in hard delete")
+            return Response(
+                {'error': f'Failed to delete QuestionBank: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """
+        Bulk delete QuestionBank items with optional hard delete.
+        
+        Body params:
+        - question_bank_ids: List of QuestionBank IDs to delete
+        - hard_delete: If true, permanently delete (default: soft delete)
+        - delete_generated_questions: If true and hard_delete=true, also delete generated Questions
+        """
+        question_bank_ids = request.data.get('question_bank_ids', [])
+        hard_delete = request.data.get('hard_delete', False)
+        delete_generated = request.data.get('delete_generated_questions', False)
+        
+        if not question_bank_ids:
+            return Response(
+                {'error': 'Must provide question_bank_ids'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                queryset = self.get_queryset().filter(id__in=question_bank_ids)
+                
+                # Check permissions for all items
+                for item in queryset:
+                    if item.owner != request.user and not request.user.is_superuser:
+                        return Response(
+                            {'error': f"You don't have permission to delete QuestionBank: {item.question_text[:50]}..."},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                
+                count = queryset.count()
+                generated_count = 0
+                
+                if count == 0:
+                    return Response(
+                        {'message': 'No QuestionBank items found', 'deleted_count': 0},
+                        status=status.HTTP_200_OK
+                    )
+                
+                if hard_delete:
+                    if delete_generated:
+                        # Delete all generated questions
+                        generated_questions = Question.objects.filter(question_bank_source__in=queryset)
+                        generated_count = generated_questions.count()
+                        
+                        # Get project IDs for cache clearing
+                        project_ids = generated_questions.values_list('project_id', flat=True).distinct()
+                        
+                        # Delete generated questions
+                        generated_questions.delete()
+                        
+                        # Clear cache
+                        from forms.views_modern import ModernQuestionViewSet
+                        viewset = ModernQuestionViewSet()
+                        for project_id in project_ids:
+                            viewset._clear_project_cache(project_id)
+                    
+                    # Hard delete QuestionBank items
+                    queryset.delete()
+                    message = f'Permanently deleted {count} QuestionBank item{"s" if count != 1 else ""}'
+                else:
+                    # Soft delete
+                    queryset.update(is_active=False)
+                    message = f'Soft deleted {count} QuestionBank item{"s" if count != 1 else ""}'
+                
+                logger.info(f"Bulk deleted {count} QuestionBank items by {request.user}")
+                
+                return Response({
+                    'message': message,
+                    'deleted_count': count,
+                    'deleted_generated_questions': generated_count
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.exception("Error in bulk delete")
+            return Response(
+                {'error': f'Failed to delete QuestionBank items: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'])
     def search_for_respondent(self, request):

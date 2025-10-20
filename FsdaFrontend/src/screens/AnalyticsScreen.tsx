@@ -1,28 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  ScrollView,
-  StyleSheet,
-  RefreshControl,
-} from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import {
   Text,
   Card,
-  Button,
   ActivityIndicator,
   Chip,
   SegmentedButtons,
   IconButton,
   Menu,
   Divider,
-  Portal,
-  Modal,
-  List,
+  Button,
 } from 'react-native-paper';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { analyticsService } from '../services/analyticsService';
+import {
+  StatisticDisplay,
+  StatisticsGrid,
+} from '../components/analytics';
+import CustomAnalyticsTab from '../components/analytics/CustomAnalyticsTab';
 
 type AnalyticsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Analytics'>;
 type AnalyticsScreenRouteProp = RouteProp<RootStackParamList, 'Analytics'>;
@@ -52,20 +49,7 @@ interface AnalysisSummary {
   response_types: ResponseTypeBreakdown[];
 }
 
-interface BasicStatistics {
-  [key: string]: {
-    count: number;
-    mean: number;
-    std: number;
-    min: number;
-    max: number;
-    percentiles: {
-      '25%': number;
-      '50%': number;
-      '75%': number;
-    };
-  };
-}
+type AnalyticsView = 'overview' | 'custom';
 
 const AnalyticsScreen: React.FC = () => {
   const navigation = useNavigation<AnalyticsScreenNavigationProp>();
@@ -75,10 +59,8 @@ const AnalyticsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
-  const [basicStats, setBasicStats] = useState<BasicStatistics | null>(null);
-  const [analysisView, setAnalysisView] = useState<string>('overview');
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('overview');
   const [menuVisible, setMenuVisible] = useState(false);
-  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAnalyticsSummary = useCallback(async () => {
@@ -86,26 +68,18 @@ const AnalyticsScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Load data summary
       const summary = await analyticsService.getDataSummary(projectId);
-      setAnalysisSummary(summary.data);
 
+      if (summary.status === 'success') {
+        setAnalysisSummary(summary.data);
+      } else {
+        setError(summary.message || 'Failed to load analytics data');
+      }
     } catch (err: any) {
       console.error('Error loading analytics summary:', err);
       setError(err.message || 'Failed to load analytics data');
     } finally {
       setLoading(false);
-    }
-  }, [projectId]);
-
-  const loadBasicStatistics = useCallback(async () => {
-    try {
-      const stats = await analyticsService.getBasicStatistics(projectId);
-      if (stats.status === 'success' && stats.data?.results) {
-        setBasicStats(stats.data.results);
-      }
-    } catch (err: any) {
-      console.error('Error loading basic statistics:', err);
     }
   }, [projectId]);
 
@@ -115,60 +89,11 @@ const AnalyticsScreen: React.FC = () => {
     }
   }, [projectId, loadAnalyticsSummary]);
 
-  useEffect(() => {
-    if (projectId && analysisView === 'statistics') {
-      loadBasicStatistics();
-    }
-  }, [projectId, analysisView, loadBasicStatistics]);
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAnalyticsSummary();
-    if (analysisView === 'statistics') {
-      await loadBasicStatistics();
-    }
     setRefreshing(false);
-  }, [loadAnalyticsSummary, loadBasicStatistics, analysisView]);
-
-  const runAnalysis = async (analysisType: string) => {
-    try {
-      setLoading(true);
-      setAnalysisModalVisible(false);
-
-      let result;
-      switch (analysisType) {
-        case 'basic':
-          result = await analyticsService.getBasicStatistics(projectId);
-          if (result.status === 'success') {
-            setBasicStats(result.data.results);
-            setAnalysisView('statistics');
-          }
-          break;
-        case 'distributions':
-          await analyticsService.getDistributions(projectId);
-          break;
-        case 'categorical':
-          await analyticsService.getCategoricalAnalysis(projectId);
-          break;
-        case 'outliers':
-          await analyticsService.getOutliers(projectId);
-          break;
-        case 'missing':
-          await analyticsService.getMissingData(projectId);
-          break;
-        case 'quality':
-          await analyticsService.getDataQuality(projectId);
-          break;
-        default:
-          break;
-      }
-    } catch (err: any) {
-      console.error(`Error running ${analysisType} analysis:`, err);
-      setError(`Failed to run ${analysisType} analysis`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadAnalyticsSummary]);
 
   const formatNumber = (value: any, decimals: number = 2): string => {
     if (value === null || value === undefined || isNaN(value)) {
@@ -192,92 +117,69 @@ const AnalyticsScreen: React.FC = () => {
 
     return (
       <>
-        {/* Summary Statistics */}
         <Card style={styles.card}>
           <Card.Title
             title="Data Overview"
             titleVariant="titleLarge"
-            right={(props) => (
-              <IconButton
-                {...props}
-                icon="refresh"
-                onPress={onRefresh}
-              />
-            )}
+            right={(props) => <IconButton {...props} icon="refresh" onPress={onRefresh} />}
           />
           <Card.Content>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text variant="headlineMedium" style={styles.statValue}>
-                  {(summary?.total_responses || 0).toLocaleString()}
-                </Text>
-                <Text variant="bodySmall" style={styles.statLabel}>
-                  Total Responses
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text variant="headlineMedium" style={styles.statValue}>
-                  {(summary?.unique_respondents || 0).toLocaleString()}
-                </Text>
-                <Text variant="bodySmall" style={styles.statLabel}>
-                  Respondents
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text variant="headlineMedium" style={styles.statValue}>
-                  {(summary?.unique_questions || 0).toLocaleString()}
-                </Text>
-                <Text variant="bodySmall" style={styles.statLabel}>
-                  Questions
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text variant="headlineMedium" style={styles.statValue}>
-                  {formatNumber(summary?.avg_quality_score, 1)}%
-                </Text>
-                <Text variant="bodySmall" style={styles.statLabel}>
-                  Avg Quality
-                </Text>
-              </View>
-            </View>
+            <StatisticsGrid>
+              <StatisticDisplay
+                label="Total Responses"
+                value={(summary?.total_responses || 0).toLocaleString()}
+                variant="highlight"
+                color="#6200ee"
+              />
+              <StatisticDisplay
+                label="Respondents"
+                value={(summary?.unique_respondents || 0).toLocaleString()}
+                variant="highlight"
+                color="#2196f3"
+              />
+              <StatisticDisplay
+                label="Questions"
+                value={(summary?.unique_questions || 0).toLocaleString()}
+                variant="highlight"
+                color="#4caf50"
+              />
+              <StatisticDisplay
+                label="Avg Quality"
+                value={`${formatNumber(summary?.avg_quality_score, 1)}%`}
+                variant="highlight"
+                color="#ff9800"
+              />
+            </StatisticsGrid>
 
             <Divider style={styles.divider} />
 
-            {/* Additional Metrics */}
             <View style={styles.metricsContainer}>
-              <View style={styles.metricRow}>
-                <Text variant="bodyMedium">Validation Rate:</Text>
-                <Chip mode="flat" style={styles.metricChip}>
-                  {formatNumber(summary?.validation_rate, 1)}%
-                </Chip>
-              </View>
-
-              <View style={styles.metricRow}>
-                <Text variant="bodyMedium">Location Coverage:</Text>
-                <Chip mode="flat" style={styles.metricChip}>
-                  {formatNumber(summary?.location_coverage, 1)}%
-                </Chip>
-              </View>
-
-              {summary?.earliest_response && (
-                <View style={styles.metricRow}>
-                  <Text variant="bodyMedium">Collection Period:</Text>
-                  <Text variant="bodySmall" style={styles.dateText}>
-                    {new Date(summary.earliest_response).toLocaleDateString()} -{' '}
-                    {summary.latest_response
-                      ? new Date(summary.latest_response).toLocaleDateString()
-                      : 'Present'}
-                  </Text>
-                </View>
-              )}
+              <StatisticDisplay
+                label="Validation Rate"
+                value={`${formatNumber(summary?.validation_rate, 1)}%`}
+                variant="chip"
+                color="#e3f2fd"
+              />
+              <StatisticDisplay
+                label="Location Coverage"
+                value={`${formatNumber(summary?.location_coverage, 1)}%`}
+                variant="chip"
+                color="#e3f2fd"
+              />
             </View>
+
+            {summary?.earliest_response && (
+              <View style={styles.metricRow}>
+                <Text variant="bodyMedium">Collection Period:</Text>
+                <Text variant="bodySmall" style={styles.dateText}>
+                  {new Date(summary.earliest_response).toLocaleDateString()} -{' '}
+                  {summary.latest_response ? new Date(summary.latest_response).toLocaleDateString() : 'Present'}
+                </Text>
+              </View>
+            )}
           </Card.Content>
         </Card>
 
-        {/* Response Types Breakdown */}
         {response_types && response_types.length > 0 && (
           <Card style={styles.card}>
             <Card.Title title="Response Types" titleVariant="titleMedium" />
@@ -296,110 +198,36 @@ const AnalyticsScreen: React.FC = () => {
             </Card.Content>
           </Card>
         )}
+
+        <Card style={styles.card}>
+          <Card.Title title="Get Started" titleVariant="titleMedium" />
+          <Card.Content>
+            <Text variant="bodyMedium" style={styles.instructionText}>
+              Ready to analyze your data? Use the Custom Analytics tab to run comprehensive statistical,
+              inferential, and qualitative analyses with full control over methods and parameters.
+            </Text>
+            <Button
+              mode="contained"
+              icon="tune"
+              onPress={() => setAnalyticsView('custom')}
+              style={styles.actionButton}
+            >
+              Run Custom Analytics
+            </Button>
+          </Card.Content>
+        </Card>
       </>
     );
   };
 
-  const renderStatistics = () => {
-    if (!basicStats) {
-      return (
-        <Card style={styles.card}>
-          <Card.Content>
-            <ActivityIndicator size="small" />
-            <Text variant="bodyMedium" style={styles.loadingText}>
-              Loading statistics...
-            </Text>
-          </Card.Content>
-        </Card>
-      );
+  const renderAnalyticsContent = () => {
+    switch (analyticsView) {
+      case 'custom':
+        return <CustomAnalyticsTab projectId={projectId} />;
+      case 'overview':
+      default:
+        return renderOverview();
     }
-
-    if (Object.keys(basicStats).length === 0) {
-      return (
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text variant="bodyMedium" style={styles.loadingText}>
-              No numeric variables found for statistical analysis.
-            </Text>
-          </Card.Content>
-        </Card>
-      );
-    }
-
-    return (
-      <>
-        {Object.entries(basicStats).map(([variable, stats]) => {
-          if (!stats) return null;
-
-          return (
-            <Card key={variable} style={styles.card}>
-              <Card.Title
-                title={variable}
-                titleVariant="titleMedium"
-                subtitle={`${stats.count || 0} values`}
-              />
-              <Card.Content>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statItem}>
-                    <Text variant="titleMedium">{formatNumber(stats.mean)}</Text>
-                    <Text variant="bodySmall" style={styles.statLabel}>
-                      Mean
-                    </Text>
-                  </View>
-
-                  <View style={styles.statItem}>
-                    <Text variant="titleMedium">{formatNumber(stats.std)}</Text>
-                    <Text variant="bodySmall" style={styles.statLabel}>
-                      Std Dev
-                    </Text>
-                  </View>
-
-                  <View style={styles.statItem}>
-                    <Text variant="titleMedium">{formatNumber(stats.min)}</Text>
-                    <Text variant="bodySmall" style={styles.statLabel}>
-                      Min
-                    </Text>
-                  </View>
-
-                  <View style={styles.statItem}>
-                    <Text variant="titleMedium">{formatNumber(stats.max)}</Text>
-                    <Text variant="bodySmall" style={styles.statLabel}>
-                      Max
-                    </Text>
-                  </View>
-                </View>
-
-                <Divider style={styles.divider} />
-
-                <Text variant="titleSmall" style={styles.percentileTitle}>
-                  Percentiles
-                </Text>
-                <View style={styles.percentilesContainer}>
-                  <View style={styles.percentileItem}>
-                    <Text variant="bodySmall">25th</Text>
-                    <Text variant="bodyMedium">
-                      {formatNumber(stats.percentiles?.['25%'])}
-                    </Text>
-                  </View>
-                  <View style={styles.percentileItem}>
-                    <Text variant="bodySmall">50th (Median)</Text>
-                    <Text variant="bodyMedium">
-                      {formatNumber(stats.percentiles?.['50%'])}
-                    </Text>
-                  </View>
-                  <View style={styles.percentileItem}>
-                    <Text variant="bodySmall">75th</Text>
-                    <Text variant="bodyMedium">
-                      {formatNumber(stats.percentiles?.['75%'])}
-                    </Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
-          );
-        })}
-      </>
-    );
   };
 
   if (loading && !refreshing) {
@@ -438,27 +266,14 @@ const AnalyticsScreen: React.FC = () => {
             Analytics Dashboard
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            Descriptive Statistics & Insights
+            Comprehensive Data Analysis
           </Text>
         </View>
         <Menu
           visible={menuVisible}
           onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <IconButton
-              icon="dots-vertical"
-              onPress={() => setMenuVisible(true)}
-            />
-          }
+          anchor={<IconButton icon="dots-vertical" onPress={() => setMenuVisible(true)} />}
         >
-          <Menu.Item
-            onPress={() => {
-              setMenuVisible(false);
-              setAnalysisModalVisible(true);
-            }}
-            title="Run Analysis"
-            leadingIcon="chart-line"
-          />
           <Menu.Item
             onPress={() => {
               setMenuVisible(false);
@@ -481,8 +296,8 @@ const AnalyticsScreen: React.FC = () => {
 
       {/* View Selector */}
       <SegmentedButtons
-        value={analysisView}
-        onValueChange={setAnalysisView}
+        value={analyticsView}
+        onValueChange={(value) => setAnalyticsView(value as AnalyticsView)}
         buttons={[
           {
             value: 'overview',
@@ -490,9 +305,9 @@ const AnalyticsScreen: React.FC = () => {
             icon: 'view-dashboard',
           },
           {
-            value: 'statistics',
-            label: 'Statistics',
-            icon: 'chart-box',
+            value: 'custom',
+            label: 'Analytics',
+            icon: 'chart-box-outline',
           },
         ]}
         style={styles.segmentedButtons}
@@ -502,70 +317,10 @@ const AnalyticsScreen: React.FC = () => {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {analysisView === 'overview' ? renderOverview() : renderStatistics()}
+        {renderAnalyticsContent()}
       </ScrollView>
-
-      {/* Analysis Modal */}
-      <Portal>
-        <Modal
-          visible={analysisModalVisible}
-          onDismiss={() => setAnalysisModalVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <Text variant="titleLarge" style={styles.modalTitle}>
-            Run Analysis
-          </Text>
-          <List.Section>
-            <List.Item
-              title="Basic Statistics"
-              description="Mean, median, std deviation, percentiles"
-              left={(props) => <List.Icon {...props} icon="chart-bar" />}
-              onPress={() => runAnalysis('basic')}
-            />
-            <List.Item
-              title="Distributions"
-              description="Normality tests, skewness, kurtosis"
-              left={(props) => <List.Icon {...props} icon="chart-bell-curve" />}
-              onPress={() => runAnalysis('distributions')}
-            />
-            <List.Item
-              title="Categorical Analysis"
-              description="Frequency tables, chi-square tests"
-              left={(props) => <List.Icon {...props} icon="chart-pie" />}
-              onPress={() => runAnalysis('categorical')}
-            />
-            <List.Item
-              title="Outlier Detection"
-              description="IQR, Z-score, isolation forest methods"
-              left={(props) => <List.Icon {...props} icon="chart-scatter-plot" />}
-              onPress={() => runAnalysis('outliers')}
-            />
-            <List.Item
-              title="Missing Data"
-              description="Patterns and correlations"
-              left={(props) => <List.Icon {...props} icon="help-circle" />}
-              onPress={() => runAnalysis('missing')}
-            />
-            <List.Item
-              title="Data Quality"
-              description="Completeness, consistency, validity"
-              left={(props) => <List.Icon {...props} icon="shield-check" />}
-              onPress={() => runAnalysis('quality')}
-            />
-          </List.Section>
-          <Button
-            mode="outlined"
-            onPress={() => setAnalysisModalVisible(false)}
-            style={styles.modalCloseButton}
-          >
-            Close
-          </Button>
-        </Modal>
-      </Portal>
     </View>
   );
 };
@@ -599,6 +354,10 @@ const styles = StyleSheet.create({
   segmentedButtons: {
     margin: 16,
   },
+  instructionText: {
+    marginBottom: 16,
+    lineHeight: 20,
+  },
   scrollView: {
     flex: 1,
   },
@@ -610,26 +369,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 2,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  statItem: {
-    width: '48%',
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontWeight: 'bold',
-    color: '#6200ee',
-  },
-  statLabel: {
-    color: '#666',
-    marginTop: 4,
-    textAlign: 'center',
-  },
   divider: {
     marginVertical: 16,
   },
@@ -640,10 +379,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  metricChip: {
-    backgroundColor: '#e3f2fd',
+    marginTop: 12,
   },
   dateText: {
     color: '#666',
@@ -663,15 +399,8 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  percentileTitle: {
-    marginBottom: 8,
-  },
-  percentilesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  percentileItem: {
-    alignItems: 'center',
+  actionButton: {
+    marginTop: 8,
   },
   loadingText: {
     marginTop: 16,
@@ -688,20 +417,6 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     minWidth: 200,
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    padding: 20,
-    margin: 20,
-    borderRadius: 8,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    marginBottom: 16,
-    fontWeight: 'bold',
-  },
-  modalCloseButton: {
-    marginTop: 16,
   },
 });
 

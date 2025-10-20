@@ -111,12 +111,20 @@ const FormBuilderScreen: React.FC = () => {
     priority_score: 5,
     is_active: true,
     tags: [],
+    is_follow_up: false,
+    conditional_logic: null,
   });
   const [optionInput, setOptionInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Text');
   const [selectedTargetedRespondents, setSelectedTargetedRespondents] = useState<RespondentType[]>([]);
   const [selectedCommodities, setSelectedCommodities] = useState<string[]>([]);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+
+  // Conditional logic state
+  const [isFollowUp, setIsFollowUp] = useState(false);
+  const [parentQuestionId, setParentQuestionId] = useState('');
+  const [conditionOperator, setConditionOperator] = useState('equals');
+  const [conditionValue, setConditionValue] = useState('');
   
   // QuestionBank field choices
   const [questionBankChoices, setQuestionBankChoices] = useState<any>({
@@ -263,6 +271,20 @@ const FormBuilderScreen: React.FC = () => {
 
     try {
       setSaving(true);
+
+      // Build conditional logic object if this is a follow-up question
+      let conditionalLogic = null;
+      if (isFollowUp && parentQuestionId && conditionOperator && conditionValue) {
+        conditionalLogic = {
+          enabled: true,
+          parent_question_id: parentQuestionId,
+          show_if: {
+            operator: conditionOperator,
+            value: conditionValue,
+          },
+        };
+      }
+
       const questionBankData = {
         question_text: newQuestion.question_text,
         question_category: newQuestion.question_category,
@@ -281,6 +303,8 @@ const FormBuilderScreen: React.FC = () => {
         priority_score: newQuestion.priority_score,
         is_active: newQuestion.is_active,
         tags: newQuestion.tags,
+        is_follow_up: isFollowUp,
+        conditional_logic: conditionalLogic,
         base_project: projectId,
       };
 
@@ -306,11 +330,17 @@ const FormBuilderScreen: React.FC = () => {
         priority_score: 5,
         is_active: true,
         tags: [],
+        is_follow_up: false,
+        conditional_logic: null,
       });
       setOptionInput('');
       setSelectedTargetedRespondents([]);
       setSelectedCommodities([]);
       setSelectedCountries([]);
+      setIsFollowUp(false);
+      setParentQuestionId('');
+      setConditionOperator('equals');
+      setConditionValue('');
       setShowAddDialog(false);
       Alert.alert('Success', 'Question added to your Question Bank');
     } catch (error: any) {
@@ -343,10 +373,25 @@ const FormBuilderScreen: React.FC = () => {
       priority_score: question.priority_score || 5,
       is_active: question.is_active !== undefined ? question.is_active : true,
       tags: question.tags || [],
+      is_follow_up: question.is_follow_up || false,
+      conditional_logic: question.conditional_logic || null,
     });
     setSelectedTargetedRespondents(question.targeted_respondents || []);
     setSelectedCommodities(question.targeted_commodities || []);
     setSelectedCountries(question.targeted_countries || []);
+
+    // Populate conditional logic fields
+    const isFollowUpQuestion = question.is_follow_up || false;
+    setIsFollowUp(isFollowUpQuestion);
+    if (isFollowUpQuestion && question.conditional_logic) {
+      setParentQuestionId(question.conditional_logic.parent_question_id || '');
+      setConditionOperator(question.conditional_logic.show_if?.operator || 'equals');
+      setConditionValue(question.conditional_logic.show_if?.value || '');
+    } else {
+      setParentQuestionId('');
+      setConditionOperator('equals');
+      setConditionValue('');
+    }
 
     // Set category based on response type
     const category = RESPONSE_TYPE_CATEGORIES.find(cat =>
@@ -378,6 +423,20 @@ const FormBuilderScreen: React.FC = () => {
 
     try {
       setSaving(true);
+
+      // Build conditional logic object if this is a follow-up question
+      let conditionalLogic = null;
+      if (isFollowUp && parentQuestionId && conditionOperator && conditionValue) {
+        conditionalLogic = {
+          enabled: true,
+          parent_question_id: parentQuestionId,
+          show_if: {
+            operator: conditionOperator,
+            value: conditionValue,
+          },
+        };
+      }
+
       const questionBankData = {
         question_text: newQuestion.question_text,
         question_category: newQuestion.question_category,
@@ -396,6 +455,8 @@ const FormBuilderScreen: React.FC = () => {
         priority_score: newQuestion.priority_score,
         is_active: newQuestion.is_active,
         tags: newQuestion.tags,
+        is_follow_up: isFollowUp,
+        conditional_logic: conditionalLogic,
       };
 
       await apiService.updateQuestionBankItem(editingQuestion.id, questionBankData);
@@ -420,11 +481,17 @@ const FormBuilderScreen: React.FC = () => {
         priority_score: 5,
         is_active: true,
         tags: [],
+        is_follow_up: false,
+        conditional_logic: null,
       });
       setOptionInput('');
       setSelectedTargetedRespondents([]);
       setSelectedCommodities([]);
       setSelectedCountries([]);
+      setIsFollowUp(false);
+      setParentQuestionId('');
+      setConditionOperator('equals');
+      setConditionValue('');
       setEditingQuestion(null);
       setShowEditDialog(false);
       Alert.alert('Success', 'Question updated successfully');
@@ -465,6 +532,80 @@ const FormBuilderScreen: React.FC = () => {
       console.error('Error duplicating question:', error);
       Alert.alert('Error', 'Failed to duplicate question');
     }
+  };
+
+  const handleDeleteAllQuestionBank = async () => {
+    Alert.alert(
+      'Delete All Question Bank Items',
+      'This will permanently delete ALL questions from your Question Bank. Do you also want to delete questions generated from these items in projects?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Bank Only',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              const result = await apiService.deleteAllQuestionBankItems(true, false);
+              await loadQuestions();
+              Alert.alert('Success', result.message || 'All Question Bank items deleted');
+            } catch (error: any) {
+              console.error('Error deleting Question Bank:', error);
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+        {
+          text: 'Delete Bank & Generated',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              const result = await apiService.deleteAllQuestionBankItems(true, true);
+              await loadQuestions();
+              Alert.alert(
+                'Success',
+                `${result.message || 'All Question Bank items deleted'}. Also deleted ${result.deleted_generated_questions || 0} generated questions.`
+              );
+            } catch (error: any) {
+              console.error('Error deleting Question Bank:', error);
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAllProjectQuestions = async () => {
+    Alert.alert(
+      'Delete All Project Questions',
+      'This will delete ALL questions generated for this project. Question Bank items will remain. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              const result = await apiService.deleteAllProjectQuestions(projectId);
+              await loadQuestions();
+              Alert.alert('Success', result.message || 'All project questions deleted');
+            } catch (error: any) {
+              console.error('Error deleting project questions:', error);
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete project questions');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Import/Export handlers - Platform agnostic
@@ -1155,6 +1296,100 @@ const FormBuilderScreen: React.FC = () => {
 
                 <Divider style={styles.dividerInDialog} />
 
+                {/* Conditional Logic Section */}
+                <View style={styles.respondentsSection}>
+                  <View style={styles.switchRow}>
+                    <Text variant="labelLarge" style={styles.label}>Make this a follow-up question</Text>
+                    <Switch
+                      value={isFollowUp}
+                      onValueChange={(value) => {
+                        setIsFollowUp(value);
+                        if (!value) {
+                          setParentQuestionId('');
+                          setConditionOperator('equals');
+                          setConditionValue('');
+                        }
+                      }}
+                      thumbColor={isFollowUp ? '#64c8ff' : '#ccc'}
+                      trackColor={{ false: '#767577', true: 'rgba(100, 200, 255, 0.5)' }}
+                    />
+                  </View>
+                  {isFollowUp && (
+                    <View style={styles.conditionalLogicContainer}>
+                      <Text variant="bodySmall" style={styles.labelHint}>
+                        This question will only appear if the parent question meets the condition
+                      </Text>
+
+                      <Text variant="labelMedium" style={[styles.label, { marginTop: 12 }]}>
+                        Parent Question *
+                      </Text>
+                      <ScrollView style={{ maxHeight: 120, marginTop: 8 }}>
+                        <View style={styles.respondentChipsContainer}>
+                          {questions
+                            .filter(q => q.id !== editingQuestion?.id) // Don't show current question
+                            .map((question) => (
+                              <Chip
+                                key={question.id}
+                                selected={parentQuestionId === question.id}
+                                onPress={() => setParentQuestionId(question.id)}
+                                style={[
+                                  styles.parentQuestionChip,
+                                  parentQuestionId === question.id && styles.selectedRespondentChip
+                                ]}
+                                textStyle={styles.respondentChipText}>
+                                {question.question_text.substring(0, 50)}
+                                {question.question_text.length > 50 ? '...' : ''}
+                              </Chip>
+                            ))}
+                        </View>
+                      </ScrollView>
+
+                      <Text variant="labelMedium" style={[styles.label, { marginTop: 12 }]}>
+                        Condition Operator *
+                      </Text>
+                      <View style={styles.respondentChipsContainer}>
+                        {[
+                          { value: 'equals', label: 'Equals' },
+                          { value: 'not_equals', label: 'Not Equals' },
+                          { value: 'contains', label: 'Contains' },
+                          { value: 'not_contains', label: 'Not Contains' },
+                          { value: 'greater_than', label: '>' },
+                          { value: 'less_than', label: '<' },
+                          { value: 'greater_or_equal', label: '>=' },
+                          { value: 'less_or_equal', label: '<=' },
+                          { value: 'in', label: 'In List' },
+                          { value: 'not_in', label: 'Not In List' },
+                          { value: 'is_empty', label: 'Is Empty' },
+                          { value: 'is_not_empty', label: 'Is Not Empty' },
+                        ].map((op) => (
+                          <Chip
+                            key={op.value}
+                            selected={conditionOperator === op.value}
+                            onPress={() => setConditionOperator(op.value)}
+                            style={[
+                              styles.respondentChip,
+                              conditionOperator === op.value && styles.selectedRespondentChip
+                            ]}
+                            textStyle={styles.respondentChipText}>
+                            {op.label}
+                          </Chip>
+                        ))}
+                      </View>
+
+                      <TextInput
+                        label="Condition Value *"
+                        value={conditionValue}
+                        onChangeText={setConditionValue}
+                        mode="outlined"
+                        placeholder="Enter the value to match"
+                        style={[styles.input, { marginTop: 12 }]}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                <Divider style={styles.dividerInDialog} />
+
                 <View style={styles.switchRow}>
                   <Text variant="bodyMedium" style={styles.switchLabel}>Required Question</Text>
                   <Switch
@@ -1182,7 +1417,7 @@ const FormBuilderScreen: React.FC = () => {
             </ScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions style={styles.dialogActions}>
-            <Button 
+            <Button
               onPress={() => setShowAddDialog(false)} 
               disabled={saving}
               style={styles.cancelButton}
@@ -1419,6 +1654,17 @@ const FormBuilderScreen: React.FC = () => {
       </ScrollView>
 
       <View style={styles.fabContainer}>
+        <FAB
+          icon="delete-sweep"
+          label="Delete All"
+          style={[styles.fab, styles.fabDelete]}
+          onPress={handleDeleteAllQuestionBank}
+          theme={{
+            colors: {
+              onPrimary: '#ffffff',
+            },
+          }}
+        />
         <FAB
           icon="upload"
           label="Import/Export"
@@ -1764,6 +2010,100 @@ const FormBuilderScreen: React.FC = () => {
                       </Chip>
                     ))}
                   </View>
+                </View>
+
+                <Divider style={styles.dividerInDialog} />
+
+                {/* Conditional Logic Section */}
+                <View style={styles.respondentsSection}>
+                  <View style={styles.switchRow}>
+                    <Text variant="labelLarge" style={styles.label}>Make this a follow-up question</Text>
+                    <Switch
+                      value={isFollowUp}
+                      onValueChange={(value) => {
+                        setIsFollowUp(value);
+                        if (!value) {
+                          setParentQuestionId('');
+                          setConditionOperator('equals');
+                          setConditionValue('');
+                        }
+                      }}
+                      thumbColor={isFollowUp ? '#64c8ff' : '#ccc'}
+                      trackColor={{ false: '#767577', true: 'rgba(100, 200, 255, 0.5)' }}
+                    />
+                  </View>
+                  {isFollowUp && (
+                    <View style={styles.conditionalLogicContainer}>
+                      <Text variant="bodySmall" style={styles.labelHint}>
+                        This question will only appear if the parent question meets the condition
+                      </Text>
+
+                      <Text variant="labelMedium" style={[styles.label, { marginTop: 12 }]}>
+                        Parent Question *
+                      </Text>
+                      <ScrollView style={{ maxHeight: 120, marginTop: 8 }}>
+                        <View style={styles.respondentChipsContainer}>
+                          {questions
+                            .filter(q => q.id !== editingQuestion?.id) // Don't show current question
+                            .map((question) => (
+                              <Chip
+                                key={question.id}
+                                selected={parentQuestionId === question.id}
+                                onPress={() => setParentQuestionId(question.id)}
+                                style={[
+                                  styles.parentQuestionChip,
+                                  parentQuestionId === question.id && styles.selectedRespondentChip
+                                ]}
+                                textStyle={styles.respondentChipText}>
+                                {question.question_text.substring(0, 50)}
+                                {question.question_text.length > 50 ? '...' : ''}
+                              </Chip>
+                            ))}
+                        </View>
+                      </ScrollView>
+
+                      <Text variant="labelMedium" style={[styles.label, { marginTop: 12 }]}>
+                        Condition Operator *
+                      </Text>
+                      <View style={styles.respondentChipsContainer}>
+                        {[
+                          { value: 'equals', label: 'Equals' },
+                          { value: 'not_equals', label: 'Not Equals' },
+                          { value: 'contains', label: 'Contains' },
+                          { value: 'not_contains', label: 'Not Contains' },
+                          { value: 'greater_than', label: '>' },
+                          { value: 'less_than', label: '<' },
+                          { value: 'greater_or_equal', label: '>=' },
+                          { value: 'less_or_equal', label: '<=' },
+                          { value: 'in', label: 'In List' },
+                          { value: 'not_in', label: 'Not In List' },
+                          { value: 'is_empty', label: 'Is Empty' },
+                          { value: 'is_not_empty', label: 'Is Not Empty' },
+                        ].map((op) => (
+                          <Chip
+                            key={op.value}
+                            selected={conditionOperator === op.value}
+                            onPress={() => setConditionOperator(op.value)}
+                            style={[
+                              styles.respondentChip,
+                              conditionOperator === op.value && styles.selectedRespondentChip
+                            ]}
+                            textStyle={styles.respondentChipText}>
+                            {op.label}
+                          </Chip>
+                        ))}
+                      </View>
+
+                      <TextInput
+                        label="Condition Value *"
+                        value={conditionValue}
+                        onChangeText={setConditionValue}
+                        mode="outlined"
+                        placeholder="Enter the value to match"
+                        style={[styles.input, { marginTop: 12 }]}
+                      />
+                    </View>
+                  )}
                 </View>
 
                 <Divider style={styles.dividerInDialog} />
@@ -2497,6 +2837,20 @@ const styles = StyleSheet.create({
   respondentChipText: {
     color: '#ffffff',
   },
+  conditionalLogicContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: 'rgba(26, 140, 255, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(26, 140, 255, 0.2)',
+  },
+  parentQuestionChip: {
+    backgroundColor: 'rgba(26, 140, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(26, 140, 255, 0.4)',
+    marginBottom: 8,
+  },
   cancelButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -2512,7 +2866,11 @@ const styles = StyleSheet.create({
   addButtonLabel: {
     color: '#ffffff',
   },
-  // Import Button Styles
+  // FAB Button Styles
+  fabDelete: {
+    backgroundColor: '#ef4444',
+    marginBottom: 12,
+  },
   fabImport: {
     backgroundColor: '#1a8cff',
     marginBottom: 12,

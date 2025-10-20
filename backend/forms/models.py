@@ -193,7 +193,18 @@ class QuestionBank(models.Model):
         blank=True,
         help_text="Additional tags for question organization"
     )
-    
+
+    # Conditional/Follow-up Question Logic
+    is_follow_up = models.BooleanField(
+        default=False,
+        help_text="True if this is a follow-up question template"
+    )
+    conditional_logic = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Conditional logic template for questions generated from this QuestionBank"
+    )
+
     # Ownership and access control
     owner = models.ForeignKey(
         'authentication.User',
@@ -450,6 +461,27 @@ class Question(models.Model):
         max_length=100,
         blank=True,
         help_text="Country this question was generated for"
+    )
+
+    # Conditional/Follow-up Question Logic
+    is_follow_up = models.BooleanField(
+        default=False,
+        help_text="True if this question is a follow-up/conditional question"
+    )
+    conditional_logic = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="""
+        Conditional logic for follow-up questions. Format:
+        {
+            "enabled": true,
+            "parent_question_id": "uuid-of-parent-question",
+            "show_if": {
+                "operator": "equals|contains|greater_than|less_than|in|not_in",
+                "value": "expected_value_or_list"
+            }
+        }
+        """
     )
 
     def get_database_endpoints(self):

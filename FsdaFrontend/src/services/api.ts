@@ -217,6 +217,19 @@ class ApiService {
     return await this.delete(`/forms/questions/${id}/`);
   }
 
+  async bulkDeleteQuestions(data: {
+    question_ids?: string[];
+    project_id?: string;
+    question_bank_source_id?: string;
+    assigned_respondent_type?: string;
+  }) {
+    return await this.post('/forms/questions/bulk_delete/', data);
+  }
+
+  async deleteAllProjectQuestions(projectId: string) {
+    return await this.bulkDeleteQuestions({ project_id: projectId });
+  }
+
   async getResponseTypes() {
     return await this.get('/forms/questions/response_types/');
   }
@@ -330,6 +343,28 @@ class ApiService {
 
   async deleteQuestionBankItem(id: string) {
     return await this.delete(`/forms/question-bank/${id}/`);
+  }
+
+  async bulkDeleteQuestionBank(data: {
+    question_bank_ids: string[];
+    hard_delete?: boolean;
+    delete_generated_questions?: boolean;
+  }) {
+    return await this.post('/forms/question-bank/bulk_delete/', data);
+  }
+
+  async deleteAllQuestionBankItems(hardDelete: boolean = false, deleteGenerated: boolean = false) {
+    // Get all question bank items first, then bulk delete
+    const response = await this.getQuestionBank({ page_size: 10000 });
+    const questionBankIds = response.results?.map((item: any) => item.id) || [];
+    if (questionBankIds.length === 0) {
+      return { message: 'No question bank items to delete', deleted_count: 0 };
+    }
+    return await this.bulkDeleteQuestionBank({
+      question_bank_ids: questionBankIds,
+      hard_delete: hardDelete,
+      delete_generated_questions: deleteGenerated,
+    });
   }
 
   async searchQuestionBankForRespondent(data: {
