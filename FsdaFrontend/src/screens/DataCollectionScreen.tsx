@@ -1,1423 +1,248 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
-import {
-  Text,
-  Button,
-  TextInput,
-  RadioButton,
-  Checkbox,
-  ActivityIndicator,
-  Card,
-  ProgressBar,
-  Switch,
-  Portal,
-  Dialog,
-} from 'react-native-paper';
+/**
+ * DataCollectionScreen - Refactored Version
+ * Modular, production-ready implementation with clean separation of concerns
+ *
+ * Architecture:
+ * - Custom hooks handle business logic
+ * - Reusable components handle UI
+ * - Constants centralize configuration
+ * - Full Django backend compatibility
+ */
+
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Text, Card, ActivityIndicator, IconButton } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as ImagePicker from 'expo-image-picker';
-import apiService from '../services/api';
-import { evaluateConditionalLogic, filterQuestionsWithConditions } from '../utils/conditionalLogic';
+
+// Custom Hooks
+import { useRespondent, useQuestions, useResponseState } from '../hooks/dataCollection';
+
+// Components
 import {
-  Question,
-  RespondentType,
-  CommodityType,
-  DynamicQuestionGenerationResult,
-} from '../types';
-import { RootStackParamList } from '../navigation/RootNavigator';
-import { generateRespondentId } from '../utils/respondentIdGenerator';
+  RespondentForm,
+  QuestionInput,
+  NavigationControls,
+} from '../components/dataCollection';
+
+// Types
+type RootStackParamList = {
+  DataCollection: { projectId: string; projectName: string };
+};
 
 type DataCollectionRouteProp = RouteProp<RootStackParamList, 'DataCollection'>;
-type DataCollectionNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DataCollection'>;
-
-interface ResponseData {
-  [questionId: string]: string | string[];
-}
 
 const DataCollectionScreen: React.FC = () => {
   const route = useRoute<DataCollectionRouteProp>();
-  const navigation = useNavigation<DataCollectionNavigationProp>();
+  const navigation = useNavigation();
   const { projectId, projectName } = route.params;
 
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [responses, setResponses] = useState<ResponseData>({});
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [respondentId, setRespondentId] = useState('');
   const [showRespondentForm, setShowRespondentForm] = useState(true);
-  const [useAutoId, setUseAutoId] = useState(true);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [currentDateQuestion, setCurrentDateQuestion] = useState<string | null>(null);
-  const [manualDateInput, setManualDateInput] = useState({ year: '', month: '', day: '' });
-  const [showLocationDialog, setShowLocationDialog] = useState(false);
-  const [currentLocationQuestion, setCurrentLocationQuestion] = useState<string | null>(null);
-  const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', address: '' });
 
-  // Filter questions based on conditional logic - only show questions that meet conditions
-  const visibleQuestions = useMemo(() => {
-    return filterQuestionsWithConditions(questions, responses);
-  }, [questions, responses]);
+  // Respondent Hook
+  const respondent = useRespondent(projectId);
 
-  // Available options from QuestionBank (dynamically fetched)
-  const [availableRespondentTypes, setAvailableRespondentTypes] = useState<Array<{value: string, display: string}>>([]);
-  const [availableCommodities, setAvailableCommodities] = useState<Array<{value: string, display: string}>>([]);
-  const [availableCountries, setAvailableCountries] = useState<string[]>([]);
-  const [loadingOptions, setLoadingOptions] = useState(false);
+  // Questions Hook
+  const questions = useQuestions({
+    projectId,
+    selectedRespondentType: respondent.selectedRespondentType,
+    selectedCommodities: respondent.selectedCommodities,
+    selectedCountry: respondent.selectedCountry,
+  });
 
-  // Project-specific metadata (from QuestionBank) - REQUIRED for question generation
-  const [selectedRespondentType, setSelectedRespondentType] = useState<RespondentType | ''>('');
-  const [selectedCommodities, setSelectedCommodities] = useState<CommodityType[]>([]); // Multiple commodities
-  const [selectedCountry, setSelectedCountry] = useState('');
-  const [generatingQuestions, setGeneratingQuestions] = useState(false);
-  const [questionsGenerated, setQuestionsGenerated] = useState(false); // Track if questions have been generated
-
-  useEffect(() => {
-    loadProject();
-    loadAvailableOptions();
-    // Auto-generate respondent ID on mount
-    if (useAutoId) {
-      generateNewRespondentId();
+  // Response State Hook
+  const responses = useResponseState(
+    questions.questions,
+    projectId,
+    {
+      respondentId: respondent.respondentId,
+      respondentType: respondent.selectedRespondentType as string,
+      commodities: respondent.selectedCommodities,
+      country: respondent.selectedCountry,
     }
+  );
+
+  // Load available options on mount
+  useEffect(() => {
+    questions.loadAvailableOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-load existing questions when specifications change
+  // Auto-generate respondent ID on mount
   useEffect(() => {
-    const autoLoadQuestions = async () => {
-      if (selectedRespondentType && !generatingQuestions) {
-        // Silently check if questions exist for this combination
-        const existingQuestions = await loadExistingQuestions();
-        if (existingQuestions.length > 0) {
-          setQuestions(existingQuestions);
-          setQuestionsGenerated(true);
-          console.log(`Auto-loaded ${existingQuestions.length} existing questions for ${selectedRespondentType}`);
-        } else {
-          // No existing questions found - reset state
-          setQuestions([]);
-          setQuestionsGenerated(false);
-        }
-      }
-    };
+    if (respondent.useAutoId && !respondent.respondentId) {
+      respondent.generateNewRespondentId();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    autoLoadQuestions();
-  }, [selectedRespondentType, selectedCommodities, selectedCountry]);
-
-  const generateNewRespondentId = () => {
-    const autoId = generateRespondentId(projectId);
-    setRespondentId(autoId);
+  // Handle Generate Questions
+  const handleGenerateQuestions = async () => {
+    await questions.generateDynamicQuestions(false, false);
   };
 
-  const loadProject = async () => {
-    try {
-      setLoading(true);
-      await apiService.getProject(projectId);
-    } catch (error: any) {
-      console.error('Error loading project:', error);
-      Alert.alert('Error', 'Failed to load project details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadAvailableOptions = async () => {
-    try {
-      setLoadingOptions(true);
-      const response = await apiService.getAvailableQuestionBankOptions(projectId);
-      
-      // Set the available options from QuestionBank
-      setAvailableRespondentTypes(response.available_options.respondent_types || []);
-      setAvailableCommodities(response.available_options.commodities || []);
-      setAvailableCountries(response.available_options.countries || []);
-      
-      console.log('Available options loaded:', response.summary);
-    } catch (error: any) {
-      console.error('Error loading available options:', error);
-      Alert.alert(
-        'Warning', 
-        'Could not load available question options. Question generation may not work properly.'
-      );
-    } finally {
-      setLoadingOptions(false);
-    }
-  };
-
-
-  const loadExistingQuestions = async () => {
-    if (!selectedRespondentType) {
-      return [];
-    }
-
-    try {
-      // Load all questions for this project
-      const allQuestions = await apiService.getQuestions(projectId);
-      const questionsList: Question[] = Array.isArray(allQuestions) 
-        ? allQuestions 
-        : allQuestions.results || [];
-
-      // Filter questions matching the selected criteria
-      const commodityStr = selectedCommodities.join(',') || '';
-      const countryStr = selectedCountry || '';
-
-      const matchingQuestions = questionsList.filter((q: Question) => {
-        const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
-        const matchesCommodity = q.assigned_commodity === commodityStr;
-        const matchesCountry = q.assigned_country === countryStr;
-        
-        return matchesRespondent && matchesCommodity && matchesCountry;
-      });
-
-      return matchingQuestions.sort((a, b) => a.order_index - b.order_index);
-    } catch (error) {
-      console.error('Error loading existing questions:', error);
-      return [];
-    }
-  };
-
-  const generateDynamicQuestions = async (forceRegenerate: boolean = false, silent: boolean = false) => {
-    if (!selectedRespondentType) {
-      Alert.alert('Required', 'Please select a respondent type');
+  // Handle Start Survey
+  const handleStartSurvey = () => {
+    if (!respondent.respondentId) {
       return;
     }
 
-    try {
-      setGeneratingQuestions(true);
-
-      // First, check if questions already exist for this combination
-      if (!forceRegenerate) {
-        const existingQuestions = await loadExistingQuestions();
-
-        if (existingQuestions.length > 0) {
-          setQuestions(existingQuestions);
-          setQuestionsGenerated(true);
-
-          // If silent mode, just load without showing alert
-          if (!silent) {
-            Alert.alert(
-              'Questions Loaded!',
-              `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
-              [
-                {
-                  text: 'Use These',
-                  onPress: () => {},
-                },
-                {
-                  text: 'Regenerate',
-                  onPress: () => generateDynamicQuestions(true, false),
-                  style: 'destructive',
-                },
-              ]
-            );
-          }
-          return;
-        }
-      }
-
-      // Generate new questions
-      const commoditiesText = selectedCommodities.length > 0 ? selectedCommodities.join(', ') : 'all commodities';
-
-      const generationData = {
-        project: projectId,
-        respondent_type: selectedRespondentType,
-        commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : undefined,
-        country: selectedCountry || undefined,
-        replace_existing: false,
-        notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesText}${selectedCountry ? `, ${selectedCountry}` : ''}`
-      };
-
-      const result: DynamicQuestionGenerationResult = await apiService.generateDynamicQuestions(generationData);
-
-      // Load ALL questions for this context (including newly generated + existing ones)
-      const allContextQuestions = await loadExistingQuestions();
-      setQuestions(allContextQuestions);
-      setQuestionsGenerated(true);
-
-      const message = result.summary.questions_generated > 0
-        ? `Successfully generated ${result.summary.questions_generated} new question${result.summary.questions_generated !== 1 ? 's' : ''} for ${selectedRespondentType} respondents.\n\nTotal questions available: ${allContextQuestions.length}`
-        : `No new questions generated. All questions for this combination already exist.\n\nUsing ${allContextQuestions.length} existing question${allContextQuestions.length !== 1 ? 's' : ''}.`;
-
-      Alert.alert('Questions Ready!', message, [{ text: 'OK' }]);
-
-    } catch (error: any) {
-      console.error('Error generating dynamic questions:', error);
-      Alert.alert(
-        'Generation Failed',
-        error.response?.data?.error || 'Failed to generate questions. Please try again.'
-      );
-    } finally {
-      setGeneratingQuestions(false);
-    }
-  };
-
-  const handleRespondentSubmit = () => {
-    if (!respondentId.trim()) {
-      Alert.alert('Required', 'Please enter a Respondent ID');
-      return;
-    }
-
-    // MUST have generated questions before proceeding
-    if (!questionsGenerated || questions.length === 0) {
-      Alert.alert(
-        'Questions Required',
-        'Please generate questions by selecting respondent type and clicking "Generate Questions" before starting the survey.'
-      );
-      return;
-    }
-
-    // MUST have selected respondent type
-    if (!selectedRespondentType) {
-      Alert.alert('Required', 'Please select a respondent type');
+    if (responses.visibleQuestions.length === 0) {
       return;
     }
 
     setShowRespondentForm(false);
   };
 
-  const handleToggleAutoId = (enabled: boolean) => {
-    setUseAutoId(enabled);
-    if (enabled) {
-      generateNewRespondentId();
-    } else {
-      setRespondentId('');
-    }
+  // Handle Submit Success
+  const handleSubmitSuccess = () => {
+    // Reset for next respondent
+    respondent.resetForNextRespondent();
+    responses.resetResponses();
+    questions.resetQuestions();
+    setShowRespondentForm(true);
   };
 
-  const handleResponseChange = (questionId: string, value: string | string[]) => {
-    setResponses((prev) => ({
-      ...prev,
-      [questionId]: value,
-    }));
+  // Handle Back to Form
+  const handleBackToForm = () => {
+    setShowRespondentForm(true);
   };
 
-  const handleNext = () => {
-    const currentQuestion = visibleQuestions[currentQuestionIndex];
-    if (currentQuestion.is_required && !responses[currentQuestion.id]) {
-      Alert.alert('Required', 'This question is required');
-      return;
-    }
-    if (currentQuestionIndex < visibleQuestions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
+  // Get current question
+  const currentQuestion = responses.visibleQuestions[responses.currentQuestionIndex];
 
-  const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    // Check if all required VISIBLE questions are answered (respect conditional logic)
-    const unansweredRequired = visibleQuestions.filter(
-      (q) => q.is_required && !responses[q.id]
-    );
-
-    if (unansweredRequired.length > 0) {
-      Alert.alert(
-        'Incomplete Form',
-        `Please answer all required questions. ${unansweredRequired.length} required question(s) remaining.`
-      );
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-
-      // First, create or get the respondent with project-specific metadata
-      const respondentData = {
-        respondent_id: respondentId,
-        project: projectId,
-        is_anonymous: true,
-        consent_given: true,
-        respondent_type: selectedRespondentType || null,
-        commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : null,
-        country: selectedCountry || null,
-      };
-
-      const respondent = await apiService.createRespondent(respondentData);
-
-      // Submit all responses with better error handling
-      const responsePromises = Object.entries(responses).map(async ([questionId, value]) => {
-        const responseValue = Array.isArray(value) ? JSON.stringify(value) : value;
-        const question = questions.find(q => q.id === questionId);
-
-        try {
-          return await apiService.submitResponse({
-            project: projectId,
-            question: questionId,
-            respondent: respondent.id,
-            response_value: responseValue,
-            device_info: {
-              platform: Platform.OS,
-              app_version: '1.0.0',
-            },
-          });
-        } catch (error: any) {
-          console.error(`Error submitting response for question "${question?.question_text}":`, error);
-          throw new Error(`Failed to submit response for: "${question?.question_text}". ${error.response?.data?.response_value?.[0] || error.message}`);
-        }
-      });
-
-      await Promise.all(responsePromises);
-
-      Alert.alert(
-        'Success', 
-        'Response submitted successfully! Ready for next respondent.', 
-        [
-          {
-            text: 'Continue Collecting',
-            onPress: () => {
-              // Reset for next respondent BUT keep questions and settings
-              setResponses({});
-              setCurrentQuestionIndex(0);
-              
-              // Generate new respondent ID based on auto-ID setting
-              if (useAutoId) {
-                // Auto-generate new ID and continue immediately (no form shown)
-                generateNewRespondentId();
-                // Stay in questionnaire - don't show respondent form
-              } else {
-                // Manual ID: show form to enter new respondent ID
-                setRespondentId('');
-                setShowRespondentForm(true);
-              }
-              
-              // IMPORTANT: Keep these for question reuse
-              // - questions (same questionnaire)
-              // - questionsGenerated (true)
-              // - selectedRespondentType (e.g., farmers)
-              // - selectedCommodities (e.g., cocoa, maize)
-              // - selectedCountry (e.g., Ghana)
-            },
-          },
-          {
-            text: 'Finish & Go Back',
-            onPress: () => navigation.goBack(),
-            style: 'cancel',
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Error submitting responses:', error);
-      const errorMessage = error.message || error.response?.data?.error || error.response?.data?.respondent_id?.[0] || 'Failed to submit responses';
-      Alert.alert(
-        'Error',
-        errorMessage
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const renderQuestionInput = (question: Question) => {
-    const responseValue = responses[question.id];
-
-    switch (question.response_type) {
-      case 'text_short':
-        return (
-          <TextInput
-            value={(responseValue as string) || ''}
-            onChangeText={(text) => handleResponseChange(question.id, text)}
-            mode="outlined"
-            style={styles.input}
-            textColor="#ffffff"
-            theme={{
-              colors: {
-                primary: '#64c8ff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                outline: 'rgba(100, 200, 255, 0.5)',
-              },
-            }}
-          />
-        );
-
-      case 'text_long':
-        return (
-          <TextInput
-            value={(responseValue as string) || ''}
-            onChangeText={(text) => handleResponseChange(question.id, text)}
-            mode="outlined"
-            multiline
-            numberOfLines={4}
-            style={styles.input}
-            textColor="#ffffff"
-            theme={{
-              colors: {
-                primary: '#64c8ff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                outline: 'rgba(100, 200, 255, 0.5)',
-              },
-            }}
-          />
-        );
-
-      case 'numeric_integer':
-      case 'numeric_decimal':
-        return (
-          <TextInput
-            value={(responseValue as string) || ''}
-            onChangeText={(text) => handleResponseChange(question.id, text)}
-            mode="outlined"
-            keyboardType="numeric"
-            style={styles.input}
-            textColor="#ffffff"
-            theme={{
-              colors: {
-                primary: '#64c8ff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                outline: 'rgba(100, 200, 255, 0.5)',
-              },
-            }}
-          />
-        );
-
-      case 'choice_single':
-        return (
-          <RadioButton.Group
-            onValueChange={(value) => handleResponseChange(question.id, value)}
-            value={(responseValue as string) || ''}
-          >
-            {question.options?.map((option, index) => (
-              <View key={index} style={styles.radioOption}>
-                <RadioButton.Android
-                  value={option}
-                  color="#64c8ff"
-                  uncheckedColor="rgba(255, 255, 255, 0.5)"
-                />
-                <Text variant="bodyLarge" style={styles.optionText}>
-                  {option}
-                </Text>
-              </View>
-            ))}
-          </RadioButton.Group>
-        );
-
-      case 'choice_multiple':
-        const selectedOptions = (responseValue as string[]) || [];
-        return (
-          <View>
-            {question.options?.map((option, index) => (
-              <View key={index} style={styles.checkboxOption}>
-                <Checkbox.Android
-                  status={selectedOptions.includes(option) ? 'checked' : 'unchecked'}
-                  onPress={() => {
-                    const newSelection = selectedOptions.includes(option)
-                      ? selectedOptions.filter((o) => o !== option)
-                      : [...selectedOptions, option];
-                    handleResponseChange(question.id, newSelection);
-                  }}
-                  color="#64c8ff"
-                  uncheckedColor="rgba(255, 255, 255, 0.5)"
-                />
-                <Text variant="bodyLarge" style={styles.optionText}>
-                  {option}
-                </Text>
-              </View>
-            ))}
-          </View>
-        );
-
-      case 'scale_rating':
-        const maxScale = question.validation_rules?.max_value || 10;
-        const minScale = question.validation_rules?.min_value || 1;
-        return (
-          <View style={styles.scaleContainer}>
-            {Array.from({ length: maxScale - minScale + 1 }, (_, i) => i + minScale).map(
-              (num) => (
-                <Button
-                  key={num}
-                  mode={(responseValue as string) === num.toString() ? 'contained' : 'outlined'}
-                  onPress={() => handleResponseChange(question.id, num.toString())}
-                  style={styles.scaleButton}
-                  labelStyle={styles.scaleButtonLabel}
-                >
-                  {num}
-                </Button>
-              )
-            )}
-          </View>
-        );
-
-      case 'date':
-      case 'datetime':
-        const dateValue = responseValue ? new Date(responseValue as string) : null;
-        const isDateTime = question.response_type === 'datetime';
-
-        let formattedDate = '';
-        if (dateValue) {
-          if (isDateTime) {
-            formattedDate = dateValue.toLocaleString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-          } else {
-            formattedDate = dateValue.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            });
-          }
-        }
-
-        return (
-          <View>
-            <TouchableOpacity
-              style={styles.dateButton}
-               onPress={() => {
-                 setCurrentDateQuestion(question.id);
-                 const today = dateValue || new Date();
-                setManualDateInput({
-                  year: today.getFullYear().toString(),
-                  month: (today.getMonth() + 1).toString().padStart(2, '0'),
-                  day: today.getDate().toString().padStart(2, '0'),
-                });
-                setShowDatePicker(true);
-              }}
-            >
-              <View style={styles.dateButtonContent}>
-                <Text style={styles.dateButtonText}>
-                  {formattedDate || `Select ${isDateTime ? 'date & time' : 'date'}`}
-                </Text>
-                <Text style={styles.dateIcon}>📅</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        );
-
-      case 'geopoint':
-      case 'geoshape':
-        const locationValue = responseValue
-          ? (typeof responseValue === 'string' ? JSON.parse(responseValue as string) : responseValue)
-          : null;
-
-        let formattedLocation = '';
-        if (locationValue) {
-          if (locationValue.address) {
-            formattedLocation = locationValue.address;
-          } else if (locationValue.latitude && locationValue.longitude) {
-            formattedLocation = `${locationValue.latitude}, ${locationValue.longitude}`;
-          }
-        }
-
-        return (
-          <View>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => {
-                setCurrentLocationQuestion(question.id);
-                if (locationValue) {
-                  setLocationInput({
-                    latitude: locationValue.latitude?.toString() || '',
-                    longitude: locationValue.longitude?.toString() || '',
-                    address: locationValue.address || '',
-                  });
-                } else {
-                  setLocationInput({ latitude: '', longitude: '', address: '' });
-                }
-                setShowLocationDialog(true);
-              }}
-            >
-              <View style={styles.dateButtonContent}>
-                <Text style={styles.dateButtonText}>
-                  {formattedLocation || 'Enter location'}
-                </Text>
-                <Text style={styles.dateIcon}>📍</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        );
-
-      case 'image':
-        const imageUri = responseValue as string;
-
-        const pickImage = async () => {
-          try {
-            // Request permission
-            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!permission.granted) {
-              Alert.alert('Permission Required', 'Please allow access to your photo library');
-              return;
-            }
-
-            // Launch image picker
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
-              quality: 0.7, // Compress to reduce size
-              base64: true, // Get base64 for easy storage
-            });
-
-            if (!result.canceled && result.assets[0]) {
-              const asset = result.assets[0];
-              // Store as base64 data URI
-              const dataUri = `data:image/jpeg;base64,${asset.base64}`;
-              handleResponseChange(question.id, dataUri);
-            }
-          } catch (error) {
-            console.error('Error picking image:', error);
-            Alert.alert('Error', 'Failed to pick image');
-          }
-        };
-
-        const takePhoto = async () => {
-          try {
-            // Request permission
-            const permission = await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) {
-              Alert.alert('Permission Required', 'Please allow access to your camera');
-              return;
-            }
-
-            // Launch camera
-            const result = await ImagePicker.launchCameraAsync({
-              allowsEditing: true,
-              quality: 0.7,
-              base64: true,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-              const asset = result.assets[0];
-              const dataUri = `data:image/jpeg;base64,${asset.base64}`;
-              handleResponseChange(question.id, dataUri);
-            }
-          } catch (error) {
-            console.error('Error taking photo:', error);
-            Alert.alert('Error', 'Failed to take photo');
-          }
-        };
-
-        return (
-          <View>
-            {imageUri ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
-                <View style={styles.imageActions}>
-                  <Button
-                    mode="outlined"
-                    onPress={() => handleResponseChange(question.id, '')}
-                    style={styles.imageActionButton}
-                    icon="delete"
-                  >
-                    Remove
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    onPress={pickImage}
-                    style={styles.imageActionButton}
-                    icon="image"
-                  >
-                    Change
-                  </Button>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.imagePickerContainer}>
-                <Button
-                  mode="contained"
-                  onPress={takePhoto}
-                  style={[styles.imagePickerButton, { backgroundColor: '#4b1e85' }]}
-                  icon="camera"
-                >
-                  Take Photo
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={pickImage}
-                  style={[styles.imagePickerButton, { backgroundColor: '#64c8ff' }]}
-                  icon="image"
-                >
-                  Choose from Gallery
-                </Button>
-              </View>
-            )}
-          </View>
-        );
-
-      default:
-        return (
-          <Text variant="bodyMedium" style={styles.notSupportedText}>
-            This question type is not yet supported on mobile
-          </Text>
-        );
-    }
-  };
-
-  if (loading) {
+  // Show Respondent Form
+  if (showRespondentForm) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
-          Loading form...
-        </Text>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <IconButton
+            icon="arrow-left"
+            iconColor="#ffffff"
+            size={24}
+            onPress={() => navigation.goBack()}
+          />
+          <View style={styles.headerContent}>
+            <Text variant="headlineSmall" style={styles.title}>
+              Data Collection
+            </Text>
+            <Text variant="bodyMedium" style={styles.subtitle}>
+              {projectName}
+            </Text>
+          </View>
+          <View style={{ width: 48 }} />
+        </View>
+
+        {/* Respondent Form */}
+        <RespondentForm
+          {...respondent}
+          availableRespondentTypes={questions.availableRespondentTypes}
+          availableCommodities={questions.availableCommodities}
+          availableCountries={questions.availableCountries}
+          loadingOptions={questions.loadingOptions}
+          generatingQuestions={questions.generatingQuestions}
+          questionsGenerated={questions.questionsGenerated}
+          onGenerateQuestions={handleGenerateQuestions}
+          onStartSurvey={handleStartSurvey}
+        />
       </View>
     );
   }
 
-  if (showRespondentForm) {
-    return (
+  // Show Question Form
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <IconButton
+          icon="arrow-left"
+          iconColor="#ffffff"
+          size={24}
+          onPress={handleBackToForm}
+        />
+        <View style={styles.headerContent}>
+          <Text variant="titleMedium" style={styles.title}>
+            {projectName}
+          </Text>
+          <Text variant="bodySmall" style={styles.subtitle}>
+            Respondent: {respondent.respondentId}
+          </Text>
+        </View>
+        <View style={{ width: 48 }} />
+      </View>
+
+      {/* Question Card */}
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.respondentFormContainer}>
-            <Text variant="headlineMedium" style={styles.title}>
-              Welcome to {projectName}
-            </Text>
-            <Text variant="bodyLarge" style={styles.subtitle}>
-              Please provide your information to begin
-            </Text>
-
-            <Card style={styles.card}>
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          {currentQuestion ? (
+            <Card style={styles.questionCard}>
               <Card.Content>
-                <View style={styles.autoIdToggle}>
-                  <View style={styles.toggleLabelContainer}>
-                    <Text variant="bodyLarge" style={styles.toggleLabel}>
-                      Auto-generate ID
-                    </Text>
-                    <Text variant="bodySmall" style={styles.toggleHint}>
-                      {useAutoId ? 'ID will be generated automatically' : 'Enter your own custom ID'}
+                {/* Question Number and Type */}
+                <View style={styles.questionHeader}>
+                  <View style={styles.questionBadge}>
+                    <Text style={styles.questionBadgeText}>
+                      Q{responses.currentQuestionIndex + 1}
                     </Text>
                   </View>
-                  <Switch
-                    value={useAutoId}
-                    onValueChange={handleToggleAutoId}
-                    thumbColor={useAutoId ? '#64c8ff' : '#ccc'}
-                    trackColor={{ false: '#767577', true: 'rgba(100, 200, 255, 0.5)' }}
-                  />
-                </View>
-
-                <TextInput
-                  label="Respondent ID *"
-                  value={respondentId}
-                  onChangeText={setRespondentId}
-                  mode="outlined"
-                  style={styles.input}
-                  textColor="#ffffff"
-                  placeholder={useAutoId ? 'Auto-generated ID' : 'Enter your unique ID'}
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  disabled={useAutoId}
-                  right={
-                    useAutoId ? (
-                      <TextInput.Icon
-                        icon="refresh"
-                        onPress={generateNewRespondentId}
-                        color="#64c8ff"
-                      />
-                    ) : undefined
-                  }
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-
-                {/* Respondent Profile & Question Generation Section - REQUIRED */}
-                <View style={styles.dynamicGenerationSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Respondent Profile & Question Generation *
-                    </Text>
-                    <Text variant="bodySmall" style={styles.sectionSubtitle}>
-                      Select respondent profile to generate targeted questions from Question Bank
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeBadgeText}>
+                      {currentQuestion.response_type.replace(/_/g, ' ')}
                     </Text>
                   </View>
-
-                  {loadingOptions ? (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="small" color="#64c8ff" />
-                      <Text variant="bodySmall" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                        Loading available options...
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.dynamicForm}>
-                      {/* Respondent Type Selection - From QuestionBank */}
-                      {availableRespondentTypes.length > 0 ? (
-                        <View style={styles.fieldContainer}>
-                          <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Respondent Type * ({availableRespondentTypes.length} available in Question Bank)
-                          </Text>
-                          <View style={styles.choiceContainer}>
-                            {availableRespondentTypes.map((respondent) => (
-                              <TouchableOpacity
-                                key={respondent.value}
-                                style={[
-                                  styles.choiceButton,
-                                  selectedRespondentType === respondent.value && styles.choiceButtonSelected
-                                ]}
-                                onPress={() => setSelectedRespondentType(respondent.value as RespondentType)}
-                              >
-                                <Text style={[
-                                  styles.choiceButtonText,
-                                  selectedRespondentType === respondent.value && styles.choiceButtonTextSelected
-                                ]}>
-                                  {respondent.display}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.fieldContainer}>
-                          <Text variant="bodyMedium" style={{ color: '#ff6b6b', textAlign: 'center' }}>
-                            No respondent types available in Question Bank
-                          </Text>
-                          <Text variant="bodySmall" style={{ color: 'rgba(255, 255, 255, 0.6)', textAlign: 'center', marginTop: 4 }}>
-                            Please add questions to the Question Bank first
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Commodity Selection - From QuestionBank - MULTIPLE SELECTION */}
-                      {availableCommodities.length > 0 && (
-                        <View style={styles.fieldContainer}>
-                          <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Commodity of Interest ({availableCommodities.length} available) - Select one or more
-                          </Text>
-                          <View style={styles.choiceContainer}>
-                            {availableCommodities.map((commodity) => (
-                              <TouchableOpacity
-                                key={commodity.value}
-                                style={[
-                                  styles.choiceButton,
-                                  selectedCommodities.includes(commodity.value as CommodityType) && styles.choiceButtonSelected
-                                ]}
-                                onPress={() => {
-                                  if (selectedCommodities.includes(commodity.value as CommodityType)) {
-                                    setSelectedCommodities(selectedCommodities.filter(c => c !== commodity.value));
-                                  } else {
-                                    setSelectedCommodities([...selectedCommodities, commodity.value as CommodityType]);
-                                  }
-                                }}
-                              >
-                                <Text style={[
-                                  styles.choiceButtonText,
-                                  selectedCommodities.includes(commodity.value as CommodityType) && styles.choiceButtonTextSelected
-                                ]}>
-                                  {commodity.display}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                          {selectedCommodities.length > 0 && (
-                            <Text variant="bodySmall" style={styles.selectionHint}>
-                              {selectedCommodities.length} selected: {selectedCommodities.join(', ')}
-                            </Text>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Country Selection - From QuestionBank */}
-                      {availableCountries.length > 0 && (
-                        <View style={styles.fieldContainer}>
-                          <Text variant="bodyMedium" style={styles.fieldLabel}>
-                            Country/Region ({availableCountries.length} available)
-                          </Text>
-                          <View style={styles.choiceContainer}>
-                            <TouchableOpacity
-                              style={[
-                                styles.choiceButton,
-                                selectedCountry === '' && styles.choiceButtonSelected
-                              ]}
-                              onPress={() => setSelectedCountry('')}
-                            >
-                              <Text style={[
-                                styles.choiceButtonText,
-                                selectedCountry === '' && styles.choiceButtonTextSelected
-                              ]}>
-                                Any Country
-                              </Text>
-                            </TouchableOpacity>
-                            {availableCountries.map((country) => (
-                              <TouchableOpacity
-                                key={country}
-                                style={[
-                                  styles.choiceButton,
-                                  selectedCountry === country && styles.choiceButtonSelected
-                                ]}
-                                onPress={() => setSelectedCountry(country)}
-                              >
-                                <Text style={[
-                                  styles.choiceButtonText,
-                                  selectedCountry === country && styles.choiceButtonTextSelected
-                                ]}>
-                                  {country}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </View>
-                      )}
-
-                      {/* Generate Button - Only show if no questions loaded yet */}
-                      {!questionsGenerated || questions.length === 0 ? (
-                        <Button
-                          mode="outlined"
-                          onPress={() => generateDynamicQuestions()}
-                          loading={generatingQuestions}
-                          disabled={generatingQuestions || !selectedRespondentType || availableRespondentTypes.length === 0}
-                          style={styles.generateButton}
-                          icon="auto-fix"
-                        >
-                          {generatingQuestions ? 'Generating...' : 'Generate Questions'}
-                        </Button>
-                      ) : (
-                        <Button
-                          mode="outlined"
-                          onPress={() => generateDynamicQuestions(false, false)}
-                          disabled={generatingQuestions}
-                          style={[styles.generateButton, { borderColor: '#4caf50' }]}
-                          icon="refresh"
-                        >
-                          Regenerate Questions
-                        </Button>
-                      )}
-
-                      {questionsGenerated && questions.length > 0 ? (
-                        <View style={styles.successIndicator}>
-                          <Text style={styles.successIcon}>✓</Text>
-                          <Text variant="bodyMedium" style={styles.questionsInfo}>
-                            {questions.length} question(s) ready! (Reusable questions loaded)
-                          </Text>
-                        </View>
-                      ) : (
-                        <Text variant="bodySmall" style={styles.warningInfo}>
-                          {availableRespondentTypes.length === 0 
-                            ? 'No questions available in Question Bank for this project'
-                            : 'You must generate questions before starting the survey'}
-                        </Text>
-                      )}
+                  {currentQuestion.is_required && (
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredBadgeText}>Required</Text>
                     </View>
                   )}
                 </View>
 
-                <Button
-                  mode="contained"
-                  onPress={handleRespondentSubmit}
-                  style={[styles.startButton, !questionsGenerated && styles.startButtonDisabled]}
-                  disabled={!questionsGenerated || questions.length === 0}
-                >
-                  Start Survey
-                </Button>
+                {/* Question Text */}
+                <Text variant="headlineSmall" style={styles.questionText}>
+                  {currentQuestion.question_text}
+                </Text>
 
-                {!questionsGenerated && (
-                  <Text variant="bodySmall" style={styles.startHint}>
-                    Please generate questions to enable survey start
-                  </Text>
-                )}
+                {/* Question Input */}
+                <View style={styles.inputContainer}>
+                  <QuestionInput
+                    question={currentQuestion}
+                    value={responses.responses[currentQuestion.id]}
+                    onChange={responses.handleResponseChange}
+                  />
+                </View>
               </Card.Content>
             </Card>
-          </View>
+          ) : (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color="#64c8ff" />
+              <Text style={styles.loadingText}>Loading question...</Text>
+            </View>
+          )}
         </ScrollView>
+
+        {/* Navigation Controls */}
+        {currentQuestion && (
+          <NavigationControls
+            currentIndex={responses.currentQuestionIndex}
+            totalQuestions={responses.visibleQuestions.length}
+            progress={responses.progress}
+            onPrevious={responses.handlePrevious}
+            onNext={responses.handleNext}
+            onSubmit={() => responses.handleSubmit(handleSubmitSuccess)}
+            submitting={responses.submitting}
+            canGoBack={responses.currentQuestionIndex > 0}
+            isLastQuestion={
+              responses.currentQuestionIndex === responses.visibleQuestions.length - 1
+            }
+          />
+        )}
       </KeyboardAvoidingView>
-    );
-  }
-
-  const currentQuestion = visibleQuestions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / visibleQuestions.length);
-
-  const renderLocationDialog = () => {
-    if (!currentLocationQuestion) return null;
-
-    const handleLocationConfirm = () => {
-      // Validate inputs
-      if (!locationInput.address && (!locationInput.latitude || !locationInput.longitude)) {
-        Alert.alert('Required', 'Please enter either an address or GPS coordinates');
-        return;
-      }
-
-      // If GPS coordinates provided, validate them
-      if (locationInput.latitude || locationInput.longitude) {
-        const lat = parseFloat(locationInput.latitude);
-        const lng = parseFloat(locationInput.longitude);
-
-        if (isNaN(lat) || isNaN(lng)) {
-          Alert.alert('Invalid GPS', 'Please enter valid GPS coordinates');
-          return;
-        }
-
-        if (lat < -90 || lat > 90) {
-          Alert.alert('Invalid Latitude', 'Latitude must be between -90 and 90');
-          return;
-        }
-
-        if (lng < -180 || lng > 180) {
-          Alert.alert('Invalid Longitude', 'Longitude must be between -180 and 180');
-          return;
-        }
-      }
-
-      const locationData = {
-        latitude: locationInput.latitude ? parseFloat(locationInput.latitude) : null,
-        longitude: locationInput.longitude ? parseFloat(locationInput.longitude) : null,
-        address: locationInput.address || null,
-        timestamp: new Date().toISOString(),
-      };
-
-      handleResponseChange(currentLocationQuestion, JSON.stringify(locationData));
-      setShowLocationDialog(false);
-      setCurrentLocationQuestion(null);
-    };
-
-    return (
-      <Portal>
-        <Dialog
-          visible={showLocationDialog}
-          onDismiss={() => setShowLocationDialog(false)}
-          style={styles.dateDialog}
-        >
-          <Dialog.Title style={styles.dateDialogTitle}>Enter Location</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={styles.dateDialogHint}>
-              Enter address or GPS coordinates:
-            </Text>
-
-            <Text style={styles.dateInputLabel}>Address / Location Name</Text>
-            <TextInput
-              value={locationInput.address}
-              onChangeText={(text) => setLocationInput({ ...locationInput, address: text })}
-              placeholder="e.g., Kampala, Uganda or Farm Name"
-              mode="outlined"
-              style={styles.input}
-              textColor="#ffffff"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
-              multiline
-              theme={{
-                colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
-                },
-              }}
-            />
-
-            <Text variant="bodyMedium" style={[styles.dateDialogHint, { marginTop: 16 }]}>
-              Or enter GPS coordinates:
-            </Text>
-
-            <View style={styles.dateInputRow}>
-              <View style={styles.dateInputGroup}>
-                <Text style={styles.dateInputLabel}>Latitude</Text>
-                <TextInput
-                  value={locationInput.latitude}
-                  onChangeText={(text) => setLocationInput({ ...locationInput, latitude: text })}
-                  keyboardType="numeric"
-                  placeholder="e.g., 0.3476"
-                  mode="outlined"
-                  style={styles.dateInput}
-                  textColor="#ffffff"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-              </View>
-              <View style={styles.dateInputGroup}>
-                <Text style={styles.dateInputLabel}>Longitude</Text>
-                <TextInput
-                  value={locationInput.longitude}
-                  onChangeText={(text) => setLocationInput({ ...locationInput, longitude: text })}
-                  keyboardType="numeric"
-                  placeholder="e.g., 32.5825"
-                  mode="outlined"
-                  style={styles.dateInput}
-                  textColor="#ffffff"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-              </View>
-            </View>
-
-            <Text variant="bodySmall" style={styles.datePreview}>
-              {locationInput.address && `Address: ${locationInput.address}`}
-              {locationInput.latitude && locationInput.longitude &&
-                `\nGPS: ${locationInput.latitude}, ${locationInput.longitude}`}
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions style={styles.dateDialogActions}>
-            <Button
-              onPress={() => {
-                setShowLocationDialog(false);
-                setCurrentLocationQuestion(null);
-              }}
-              labelStyle={styles.cancelButtonLabel}
-            >
-              Cancel
-            </Button>
-            <Button onPress={handleLocationConfirm} mode="contained" style={styles.confirmButton}>
-              Confirm
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    );
-  };
-
-  const renderDatePickerDialog = () => {
-    if (!currentDateQuestion) return null;
-
-    const handleDateConfirm = () => {
-      const year = parseInt(manualDateInput.year);
-      const month = parseInt(manualDateInput.month) - 1;
-      const day = parseInt(manualDateInput.day);
-
-      if (isNaN(year) || isNaN(month) || isNaN(day)) {
-        Alert.alert('Invalid Date', 'Please enter a valid date');
-        return;
-      }
-
-      const selectedDate = new Date(year, month, day);
-      if (isNaN(selectedDate.getTime())) {
-        Alert.alert('Invalid Date', 'Please enter a valid date');
-        return;
-      }
-
-      handleResponseChange(currentDateQuestion, selectedDate.toISOString());
-      setShowDatePicker(false);
-      setCurrentDateQuestion(null);
-    };
-
-    return (
-      <Portal>
-        <Dialog visible={showDatePicker} onDismiss={() => setShowDatePicker(false)} style={styles.dateDialog}>
-          <Dialog.Title style={styles.dateDialogTitle}>Select Date</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={styles.dateDialogHint}>
-              Enter the date below:
-            </Text>
-            <View style={styles.dateInputRow}>
-              <View style={styles.dateInputGroup}>
-                <Text style={styles.dateInputLabel}>Year</Text>
-                <TextInput
-                  value={manualDateInput.year}
-                  onChangeText={(text) => setManualDateInput({ ...manualDateInput, year: text })}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  placeholder="YYYY"
-                  mode="outlined"
-                  style={styles.dateInput}
-                  textColor="#ffffff"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-              </View>
-              <View style={styles.dateInputGroup}>
-                <Text style={styles.dateInputLabel}>Month</Text>
-                <TextInput
-                  value={manualDateInput.month}
-                  onChangeText={(text) => setManualDateInput({ ...manualDateInput, month: text })}
-                  keyboardType="numeric"
-                  maxLength={2}
-                  placeholder="MM"
-                  mode="outlined"
-                  style={styles.dateInput}
-                  textColor="#ffffff"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-              </View>
-              <View style={styles.dateInputGroup}>
-                <Text style={styles.dateInputLabel}>Day</Text>
-                <TextInput
-                  value={manualDateInput.day}
-                  onChangeText={(text) => setManualDateInput({ ...manualDateInput, day: text })}
-                  keyboardType="numeric"
-                  maxLength={2}
-                  placeholder="DD"
-                  mode="outlined"
-                  style={styles.dateInput}
-                  textColor="#ffffff"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-              </View>
-            </View>
-            <Text variant="bodySmall" style={styles.datePreview}>
-              Preview: {manualDateInput.year}/{manualDateInput.month}/{manualDateInput.day}
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions style={styles.dateDialogActions}>
-            <Button
-              onPress={() => {
-                setShowDatePicker(false);
-                setCurrentDateQuestion(null);
-              }}
-              labelStyle={styles.cancelButtonLabel}
-            >
-              Cancel
-            </Button>
-            <Button
-              onPress={handleDateConfirm}
-              mode="contained"
-              style={styles.confirmButton}
-            >
-              Confirm
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    );
-  };
-
-  const handleChangeRespondent = () => {
-    Alert.alert(
-      'Change Respondent Type',
-      'This will reset the current questionnaire. Unsaved responses will be lost.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Change',
-          style: 'destructive',
-          onPress: () => {
-            setShowRespondentForm(true);
-            setQuestionsGenerated(false);
-            setQuestions([]);
-            setResponses({});
-            setCurrentQuestionIndex(0);
-          },
-        },
-      ]
-    );
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.progressContainer}>
-        <View style={styles.progressHeader}>
-          <View style={styles.progressTextContainer}>
-            <Text variant="labelLarge" style={styles.progressText}>
-              Question {currentQuestionIndex + 1} of {visibleQuestions.length}
-            </Text>
-            {selectedRespondentType && (
-              <Text variant="bodySmall" style={styles.respondentTypeIndicator}>
-                {selectedRespondentType}
-                {selectedCommodities.length > 0 && ` • ${selectedCommodities.join(', ')}`}
-                {selectedCountry && ` • ${selectedCountry}`}
-              </Text>
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.changeRespondentButton}
-            onPress={handleChangeRespondent}
-          >
-            <Text style={styles.changeRespondentText}>Change</Text>
-          </TouchableOpacity>
-        </View>
-        <ProgressBar progress={progress} color="#64c8ff" style={styles.progressBar} />
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Respondent ID Badge - Shows which respondent is currently answering */}
-        {respondentId && (
-          <View style={styles.respondentIdBadge}>
-            <Text style={styles.respondentIdLabel}>Current Respondent:</Text>
-            <Text style={styles.respondentIdText}>{respondentId}</Text>
-          </View>
-        )}
-
-        <Card style={styles.questionCard}>
-          <Card.Content>
-            <View style={styles.questionHeader}>
-              <Text variant="labelLarge" style={styles.questionNumber}>
-                Q{currentQuestionIndex + 1}
-              </Text>
-              {currentQuestion.is_required && (
-                <View style={styles.requiredBadge}>
-                  <Text style={styles.requiredText}>Required</Text>
-                </View>
-              )}
-            </View>
-
-            <Text variant="headlineSmall" style={styles.questionText}>
-              {currentQuestion.question_text}
-            </Text>
-
-            <View style={styles.inputContainer}>{renderQuestionInput(currentQuestion)}</View>
-          </Card.Content>
-        </Card>
-      </ScrollView>
-
-      <View style={styles.navigationContainer}>
-        <Button
-          mode="outlined"
-          onPress={handlePrevious}
-          disabled={currentQuestionIndex === 0}
-          style={styles.navButton}
-          labelStyle={styles.navButtonLabel}
-        >
-          Previous
-        </Button>
-
-        {currentQuestionIndex < visibleQuestions.length - 1 ? (
-          <Button
-            mode="contained"
-            onPress={handleNext}
-            style={styles.navButton}
-          >
-            Next
-          </Button>
-        ) : (
-          <Button
-            mode="contained"
-            onPress={handleSubmit}
-            loading={submitting}
-            disabled={submitting}
-            style={styles.submitButton}
-          >
-            Submit
-          </Button>
-        )}
-      </View>
-
-      {renderLocationDialog()}
-      {renderDatePickerDialog()}
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -1426,165 +251,87 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f0f23',
   },
-  centerContainer: {
+  flex: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0f0f23',
   },
-  loadingText: {
-    marginTop: 16,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a3a',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 16,
+    paddingHorizontal: 8,
+    borderBottomWidth: 3,
+    borderBottomColor: '#4b1e85',
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  title: {
     color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  subtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
-  respondentFormContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  title: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 32,
-    textAlign: 'center',
-  },
-  card: {
+  questionCard: {
     backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(75, 30, 133, 0.3)',
   },
-  autoIdToggle: {
+  questionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.2)',
   },
-  toggleLabelContainer: {
-    flex: 1,
-  },
-  toggleLabel: {
-    color: '#ffffff',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  toggleHint: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 12,
-  },
-  input: {
-    marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  startButton: {
-    marginTop: 8,
-    backgroundColor: '#4b1e85',
-  },
-  progressContainer: {
-    padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    backgroundColor: '#1a1a3a',
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressTextContainer: {
-    flex: 1,
-  },
-  progressText: {
-    color: '#ffffff',
-    marginBottom: 4,
-    fontWeight: '600',
-  },
-  respondentTypeIndicator: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  changeRespondentButton: {
-    backgroundColor: 'rgba(255, 152, 0, 0.3)',
+  questionBadge: {
+    backgroundColor: 'rgba(100, 200, 255, 0.2)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.5)',
+    borderColor: 'rgba(100, 200, 255, 0.4)',
   },
-  changeRespondentText: {
-    color: '#ff9800',
+  questionBadgeText: {
+    color: '#64c8ff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
-  },
-  respondentIdBadge: {
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+  typeBadge: {
+    backgroundColor: 'rgba(156, 39, 176, 0.2)',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    borderColor: 'rgba(156, 39, 176, 0.4)',
   },
-  respondentIdLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  respondentIdText: {
-    color: '#64c8ff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  questionCard: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
-    marginBottom: 16,
-  },
-  questionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  questionNumber: {
-    color: '#64c8ff',
-    fontWeight: 'bold',
-    fontSize: 16,
+  typeBadgeText: {
+    color: '#ce93d8',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
   requiredBadge: {
-    backgroundColor: 'rgba(211, 47, 47, 0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginLeft: 12,
+    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 67, 54, 0.4)',
   },
-  requiredText: {
-    color: '#ff6b6b',
-    fontSize: 12,
+  requiredBadgeText: {
+    color: '#ef5350',
+    fontSize: 11,
     fontWeight: '600',
   },
   questionText: {
@@ -1595,260 +342,16 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: 8,
   },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkboxOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  optionText: {
-    color: '#ffffff',
-    marginLeft: 8,
+  centerContainer: {
     flex: 1,
-  },
-  scaleContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  scaleButton: {
-    minWidth: 50,
-    borderColor: 'rgba(100, 200, 255, 0.5)',
-  },
-  scaleButtonLabel: {
-    color: '#ffffff',
-  },
-  notSupportedText: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontStyle: 'italic',
-  },
-  dateButton: {
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.5)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  dateButtonContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  dateIcon: {
-    fontSize: 24,
-  },
-  dateDialog: {
-    backgroundColor: '#1a1a3a',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
-  },
-  dateDialogTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  dateDialogHint: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 16,
-  },
-  dateInputRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  dateInputGroup: {
-    flex: 1,
-  },
-  dateInputLabel: {
-    color: '#64c8ff',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  dateInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    height: 50,
-  },
-  datePreview: {
-    color: '#64c8ff',
-    textAlign: 'center',
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  dateDialogActions: {
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(75, 30, 133, 0.3)',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  confirmButton: {
-    backgroundColor: '#4b1e85',
-    marginLeft: 8,
-  },
-  cancelButtonLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  imagePickerContainer: {
-    gap: 12,
-  },
-  imagePickerButton: {
-    width: '100%',
-  },
-  imagePreviewContainer: {
-    width: '100%',
-  },
-  imagePreview: {
-    width: '100%',
-    height: 300,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
-  },
-  imageActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  imageActionButton: {
-    flex: 1,
-    borderColor: 'rgba(100, 200, 255, 0.5)',
-  },
-  navigationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#1a1a3a',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(75, 30, 133, 0.3)',
-    gap: 12,
-  },
-  navButton: {
-    flex: 1,
-    borderColor: 'rgba(100, 200, 255, 0.5)',
-  },
-  navButtonLabel: {
-    color: '#ffffff',
-  },
-  submitButton: {
-    flex: 1,
-    backgroundColor: '#4b1e85',
-  },
-  // Dynamic question generation styles
-  dynamicGenerationSection: {
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-  sectionSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 4,
-  },
-  dynamicForm: {
-    gap: 20,
-    marginTop: 16,
-  },
-  fieldContainer: {
-    gap: 8,
-  },
-  fieldLabel: {
-    color: '#ffffff',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  choiceContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  choiceButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  choiceButtonSelected: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
-    borderColor: '#64c8ff',
-  },
-  choiceButtonText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-  },
-  choiceButtonTextSelected: {
-    color: '#64c8ff',
-    fontWeight: '600',
-  },
-  generateButton: {
-    borderColor: '#64c8ff',
-    marginTop: 8,
-  },
-  questionsInfo: {
-    color: '#64c8ff',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  warningInfo: {
-    color: '#ff6b6b',
-    textAlign: 'center',
-    fontWeight: '500',
-    marginTop: 8,
-  },
-  successIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 8,
-    gap: 8,
-  },
-  successIcon: {
-    fontSize: 20,
-    color: '#4caf50',
-    fontWeight: 'bold',
-  },
-  startButtonDisabled: {
-    opacity: 0.5,
-  },
-  startHint: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  selectionHint: {
-    color: '#64c8ff',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
+    padding: 48,
+  },
+  loadingText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 16,
   },
 });
 
-export default DataCollectionScreen;
+export default React.memo(DataCollectionScreen);
