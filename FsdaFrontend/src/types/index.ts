@@ -2,6 +2,76 @@
  * TypeScript Types for FSDA Data Collection Tool
  */
 
+// Response Link Types
+export interface ResponseLink {
+  id: string;
+  token: string;
+  project: string;
+  project_name: string;
+  created_by: string;
+  created_by_name: string;
+  question_set: string[];
+  respondent_type: string;
+  commodity: string;
+  country: string;
+  is_active: boolean;
+  max_responses: number;
+  response_count: number;
+  expires_at: string;
+  title: string;
+  description: string;
+  custom_metadata: Record<string, any>;
+  auto_expire_after_use: boolean;
+  require_consent: boolean;
+  created_at: string;
+  updated_at: string;
+  first_accessed_at: string | null;
+  last_accessed_at: string | null;
+  access_count: number;
+  share_url: string;
+  is_valid: boolean;
+  is_expired: boolean;
+  remaining_responses: number | 'unlimited';
+  statistics: ResponseLinkStatistics;
+}
+
+export interface ResponseLinkStatistics {
+  is_valid: boolean;
+  is_expired: boolean;
+  total_accesses: number;
+  total_responses: number;
+  remaining_responses: number | 'unlimited';
+  response_rate: number;
+  first_accessed: string | null;
+  last_accessed: string | null;
+  expires_at: string;
+  days_until_expiration: number;
+}
+
+export interface CreateResponseLinkData {
+  project: string;
+  question_set: string[];
+  respondent_type?: string;
+  commodity?: string;
+  country?: string;
+  max_responses?: number;
+  title?: string;
+  description?: string;
+  custom_metadata?: Record<string, any>;
+  auto_expire_after_use?: boolean;
+  require_consent?: boolean;
+  expiration_days?: number;
+}
+
+export interface PublicLinkInfo {
+  title: string;
+  description: string;
+  project_name: string;
+  question_count: number;
+  require_consent: boolean;
+  is_valid: boolean;
+}
+
 // User Types
 export interface User {
   id: string;

@@ -10,8 +10,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 
 // Custom Hooks
@@ -23,6 +23,9 @@ import {
   QuestionInput,
   NavigationControls,
 } from '../components/dataCollection';
+
+// Services
+import apiService from '../services/api';
 
 // Types
 type RootStackParamList = {
@@ -37,6 +40,12 @@ const DataCollectionScreen: React.FC = () => {
   const { projectId, projectName } = route.params;
 
   const [showRespondentForm, setShowRespondentForm] = useState(true);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkDescription, setLinkDescription] = useState('');
+  const [linkExpirationDays, setLinkExpirationDays] = useState('7');
+  const [linkMaxResponses, setLinkMaxResponses] = useState('100');
+  const [creatingLink, setCreatingLink] = useState(false);
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -107,6 +116,68 @@ const DataCollectionScreen: React.FC = () => {
     setShowRespondentForm(true);
   };
 
+  // Handle Create Link
+  const handleOpenLinkDialog = () => {
+    if (questions.questions.length === 0) {
+      Alert.alert('No Questions', 'Please generate questions first before creating a shareable link.');
+      return;
+    }
+    setLinkTitle(projectName || 'Survey');
+    setLinkDescription(`Please complete this survey for ${projectName}`);
+    setShowLinkDialog(true);
+  };
+
+  const handleCreateLink = async () => {
+    try {
+      setCreatingLink(true);
+
+      // Get all question IDs
+      const questionIds = questions.questions.map((q: any) => q.id);
+
+      const linkData = {
+        project: projectId,
+        question_set: questionIds,
+        title: linkTitle || projectName,
+        description: linkDescription,
+        expiration_days: parseInt(linkExpirationDays) || 7,
+        max_responses: parseInt(linkMaxResponses) || 0,
+        auto_expire_after_use: false,
+      };
+
+      const response = await apiService.createResponseLink(linkData);
+
+      Alert.alert(
+        'Link Created',
+        `Your shareable link has been created successfully!\n\nYou can view and manage it in the Response Links screen.`,
+        [
+          { text: 'OK', onPress: () => setShowLinkDialog(false) },
+          {
+            text: 'View Links',
+            onPress: () => {
+              setShowLinkDialog(false);
+              (navigation as any).navigate('ResponseLinks', {
+                projectId,
+                projectName
+              });
+            }
+          },
+        ]
+      );
+
+      // Reset form
+      setLinkTitle('');
+      setLinkDescription('');
+      setLinkExpirationDays('7');
+      setLinkMaxResponses('100');
+
+    } catch (error: any) {
+      console.error('Error creating link:', error);
+      Alert.alert('Error', error?.message || 'Failed to create shareable link');
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
   // Get current question
   const currentQuestion = responses.visibleQuestions[responses.currentQuestionIndex];
 
@@ -130,7 +201,12 @@ const DataCollectionScreen: React.FC = () => {
               {projectName}
             </Text>
           </View>
-          <View style={{ width: 48 }} />
+          <IconButton
+            icon="share-variant"
+            iconColor="#ffffff"
+            size={24}
+            onPress={handleOpenLinkDialog}
+          />
         </View>
 
         {/* Respondent Form */}
@@ -183,6 +259,14 @@ const DataCollectionScreen: React.FC = () => {
           {currentQuestion ? (
             <Card style={styles.questionCard}>
               <Card.Content>
+                {/* Follow-up Question Indicator */}
+                {currentQuestion.is_follow_up && (
+                  <View style={styles.followUpIndicator}>
+                    <Text style={styles.followUpIcon}>↳</Text>
+                    <Text style={styles.followUpText}>Follow-up question</Text>
+                  </View>
+                )}
+
                 {/* Question Number and Type */}
                 <View style={styles.questionHeader}>
                   <View style={styles.questionBadge}>
@@ -203,7 +287,10 @@ const DataCollectionScreen: React.FC = () => {
                 </View>
 
                 {/* Question Text */}
-                <Text variant="headlineSmall" style={styles.questionText}>
+                <Text variant="headlineSmall" style={[
+                  styles.questionText,
+                  currentQuestion.is_follow_up && styles.followUpQuestionText
+                ]}>
                   {currentQuestion.question_text}
                 </Text>
 
@@ -242,6 +329,68 @@ const DataCollectionScreen: React.FC = () => {
           />
         )}
       </KeyboardAvoidingView>
+
+      {/* Create Link Dialog */}
+      <Portal>
+        <Dialog visible={showLinkDialog} onDismiss={() => setShowLinkDialog(false)}>
+          <Dialog.Title>Create Shareable Link</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ marginBottom: 16, color: '#666' }}>
+              Create a link to share this survey. Respondents can complete it in their browser without the app.
+            </Text>
+
+            <PaperTextInput
+              label="Link Title"
+              value={linkTitle}
+              onChangeText={setLinkTitle}
+              mode="outlined"
+              style={{ marginBottom: 12 }}
+            />
+
+            <PaperTextInput
+              label="Description (Optional)"
+              value={linkDescription}
+              onChangeText={setLinkDescription}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+              style={{ marginBottom: 12 }}
+            />
+
+            <PaperTextInput
+              label="Expiration (Days)"
+              value={linkExpirationDays}
+              onChangeText={setLinkExpirationDays}
+              mode="outlined"
+              keyboardType="numeric"
+              style={{ marginBottom: 12 }}
+            />
+
+            <PaperTextInput
+              label="Max Responses (0 = unlimited)"
+              value={linkMaxResponses}
+              onChangeText={setLinkMaxResponses}
+              mode="outlined"
+              keyboardType="numeric"
+              style={{ marginBottom: 12 }}
+            />
+
+            <Text variant="bodySmall" style={{ color: '#999', marginTop: 8 }}>
+              {questions.questions.length} questions will be included in this survey
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowLinkDialog(false)}>Cancel</Button>
+            <Button
+              onPress={handleCreateLink}
+              loading={creatingLink}
+              disabled={creatingLink || !linkTitle}
+            >
+              Create Link
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 };
@@ -287,6 +436,35 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(75, 30, 133, 0.3)',
+  },
+  followUpIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#ff9800',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    borderRadius: 6,
+  },
+  followUpIcon: {
+    color: '#ff9800',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  followUpText: {
+    color: '#ffb74d',
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  followUpQuestionText: {
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(255, 152, 0, 0.3)',
   },
   questionHeader: {
     flexDirection: 'row',

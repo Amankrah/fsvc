@@ -16,6 +16,7 @@ import MembersScreen from '../screens/MembersScreen';
 import SyncScreen from '../screens/SyncScreen';
 import DataCollectionScreen from '../screens/DataCollectionScreen';
 import ResponsesScreen from '../screens/ResponsesScreen';
+import ResponseLinksScreen from '../screens/ResponseLinksScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 
 export type RootStackParamList = {
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   FormBuilder: { projectId: string; projectName: string };
   DataCollection: { projectId: string; projectName: string };
   Responses: { projectId: string; projectName: string };
+  ResponseLinks: { projectId: string; projectName: string };
   Analytics: { projectId: string };
   Members: { projectId: string };
   Sync: { projectId: string };
@@ -134,6 +136,11 @@ const RootNavigator: React.FC = () => {
               name="Responses"
               component={ResponsesScreen}
               options={{ title: 'Responses' }}
+            />
+            <Stack.Screen
+              name="ResponseLinks"
+              component={ResponseLinksScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="Analytics"

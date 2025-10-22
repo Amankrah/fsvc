@@ -21,6 +21,7 @@ type RootStackParamList = {
   Forms: { projectId: string };
   DataCollection: { projectId: string; projectName: string };
   Responses: { projectId: string; projectName: string };
+  ResponseLinks: { projectId: string; projectName: string };
   Analytics: { projectId: string };
   Members: { projectId: string };
   Sync: { projectId: string };
@@ -92,6 +93,14 @@ const ProjectDetailsScreen: React.FC = () => {
       icon: 'table-eye',
       route: 'Responses' as keyof RootStackParamList,
       color: '#ff9800',
+      requiresName: true,
+    },
+    {
+      title: 'Response Links',
+      description: 'Share surveys via web links and track submissions',
+      icon: 'link-variant',
+      route: 'ResponseLinks' as keyof RootStackParamList,
+      color: '#9c27b0',
       requiresName: true,
     },
     {

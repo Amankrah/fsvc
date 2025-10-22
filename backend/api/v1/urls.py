@@ -11,6 +11,7 @@ from sync.views import SyncQueueViewSet
 # from analytics_results.views import AnalyticsResultViewSet
 from forms.views_modern import ModernQuestionViewSet as QuestionViewSet
 from responses.views import ResponseViewSet, RespondentViewSet
+from responses.link_views import ResponseLinkViewSet, PublicResponseLinkViewSet
 
 # Create a router and register the ViewSets
 router = DefaultRouter()
@@ -20,6 +21,11 @@ router.register(r'sync-queue', SyncQueueViewSet, basename='sync-queue')
 router.register(r'questions', QuestionViewSet, basename='questions')
 router.register(r'responses', ResponseViewSet, basename='responses')
 router.register(r'respondents', RespondentViewSet, basename='respondents')
+router.register(r'response-links', ResponseLinkViewSet, basename='response-links')
+
+# Public router (no authentication required)
+public_router = DefaultRouter()
+public_router.register(r'links', PublicResponseLinkViewSet, basename='public-links')
 
 # Create nested routers for project-related resources
 projects_router = routers.NestedDefaultRouter(router, r'projects', lookup='project')
@@ -30,6 +36,8 @@ projects_router.register(r'responses', ResponseViewSet, basename='project-respon
 urlpatterns = [
     path('', include(router.urls)),
     path('', include(projects_router.urls)),
+    # Public response link endpoints (no auth required)
+    path('public/', include(public_router.urls)),
     # Dashboard endpoints
     path('dashboard-stats/', views.dashboard_stats, name='dashboard-stats'),
     path('activity-stream/', views.activity_stream, name='activity-stream'),

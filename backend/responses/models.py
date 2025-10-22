@@ -5,6 +5,9 @@ from forms.models import Question
 from authentication.models import User
 import json
 
+# Import ResponseLink model
+from .response_links import ResponseLink, ResponseLinkManager
+
 class ResponseType(models.Model):
     """Model to define different types of responses with their characteristics"""
     # Basic identification
