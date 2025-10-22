@@ -653,6 +653,77 @@ async def get_data_summary(
     except Exception as e:
         return AnalyticsUtils.handle_analysis_error(e, "data summary")
 
+@router.get("/project/{project_id}/available-questions")
+async def get_available_questions(
+    project_id: str,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get list of available questions for analytics variable selection.
+    Returns questions with their text, response type, analytics category, and data type.
+
+    Args:
+        project_id: Project identifier
+        db: Database session
+
+    Returns:
+        List of questions available for analysis
+    """
+    try:
+        from django.db import connection
+
+        @sync_to_async
+        def get_questions_sync():
+            normalized_project_id = AnalyticsUtils.normalize_uuid(project_id)
+
+            # Get unique questions with metadata
+            questions_query = """
+                SELECT DISTINCT
+                    q.question_text,
+                    rt.name as response_type,
+                    rt.display_name as response_type_display,
+                    rt.data_type,
+                    rt.analytics_category,
+                    q.question_category,
+                    COUNT(r.response_id) as response_count
+                FROM forms_question q
+                JOIN responses_response r ON r.question_id = q.id
+                LEFT JOIN responses_responsetype rt ON r.response_type_id = rt.id
+                WHERE r.project_id = %s
+                GROUP BY q.question_text, rt.name, rt.display_name, rt.data_type, rt.analytics_category, q.question_category
+                ORDER BY response_count DESC, q.question_text
+            """
+
+            with connection.cursor() as cursor:
+                cursor.execute(questions_query, [normalized_project_id])
+                results = cursor.fetchall()
+
+            questions = [
+                {
+                    'question_text': row[0],
+                    'response_type': row[1],
+                    'response_type_display': row[2],
+                    'data_type': row[3],
+                    'analytics_category': row[4],
+                    'question_category': row[5],
+                    'response_count': row[6]
+                }
+                for row in results
+            ]
+
+            return questions
+
+        questions = await get_questions_sync()
+
+        return AnalyticsUtils.format_api_response('success', {
+            'project_id': project_id,
+            'total_questions': len(questions),
+            'questions': questions
+        })
+
+    except Exception as e:
+        return AnalyticsUtils.handle_analysis_error(e, "fetching available questions")
+
 @router.post("/project/{project_id}/analyze/geospatial")
 async def analyze_geospatial_data(
     project_id: str,
@@ -665,7 +736,7 @@ async def analyze_geospatial_data(
 ) -> Dict[str, Any]:
     """
     Run comprehensive geospatial analysis on project data.
-    
+
     Args:
         project_id: Project identifier
         lat_column: Name of latitude column
@@ -674,7 +745,7 @@ async def analyze_geospatial_data(
         max_distance_km: Maximum distance for spatial autocorrelation
         n_clusters: Number of location clusters to create
         db: Database session
-        
+
     Returns:
         Geospatial analysis results
     """

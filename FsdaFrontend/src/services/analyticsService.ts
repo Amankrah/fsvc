@@ -47,6 +47,21 @@ class AnalyticsService {
     }
   }
 
+  async getAvailableQuestions(projectId: string): Promise<ApiResponse<any>> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(
+        `${this.descriptiveBaseUrl}/project/${projectId}/available-questions`,
+        { method: 'GET', headers }
+      );
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error fetching available questions:', error);
+      throw error;
+    }
+  }
+
   async getBasicStatistics(projectId: string, variables?: string[]): Promise<ApiResponse<any>> {
     try {
       const headers = await this.getAuthHeaders();

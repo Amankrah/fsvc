@@ -41,6 +41,7 @@ interface AnalyticsSelectorProps {
   availableVariables: string[];
   onRunAnalysis: (methodId: string, selectedVariables: string[], parameters: any) => void;
   loading?: boolean;
+  getCompatibleVariables?: (methodCategory: string) => string[];
 }
 
 const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
@@ -48,6 +49,7 @@ const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
   availableVariables,
   onRunAnalysis,
   loading = false,
+  getCompatibleVariables,
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<AnalysisMethod | null>(null);
   const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
@@ -55,6 +57,11 @@ const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
   const [showMethodModal, setShowMethodModal] = useState(false);
   const [showVariableModal, setShowVariableModal] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  // Get filtered variables based on selected method
+  const displayVariables = selectedMethod && getCompatibleVariables
+    ? getCompatibleVariables(selectedMethod.category)
+    : availableVariables;
 
   // Reset selections when method changes
   useEffect(() => {
@@ -294,7 +301,12 @@ const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
         </View>
 
         <ScrollView style={styles.modalContent}>
-          {availableVariables.map((variable) => (
+          {displayVariables.length === 0 && (
+            <Text style={styles.noVariablesText}>
+              No compatible questions found for this analysis type.
+            </Text>
+          )}
+          {displayVariables.map((variable) => (
             <Checkbox.Item
               key={variable}
               label={variable}
@@ -558,6 +570,12 @@ const styles = StyleSheet.create({
   },
   methodItem: {
     paddingVertical: 8,
+  },
+  noVariablesText: {
+    padding: 16,
+    textAlign: 'center',
+    color: '#666',
+    fontStyle: 'italic',
   },
 });
 

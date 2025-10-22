@@ -402,9 +402,20 @@ const AVAILABLE_METHODS: AnalysisMethod[] = [
   },
 ];
 
+interface Question {
+  question_text: string;
+  response_type: string;
+  response_type_display: string;
+  data_type: string;
+  analytics_category: string;
+  question_category: string;
+  response_count: number;
+}
+
 const CustomAnalyticsTab: React.FC<CustomAnalyticsTabProps> = ({ projectId }) => {
   const [loading, setLoading] = useState(false);
   const [availableVariables, setAvailableVariables] = useState<string[]>([]);
+  const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
   const [analysisResults, setAnalysisResults] = useState<any>(null);
   const [selectedMethodName, setSelectedMethodName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -416,18 +427,35 @@ const CustomAnalyticsTab: React.FC<CustomAnalyticsTabProps> = ({ projectId }) =>
 
   const loadAvailableVariables = async () => {
     try {
-      // Fetch data summary to get available variables
-      const summary = await analyticsService.getDataSummary(projectId);
-      if (summary.status === 'success' && summary.data.response_types) {
-        const variables = summary.data.response_types.map(
-          (rt: any) => rt.display_name || rt.question_text || 'Unknown'
-        );
+      // Fetch available questions for variable selection
+      const questionsResponse = await analyticsService.getAvailableQuestions(projectId);
+      if (questionsResponse.status === 'success' && questionsResponse.data.questions) {
+        const questions = questionsResponse.data.questions;
+        setAvailableQuestions(questions);
+
+        // Extract question texts as variable names
+        const variables = questions.map((q: Question) => q.question_text);
         setAvailableVariables(variables);
       }
     } catch (err: any) {
       console.error('Error loading variables:', err);
-      setError('Failed to load available variables');
+      setError('Failed to load available questions');
     }
+  };
+
+  const getCompatibleVariables = (methodCategory: string): string[] => {
+    // Filter questions by analytics category compatibility
+    const categoryMapping: { [key: string]: string[] } = {
+      descriptive: ['descriptive', 'inferential'],  // Numeric data works for both
+      inferential: ['descriptive', 'inferential'],  // Same numeric data
+      qualitative: ['qualitative'],  // Text data only
+    };
+
+    const compatibleCategories = categoryMapping[methodCategory] || [];
+
+    return availableQuestions
+      .filter((q) => compatibleCategories.includes(q.analytics_category))
+      .map((q) => q.question_text);
   };
 
   const handleRunAnalysis = async (
@@ -624,6 +652,7 @@ const CustomAnalyticsTab: React.FC<CustomAnalyticsTabProps> = ({ projectId }) =>
           availableVariables={availableVariables}
           onRunAnalysis={handleRunAnalysis}
           loading={loading}
+          getCompatibleVariables={getCompatibleVariables}
         />
 
         {error && (
