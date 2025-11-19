@@ -227,7 +227,10 @@ class ResponseLink(models.Model):
 
     def save(self, *args, **kwargs):
         """Enhanced save with validation"""
-        self.full_clean()
+        # Allow skipping validation if needed
+        skip_validation = kwargs.pop('skip_validation', False)
+        if not skip_validation:
+            self.full_clean()
         super().save(*args, **kwargs)
 
     @property

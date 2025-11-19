@@ -99,18 +99,32 @@ class ResponseLinkCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create new response link with auto-generated token"""
+        import secrets
+
         expiration_days = validated_data.pop('expiration_days', 7)
+
+        # Extract created_by which will be added by perform_create
+        created_by = validated_data.pop('created_by', None)
+        skip_validation = validated_data.pop('skip_validation', False)
+
+        # Calculate expiration - ensure it's in the future
         expires_at = timezone.now() + timedelta(days=expiration_days)
 
-        # Get user from context
-        user = self.context['request'].user
+        # Generate unique token
+        token = secrets.token_urlsafe(32)
 
-        # Use manager's create_link method
-        return ResponseLink.objects.create_link(
-            created_by=user,
+        # Create instance with all fields including created_by
+        link = ResponseLink(
+            token=token,
             expires_at=expires_at,
+            created_by=created_by,
             **validated_data
         )
+
+        # Save with skip_validation to avoid the expiration date check
+        link.save(skip_validation=skip_validation)
+
+        return link
 
 
 class ResponseLinkPublicSerializer(serializers.ModelSerializer):

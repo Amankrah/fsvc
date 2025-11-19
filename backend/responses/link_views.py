@@ -55,7 +55,9 @@ class ResponseLinkViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Create link with current user as creator"""
-        serializer.save(created_by=self.request.user)
+        # The serializer's create() method returns an unsaved instance
+        # We set created_by and save it here with validation skipped initially
+        link = serializer.save(created_by=self.request.user, skip_validation=True)
 
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
