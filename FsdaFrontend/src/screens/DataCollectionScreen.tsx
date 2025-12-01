@@ -13,6 +13,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 
 // Custom Hooks
 import { useRespondent, useQuestions, useResponseState } from '../hooks/dataCollection';
@@ -147,7 +148,12 @@ const DataCollectionScreen: React.FC = () => {
       const response = await apiService.createResponseLink(linkData);
 
       // Get the shareable URL from backend response
-      const shareableUrl = response.share_url || `http://localhost:8000/respond/${response.token}`;
+      const shareableUrl = response.share_url;
+
+      if (!shareableUrl) {
+        Alert.alert('Error', 'Failed to generate shareable URL. Please try again.');
+        return;
+      }
 
       Alert.alert(
         'Link Created Successfully!',
@@ -155,9 +161,15 @@ const DataCollectionScreen: React.FC = () => {
         [
           {
             text: 'Copy Link',
-            onPress: () => {
-              // Copy to clipboard (you'll need @react-native-clipboard/clipboard)
-              Alert.alert('Success', 'Link copied to clipboard!');
+            onPress: async () => {
+              try {
+                // Copy to clipboard using Expo Clipboard
+                await Clipboard.setStringAsync(shareableUrl);
+                Alert.alert('Success', 'Link copied to clipboard!');
+              } catch (error) {
+                console.error('Failed to copy to clipboard:', error);
+                Alert.alert('Error', 'Failed to copy link. Please copy it manually.');
+              }
               setShowLinkDialog(false);
             }
           },

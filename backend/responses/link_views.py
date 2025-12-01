@@ -275,8 +275,7 @@ class PublicResponseLinkViewSet(viewsets.ViewSet):
                         question=question,
                         respondent=respondent,
                         response_value=response_value,
-                        response_source='web_link',
-                        metadata={'link_token': link.token}
+                        response_metadata={'link_token': link.token, 'source': 'web_link'}
                     )
                     created_responses.append(response)
 

@@ -2,6 +2,14 @@
 Production settings for the backend application.
 """
 
+# Load environment variables from .env file BEFORE importing base settings
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from backend directory
+env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+load_dotenv(env_path)
+
 from .base import *
 
 # SECURITY WARNING: don't run with debug turned on in production!
