@@ -305,3 +305,4 @@ celerybeat.pid
 # Markdown files (except README)
 *.md
 !README.md
+DEPLOYMENT.md
