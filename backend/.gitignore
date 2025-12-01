@@ -44,3 +44,7 @@ htmlcov/
 
 # Documentation
 docs/_build/
+
+# Markdown files (except README)
+*.md
+!README.md

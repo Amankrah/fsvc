@@ -301,3 +301,7 @@ celerybeat.pid
 # Backup databases
 *.sql
 *.dump
+
+# Markdown files (except README)
+*.md
+!README.md
