@@ -34,10 +34,13 @@ const ResponseLinksScreen: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiService.getResponseLinks();
-      setLinks(response);
+      // Handle both array responses and paginated responses
+      const linksData = Array.isArray(response) ? response : (response?.results || []);
+      setLinks(linksData);
     } catch (error) {
       console.error('Error loading links:', error);
       Alert.alert('Error', 'Failed to load response links');
+      setLinks([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

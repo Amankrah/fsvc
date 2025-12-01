@@ -582,70 +582,70 @@ class ApiService {
    * Create a new shareable response link
    */
   async createResponseLink(data: any) {
-    return await this.post('/response-links/', data);
+    return await this.post('/v1/response-links/', data);
   }
 
   /**
    * Get all response links
    */
   async getResponseLinks() {
-    return await this.get('/response-links/');
+    return await this.get('/v1/response-links/');
   }
 
   /**
    * Get active response links
    */
   async getActiveResponseLinks() {
-    return await this.get('/response-links/active/');
+    return await this.get('/v1/response-links/active/');
   }
 
   /**
    * Get expired response links
    */
   async getExpiredResponseLinks() {
-    return await this.get('/response-links/expired/');
+    return await this.get('/v1/response-links/expired/');
   }
 
   /**
    * Get single response link
    */
   async getResponseLink(linkId: string) {
-    return await this.get(`/response-links/${linkId}/`);
+    return await this.get(`/v1/response-links/${linkId}/`);
   }
 
   /**
    * Deactivate a response link
    */
   async deactivateResponseLink(linkId: string) {
-    return await this.post(`/response-links/${linkId}/deactivate/`);
+    return await this.post(`/v1/response-links/${linkId}/deactivate/`, {});
   }
 
   /**
    * Extend response link expiration
    */
   async extendResponseLink(linkId: string, days: number) {
-    return await this.post(`/response-links/${linkId}/extend/`, { days });
+    return await this.post(`/v1/response-links/${linkId}/extend/`, { days });
   }
 
   /**
    * Get response link statistics
    */
   async getResponseLinkStatistics(linkId: string) {
-    return await this.get(`/response-links/${linkId}/statistics/`);
+    return await this.get(`/v1/response-links/${linkId}/statistics/`);
   }
 
   /**
    * Delete response link
    */
   async deleteResponseLink(linkId: string) {
-    return await this.delete(`/response-links/${linkId}/`);
+    return await this.delete(`/v1/response-links/${linkId}/`);
   }
 
   /**
    * Cleanup expired response links
    */
   async cleanupExpiredResponseLinks(olderThanDays: number = 30) {
-    return await this.post('/response-links/cleanup_expired/', { older_than_days: olderThanDays });
+    return await this.post('/v1/response-links/cleanup_expired/', { older_than_days: olderThanDays });
   }
 
   // ============================================
@@ -656,14 +656,14 @@ class ApiService {
    * Get public link info (no auth)
    */
   async getPublicLinkInfo(token: string) {
-    return await this.get(`/public/links/${token}/`);
+    return await this.get(`/v1/public/links/${token}/`);
   }
 
   /**
    * Get questions for public link (no auth)
    */
   async getPublicLinkQuestions(token: string) {
-    return await this.get(`/public/links/${token}/questions/`);
+    return await this.get(`/v1/public/links/${token}/questions/`);
   }
 
   /**
@@ -674,7 +674,7 @@ class ApiService {
     responses: Record<string, string>;
     respondent_metadata?: Record<string, any>;
   }) {
-    return await this.post(`/public/links/${token}/submit/`, data);
+    return await this.post(`/v1/public/links/${token}/submit/`, data);
   }
 }
 

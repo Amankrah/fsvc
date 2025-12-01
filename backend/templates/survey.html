@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey - Research Data Collection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .success-message {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .question-card {
+            margin-bottom: 24px;
+        }
+
+        .question-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-question {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.4);
+        }
+
+        .badge-type {
+            background: rgba(118, 75, 162, 0.2);
+            color: #764ba2;
+            border: 1px solid rgba(118, 75, 162, 0.4);
+        }
+
+        .badge-required {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.4);
+        }
+
+        .question-text {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea.input-field {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .select-field {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+        }
+
+        .radio-group, .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .radio-option, .checkbox-option {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .radio-option:hover, .checkbox-option:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .radio-option input, .checkbox-option input {
+            margin-right: 12px;
+            cursor: pointer;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #666;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(102, 126, 234, 0.1);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .consent-card {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .consent-card h3 {
+            color: #667eea;
+            margin-bottom: 16px;
+        }
+
+        .consent-checkbox {
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .consent-checkbox input {
+            margin-top: 4px;
+            cursor: pointer;
+        }
+
+        .expired-card {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .expired-card h2 {
+            color: #f44336;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="app">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading survey...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:8000/api/v1'
+            : '/api/v1';
+
+        // Get token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlPath = window.location.pathname;
+        // Remove trailing slash if present
+        const token = (urlPath.split('/respond/')[1] || urlParams.get('token') || '').replace(/\/$/, '');
+
+        // State
+        let linkData = null;
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let responses = {};
+        let consentGiven = false;
+
+        // Initialize
+        async function init() {
+            if (!token) {
+                showError('Invalid survey link. Please check the URL and try again.');
+                return;
+            }
+
+            try {
+                // Fetch link data
+                const linkResponse = await fetch(`${API_BASE_URL}/public/links/${token}/`);
+                const linkResult = await linkResponse.json();
+
+                if (!linkResult.success || !linkResult.is_valid) {
+                    showExpired();
+                    return;
+                }
+
+                linkData = linkResult.link;
+
+                // Fetch questions
+                const questionsResponse = await fetch(`${API_BASE_URL}/public/links/${token}/questions/`);
+                const questionsResult = await questionsResponse.json();
+
+                if (!questionsResult.success) {
+                    showError('Failed to load survey questions.');
+                    return;
+                }
+
+                questions = questionsResult.questions;
+
+                // Show consent screen first
+                showConsentScreen();
+
+            } catch (error) {
+                console.error('Error loading survey:', error);
+                showError('Failed to load survey. Please check your internet connection and try again.');
+            }
+        }
+
+        function showConsentScreen() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="card">
+                    <div class="header">
+                        <h1>${linkData.title || 'Survey'}</h1>
+                        ${linkData.description ? `<p>${linkData.description}</p>` : ''}
+                    </div>
+
+                    <div class="consent-card">
+                        <h3>Informed Consent</h3>
+                        <p>By participating in this survey, you consent to the collection and use of your responses for research purposes. Your responses will be kept confidential and used only for the stated research objectives.</p>
+
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="consentCheck" onchange="handleConsentChange(this.checked)">
+                            <label for="consentCheck">I have read and understood the above information, and I consent to participate in this survey.</label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" id="startBtn" disabled onclick="startSurvey()">
+                        Start Survey (${questions.length} questions)
+                    </button>
+                </div>
+            `;
+        }
+
+        function handleConsentChange(checked) {
+            consentGiven = checked;
+            document.getElementById('startBtn').disabled = !checked;
+        }
+
+        function startSurvey() {
+            if (!consentGiven) return;
+            currentQuestionIndex = 0;
+            showQuestion();
+        }
+
+        function showQuestion() {
+            if (currentQuestionIndex >= questions.length) {
+                submitSurvey();
+                return;
+            }
+
+            const question = questions[currentQuestionIndex];
+            const progress = ((currentQuestionIndex) / questions.length) * 100;
+
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="card">
+                    <div class="header">
+                        <h1>${linkData.title || 'Survey'}</h1>
+                    </div>
+
+                    <div class="progress-text">Question ${currentQuestionIndex + 1} of ${questions.length}</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                    </div>
+
+                    <div class="question-card">
+                        <div class="question-header">
+                            <span class="badge badge-question">Q${currentQuestionIndex + 1}</span>
+                            <span class="badge badge-type">${formatResponseType(question.response_type)}</span>
+                            ${question.is_required ? '<span class="badge badge-required">Required</span>' : ''}
+                        </div>
+
+                        <div class="question-text">${question.question_text}</div>
+
+                        <div id="questionInput"></div>
+                    </div>
+
+                    <div class="navigation">
+                        <button class="btn btn-secondary" onclick="previousQuestion()" ${currentQuestionIndex === 0 ? 'disabled' : ''}>
+                            Previous
+                        </button>
+                        <button class="btn btn-primary" onclick="nextQuestion()">
+                            ${currentQuestionIndex === questions.length - 1 ? 'Submit' : 'Next'}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            renderQuestionInput(question);
+        }
+
+        function renderQuestionInput(question) {
+            const container = document.getElementById('questionInput');
+            const currentValue = responses[question.id] || '';
+
+            console.log('Rendering question:', question.response_type, question);
+
+            let html = '';
+
+            switch(question.response_type) {
+                case 'text_short':
+                case 'text':
+                    html = `<input type="text" class="input-field" id="response" value="${currentValue}" placeholder="Type your answer here..." autocomplete="off">`;
+                    break;
+
+                case 'text_long':
+                    html = `<textarea class="input-field" id="response" placeholder="Type your answer here..." autocomplete="off">${currentValue}</textarea>`;
+                    break;
+
+                case 'numeric_integer':
+                case 'numeric_decimal':
+                case 'numeric':
+                case 'scale_rating':
+                case 'scale':
+                    html = `<input type="number" class="input-field" id="response" value="${currentValue}" step="${question.response_type === 'numeric_decimal' ? '0.01' : '1'}" placeholder="Enter a number..." autocomplete="off">`;
+                    break;
+
+                case 'single_choice':
+                case 'choice_single':
+                    // Try different possible option field names
+                    const options = question.options || question.response_options || question.choices || [];
+                    console.log('Question options:', question);
+
+                    if (options.length === 0) {
+                        html = `<input type="text" class="input-field" id="response" value="${currentValue}" placeholder="Type your answer here...">`;
+                    } else {
+                        html = `<div class="radio-group">`;
+                        options.forEach(option => {
+                            const checked = currentValue === option ? 'checked' : '';
+                            html += `
+                                <label class="radio-option">
+                                    <input type="radio" name="response" value="${option}" ${checked}>
+                                    <span>${option}</span>
+                                </label>
+                            `;
+                        });
+                        html += `</div>`;
+                    }
+                    break;
+
+                case 'multiple_choice':
+                    const multiOptions = question.options || [];
+                    const selectedValues = currentValue ? currentValue.split(',') : [];
+                    html = `<div class="checkbox-group">`;
+                    multiOptions.forEach(option => {
+                        const checked = selectedValues.includes(option) ? 'checked' : '';
+                        html += `
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="response" value="${option}" ${checked}>
+                                <span>${option}</span>
+                            </label>
+                        `;
+                    });
+                    html += `</div>`;
+                    break;
+
+                case 'boolean':
+                    html = `
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="response" value="true" ${currentValue === 'true' ? 'checked' : ''}>
+                                <span>Yes</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="response" value="false" ${currentValue === 'false' ? 'checked' : ''}>
+                                <span>No</span>
+                            </label>
+                        </div>
+                    `;
+                    break;
+
+                default:
+                    html = `<input type="text" class="input-field" id="response" value="${currentValue}" placeholder="Type your answer here...">`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function getCurrentResponse() {
+            const question = questions[currentQuestionIndex];
+
+            if (question.response_type === 'single_choice' ||
+                question.response_type === 'choice_single' ||
+                question.response_type === 'boolean') {
+                const selected = document.querySelector('input[name="response"]:checked');
+                return selected ? selected.value : '';
+            } else if (question.response_type === 'multiple_choice' ||
+                       question.response_type === 'choice_multiple') {
+                const selected = Array.from(document.querySelectorAll('input[name="response"]:checked'));
+                return selected.map(el => el.value).join(',');
+            } else {
+                const input = document.getElementById('response');
+                return input ? input.value : '';
+            }
+        }
+
+        function nextQuestion() {
+            const question = questions[currentQuestionIndex];
+            const response = getCurrentResponse();
+
+            if (question.is_required && !response) {
+                alert('This question is required. Please provide an answer.');
+                return;
+            }
+
+            responses[question.id] = response;
+            currentQuestionIndex++;
+            showQuestion();
+        }
+
+        function previousQuestion() {
+            if (currentQuestionIndex > 0) {
+                const response = getCurrentResponse();
+                responses[questions[currentQuestionIndex].id] = response;
+                currentQuestionIndex--;
+                showQuestion();
+            }
+        }
+
+        async function submitSurvey() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="card">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Submitting your responses...</p>
+                    </div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/public/links/${token}/submit/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        consent_given: consentGiven,
+                        responses: responses,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    app.innerHTML = `
+                        <div class="card">
+                            <div class="success-message">
+                                <h2>✓ Thank You!</h2>
+                                <p>Your responses have been submitted successfully.</p>
+                                <p style="margin-top: 16px;">You can now close this page.</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    showError(result.error || 'Failed to submit responses. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error submitting survey:', error);
+                showError('Failed to submit responses. Please check your connection and try again.');
+            }
+        }
+
+        function formatResponseType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function showError(message) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="card">
+                    <div class="error-message">
+                        <h3>Error</h3>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showExpired() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="card expired-card">
+                    <h2>Survey Link Expired</h2>
+                    <p>This survey link has expired or is no longer active.</p>
+                    <p style="margin-top: 16px;">Please contact the survey administrator for a new link.</p>
+                </div>
+            `;
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>

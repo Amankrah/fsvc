@@ -146,13 +146,23 @@ const DataCollectionScreen: React.FC = () => {
 
       const response = await apiService.createResponseLink(linkData);
 
+      // Get the shareable URL from backend response
+      const shareableUrl = response.share_url || `http://localhost:8000/respond/${response.token}`;
+
       Alert.alert(
-        'Link Created',
-        `Your shareable link has been created successfully!\n\nYou can view and manage it in the Response Links screen.`,
+        'Link Created Successfully!',
+        `Your shareable survey link:\n\n${shareableUrl}\n\nShare this link with respondents to complete the survey in their browser.`,
         [
-          { text: 'OK', onPress: () => setShowLinkDialog(false) },
           {
-            text: 'View Links',
+            text: 'Copy Link',
+            onPress: () => {
+              // Copy to clipboard (you'll need @react-native-clipboard/clipboard)
+              Alert.alert('Success', 'Link copied to clipboard!');
+              setShowLinkDialog(false);
+            }
+          },
+          {
+            text: 'View All Links',
             onPress: () => {
               setShowLinkDialog(false);
               (navigation as any).navigate('ResponseLinks', {
@@ -184,44 +194,108 @@ const DataCollectionScreen: React.FC = () => {
   // Show Respondent Form
   if (showRespondentForm) {
     return (
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <IconButton
-            icon="arrow-left"
-            iconColor="#ffffff"
-            size={24}
-            onPress={() => navigation.goBack()}
-          />
-          <View style={styles.headerContent}>
-            <Text variant="headlineSmall" style={styles.title}>
-              Data Collection
-            </Text>
-            <Text variant="bodyMedium" style={styles.subtitle}>
-              {projectName}
-            </Text>
+      <>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <IconButton
+              icon="arrow-left"
+              iconColor="#ffffff"
+              size={24}
+              onPress={() => navigation.goBack()}
+            />
+            <View style={styles.headerContent}>
+              <Text variant="headlineSmall" style={styles.title}>
+                Data Collection
+              </Text>
+              <Text variant="bodyMedium" style={styles.subtitle}>
+                {projectName}
+              </Text>
+            </View>
+            <IconButton
+              icon="share-variant"
+              iconColor="#ffffff"
+              size={24}
+              onPress={handleOpenLinkDialog}
+            />
           </View>
-          <IconButton
-            icon="share-variant"
-            iconColor="#ffffff"
-            size={24}
-            onPress={handleOpenLinkDialog}
+
+          {/* Respondent Form */}
+          <RespondentForm
+            {...respondent}
+            availableRespondentTypes={questions.availableRespondentTypes}
+            availableCommodities={questions.availableCommodities}
+            availableCountries={questions.availableCountries}
+            loadingOptions={questions.loadingOptions}
+            generatingQuestions={questions.generatingQuestions}
+            questionsGenerated={questions.questionsGenerated}
+            onGenerateQuestions={handleGenerateQuestions}
+            onStartSurvey={handleStartSurvey}
           />
         </View>
 
-        {/* Respondent Form */}
-        <RespondentForm
-          {...respondent}
-          availableRespondentTypes={questions.availableRespondentTypes}
-          availableCommodities={questions.availableCommodities}
-          availableCountries={questions.availableCountries}
-          loadingOptions={questions.loadingOptions}
-          generatingQuestions={questions.generatingQuestions}
-          questionsGenerated={questions.questionsGenerated}
-          onGenerateQuestions={handleGenerateQuestions}
-          onStartSurvey={handleStartSurvey}
-        />
-      </View>
+        {/* Create Link Dialog */}
+        <Portal>
+          <Dialog visible={showLinkDialog} onDismiss={() => setShowLinkDialog(false)}>
+            <Dialog.Title>Create Shareable Link</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium" style={{ marginBottom: 16, color: '#666' }}>
+                Create a link to share this survey. Respondents can complete it in their browser without the app.
+              </Text>
+
+              <PaperTextInput
+                label="Link Title"
+                value={linkTitle}
+                onChangeText={setLinkTitle}
+                mode="outlined"
+                style={{ marginBottom: 12 }}
+              />
+
+              <PaperTextInput
+                label="Description (Optional)"
+                value={linkDescription}
+                onChangeText={setLinkDescription}
+                mode="outlined"
+                multiline
+                numberOfLines={3}
+                style={{ marginBottom: 12 }}
+              />
+
+              <PaperTextInput
+                label="Expiration (Days)"
+                value={linkExpirationDays}
+                onChangeText={setLinkExpirationDays}
+                mode="outlined"
+                keyboardType="numeric"
+                style={{ marginBottom: 12 }}
+              />
+
+              <PaperTextInput
+                label="Max Responses (0 = unlimited)"
+                value={linkMaxResponses}
+                onChangeText={setLinkMaxResponses}
+                mode="outlined"
+                keyboardType="numeric"
+                style={{ marginBottom: 12 }}
+              />
+
+              <Text variant="bodySmall" style={{ color: '#999', marginTop: 8 }}>
+                {questions.questions.length} questions will be included in this survey
+              </Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowLinkDialog(false)}>Cancel</Button>
+              <Button
+                onPress={handleCreateLink}
+                loading={creatingLink}
+                disabled={creatingLink || !linkTitle}
+              >
+                Create Link
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </>
     );
   }
 
@@ -329,68 +403,6 @@ const DataCollectionScreen: React.FC = () => {
           />
         )}
       </KeyboardAvoidingView>
-
-      {/* Create Link Dialog */}
-      <Portal>
-        <Dialog visible={showLinkDialog} onDismiss={() => setShowLinkDialog(false)}>
-          <Dialog.Title>Create Shareable Link</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={{ marginBottom: 16, color: '#666' }}>
-              Create a link to share this survey. Respondents can complete it in their browser without the app.
-            </Text>
-
-            <PaperTextInput
-              label="Link Title"
-              value={linkTitle}
-              onChangeText={setLinkTitle}
-              mode="outlined"
-              style={{ marginBottom: 12 }}
-            />
-
-            <PaperTextInput
-              label="Description (Optional)"
-              value={linkDescription}
-              onChangeText={setLinkDescription}
-              mode="outlined"
-              multiline
-              numberOfLines={3}
-              style={{ marginBottom: 12 }}
-            />
-
-            <PaperTextInput
-              label="Expiration (Days)"
-              value={linkExpirationDays}
-              onChangeText={setLinkExpirationDays}
-              mode="outlined"
-              keyboardType="numeric"
-              style={{ marginBottom: 12 }}
-            />
-
-            <PaperTextInput
-              label="Max Responses (0 = unlimited)"
-              value={linkMaxResponses}
-              onChangeText={setLinkMaxResponses}
-              mode="outlined"
-              keyboardType="numeric"
-              style={{ marginBottom: 12 }}
-            />
-
-            <Text variant="bodySmall" style={{ color: '#999', marginTop: 8 }}>
-              {questions.questions.length} questions will be included in this survey
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowLinkDialog(false)}>Cancel</Button>
-            <Button
-              onPress={handleCreateLink}
-              loading={creatingLink}
-              disabled={creatingLink || !linkTitle}
-            >
-              Create Link
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
     </View>
   );
 };

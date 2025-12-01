@@ -184,6 +184,10 @@ CORS_ALLOW_METHODS = [
 # API Version
 API_VERSION = 'v1'
 
+# Backend URL for shareable links (web survey is served by Django)
+# In production, this should be your Django server URL (e.g., https://api.yourdomain.com)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:8000')
+
 # Admin site configuration
 ADMIN_SITE_HEADER = "Research Data Collection Admin"
 ADMIN_SITE_TITLE = "Data Collection Admin Portal"
