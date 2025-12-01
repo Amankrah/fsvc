@@ -684,13 +684,13 @@ async def get_available_questions(
                     rt.display_name as response_type_display,
                     rt.data_type,
                     rt.analytics_category,
-                    q.question_category,
+                    r.question_category,
                     COUNT(r.response_id) as response_count
                 FROM forms_question q
                 JOIN responses_response r ON r.question_id = q.id
                 LEFT JOIN responses_responsetype rt ON r.response_type_id = rt.id
                 WHERE r.project_id = %s
-                GROUP BY q.question_text, rt.name, rt.display_name, rt.data_type, rt.analytics_category, q.question_category
+                GROUP BY q.question_text, rt.name, rt.display_name, rt.data_type, rt.analytics_category, r.question_category
                 ORDER BY response_count DESC, q.question_text
             """
 
