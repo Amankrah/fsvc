@@ -164,6 +164,11 @@ ALTER ROLE fsvc_user SET client_encoding TO 'utf8';
 ALTER ROLE fsvc_user SET default_transaction_isolation TO 'read committed';
 ALTER ROLE fsvc_user SET timezone TO 'UTC';
 GRANT ALL PRIVILEGES ON DATABASE fsvc_db TO fsvc_user;
+\c fsvc_db
+GRANT ALL ON SCHEMA public TO fsvc_user;
+GRANT CREATE ON SCHEMA public TO fsvc_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fsvc_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fsvc_user;
 EOF
 
     print_status "PostgreSQL database created ✓"
