@@ -2,6 +2,15 @@
 Main FastAPI application for the streamlined analytics engine.
 """
 
+# Load environment variables from .env file BEFORE any other imports
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from backend directory (parent of fastapi directory)
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(env_path)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
