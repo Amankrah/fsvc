@@ -489,6 +489,7 @@
                     break;
 
                 case 'multiple_choice':
+                case 'choice_multiple':
                     const multiOptions = question.options || [];
                     const selectedValues = currentValue ? currentValue.split(',') : [];
                     html = `<div class="checkbox-group">`;
