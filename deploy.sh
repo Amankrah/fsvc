@@ -181,8 +181,8 @@ if [ -f "$BACKEND_DIR/.env" ]; then
     cp "$BACKEND_DIR/.env" "$BACKEND_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
 fi
 
-# Generate Django secret key
-DJANGO_SECRET_KEY=$(python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
+# Generate Django secret key (escape special characters for .env file)
+DJANGO_SECRET_KEY=$(python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
 
 # Read database password
 if [ -f "$BACKEND_DIR/.db_password" ]; then
@@ -193,28 +193,28 @@ else
 fi
 
 print_status "Creating Django environment file..."
-cat > $BACKEND_DIR/.env << EOF
+cat > $BACKEND_DIR/.env << 'EOF_MARKER'
 # Django Configuration
-DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY
+DJANGO_SECRET_KEY='REPLACE_SECRET_KEY'
 DJANGO_SETTINGS_MODULE=django_core.settings.production
 DEBUG=False
 
 # Allowed Hosts
-ALLOWED_HOSTS=$DOMAIN,www.$DOMAIN,$IP,localhost,127.0.0.1
+ALLOWED_HOSTS=REPLACE_DOMAIN,www.REPLACE_DOMAIN,REPLACE_IP,localhost,127.0.0.1
 
 # Database Configuration
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=fsvc_db
 DB_USER=fsvc_user
-DB_PASSWORD=$DB_PASSWORD
+DB_PASSWORD='REPLACE_DB_PASSWORD'
 DB_HOST=localhost
 DB_PORT=5432
 
 # Frontend URL (for shareable survey links)
-FRONTEND_URL=https://$DOMAIN
+FRONTEND_URL=https://REPLACE_DOMAIN
 
 # CORS Origins
-CORS_ALLOWED_ORIGINS=https://$DOMAIN,https://www.$DOMAIN
+CORS_ALLOWED_ORIGINS=https://REPLACE_DOMAIN,https://www.REPLACE_DOMAIN
 
 # Email Configuration (update with your SMTP settings)
 EMAIL_HOST=smtp.gmail.com
@@ -222,11 +222,17 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=your-email@example.com
 EMAIL_HOST_PASSWORD=your-email-password
-DEFAULT_FROM_EMAIL=noreply@$DOMAIN
+DEFAULT_FROM_EMAIL=noreply@REPLACE_DOMAIN
 
 # Environment
 ENVIRONMENT=production
-EOF
+EOF_MARKER
+
+# Replace placeholders with actual values using sed
+sed -i "s|REPLACE_SECRET_KEY|$DJANGO_SECRET_KEY|g" $BACKEND_DIR/.env
+sed -i "s|REPLACE_DOMAIN|$DOMAIN|g" $BACKEND_DIR/.env
+sed -i "s|REPLACE_IP|$IP|g" $BACKEND_DIR/.env
+sed -i "s|REPLACE_DB_PASSWORD|$DB_PASSWORD|g" $BACKEND_DIR/.env
 
 # Verify the .env file was created
 if [ -f "$BACKEND_DIR/.env" ]; then
@@ -354,10 +360,14 @@ print_step "Step 8: Running Django migrations and collecting static files..."
 # Create logs directory
 mkdir -p $BACKEND_DIR/logs
 
-# Load environment variables
-set -a
-source $BACKEND_DIR/.env
-set +a
+# Load environment variables (using export to avoid bash parsing issues with special chars)
+export DJANGO_SECRET_KEY="$DJANGO_SECRET_KEY"
+export DJANGO_SETTINGS_MODULE="django_core.settings.production"
+export DB_NAME="fsvc_db"
+export DB_USER="fsvc_user"
+export DB_PASSWORD="$DB_PASSWORD"
+export DB_HOST="localhost"
+export DB_PORT="5432"
 
 # Run migrations
 print_status "Running database migrations..."
