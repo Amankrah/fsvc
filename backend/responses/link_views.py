@@ -260,7 +260,7 @@ class PublicResponseLinkViewSet(viewsets.ViewSet):
                     respondent_type=link.respondent_type or None,
                     commodity=link.commodity or None,
                     country=link.country or None,
-                    metadata=serializer.validated_data.get('respondent_metadata', {})
+                    demographics=serializer.validated_data.get('respondent_metadata', {})
                 )
 
                 # Submit responses
