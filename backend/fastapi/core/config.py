@@ -24,8 +24,8 @@ class Settings:
         "*",  # Allow all origins for development
     ]
     
-    # Django database settings
-    DJANGO_SETTINGS_MODULE: str = "django_core.settings.development"
+    # Django database settings - use production in production environment
+    DJANGO_SETTINGS_MODULE: str = "django_core.settings.production"
     
     # Analytics settings
     MAX_ANALYSIS_ROWS: int = 10000

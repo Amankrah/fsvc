@@ -18,8 +18,8 @@ BACKEND_DIR = os.path.dirname(FASTAPI_DIR)  # backend/
 DJANGO_PROJECT_DIR = os.path.join(BACKEND_DIR, "django_core")  # backend/django_core/
 sys.path.insert(0, BACKEND_DIR)  # Add backend/ to path so we can import django_core
 
-# Set Django settings
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_core.settings.development')
+# Set Django settings - use production in production environment
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_core.settings.production')
 
 # Initialize Django
 django.setup()
