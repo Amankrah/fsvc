@@ -680,17 +680,29 @@ async def get_available_questions(
             questions_query = """
                 SELECT DISTINCT
                     q.question_text,
-                    rt.name as response_type,
-                    rt.display_name as response_type_display,
-                    rt.data_type,
-                    rt.analytics_category,
+                    q.response_type,
+                    q.response_type as response_type_display,
+                    CASE
+                        WHEN q.response_type IN ('choice_single', 'choice_multiple') THEN 'choice'
+                        WHEN q.response_type IN ('numeric_integer', 'numeric_decimal', 'scale_rating') THEN 'numeric'
+                        WHEN q.response_type IN ('date', 'datetime') THEN 'datetime'
+                        WHEN q.response_type IN ('geopoint', 'geoshape') THEN 'geospatial'
+                        ELSE 'text'
+                    END as data_type,
+                    CASE
+                        WHEN q.response_type IN ('choice_single', 'choice_multiple', 'numeric_integer', 'numeric_decimal', 'scale_rating') THEN 'descriptive'
+                        WHEN q.response_type IN ('text_short', 'text_long', 'image', 'audio', 'video') THEN 'qualitative'
+                        WHEN q.response_type IN ('date', 'datetime') THEN 'temporal'
+                        WHEN q.response_type IN ('geopoint', 'geoshape') THEN 'geospatial'
+                        ELSE 'descriptive'
+                    END as analytics_category,
                     r.question_category,
-                    COUNT(r.response_id) as response_count
+                    COUNT(r.response_id) as response_count,
+                    q.options
                 FROM forms_question q
                 JOIN responses_response r ON r.question_id = q.id
-                LEFT JOIN responses_responsetype rt ON r.response_type_id = rt.id
                 WHERE r.project_id = %s
-                GROUP BY q.question_text, rt.name, rt.display_name, rt.data_type, rt.analytics_category, r.question_category
+                GROUP BY q.question_text, q.response_type, r.question_category, q.options
                 ORDER BY response_count DESC, q.question_text
             """
 
@@ -706,7 +718,8 @@ async def get_available_questions(
                     'data_type': row[3],
                     'analytics_category': row[4],
                     'question_category': row[5],
-                    'response_count': row[6]
+                    'response_count': row[6],
+                    'options': row[7] if row[7] else None
                 }
                 for row in results
             ]
