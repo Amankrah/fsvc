@@ -564,7 +564,7 @@ async def get_data_summary(
                     MIN(r.collected_at) as earliest_response,
                     MAX(r.collected_at) as latest_response,
                     AVG(CASE WHEN r.data_quality_score IS NOT NULL THEN r.data_quality_score ELSE 0 END) as avg_quality_score,
-                    COUNT(CASE WHEN r.is_validated = 1 THEN 1 END) as validated_responses,
+                    COUNT(CASE WHEN r.is_validated = TRUE THEN 1 END) as validated_responses,
                     COUNT(CASE WHEN r.location_data IS NOT NULL AND r.location_data != '{}' THEN 1 END) as responses_with_location
                 FROM responses_response r
                 JOIN forms_question q ON r.question_id = q.id
