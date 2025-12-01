@@ -35,6 +35,9 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 # Allowed hosts
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 
+# Frontend URL for shareable survey links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://foodsystemsanalytics.com')
+
 # Static and media files
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
