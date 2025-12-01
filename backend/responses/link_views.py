@@ -59,6 +59,19 @@ class ResponseLinkViewSet(viewsets.ModelViewSet):
         # We set created_by and save it here with validation skipped initially
         link = serializer.save(created_by=self.request.user, skip_validation=True)
 
+    def create(self, request, *args, **kwargs):
+        """Override create to return full serializer with share_url"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        # Use the full ResponseLinkSerializer for the response
+        instance = serializer.instance
+        output_serializer = ResponseLinkSerializer(instance)
+
+        headers = self.get_success_headers(output_serializer.data)
+        return DRFResponse(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
         """Manually deactivate a link"""
