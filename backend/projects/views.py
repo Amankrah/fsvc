@@ -42,7 +42,8 @@ class ProjectViewSet(BaseModelViewSet):
 
     def perform_create(self, serializer):
         """Automatically set the created_by field to the authenticated user"""
-        serializer.save(created_by=self.request.user)
+        # Web clients and API clients that create directly on the server are already synced
+        serializer.save(created_by=self.request.user, sync_status='synced')
 
     def perform_update(self, serializer):
         """Ensure only the project creator can update the project"""

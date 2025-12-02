@@ -881,6 +881,7 @@ const styles = StyleSheet.create({
   },
   roleChip: {
     height: 28,
+    paddingVertical: 4,
   },
   joinedText: {
     color: '#999',

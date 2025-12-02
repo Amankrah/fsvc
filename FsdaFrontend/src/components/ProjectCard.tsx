@@ -206,7 +206,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statusChip: {
-    height: 24,
+    height: 28,
+    paddingVertical: 4,
   },
   dateText: {
     color: '#999',
