@@ -15,6 +15,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { analyticsService } from '../services/analyticsService';
+import { apiService } from '../services/api';
 import {
   StatisticDisplay,
   StatisticsGrid,
@@ -62,6 +63,7 @@ const AnalyticsScreen: React.FC = () => {
   const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('overview');
   const [menuVisible, setMenuVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string>('');
 
   const loadAnalyticsSummary = useCallback(async () => {
     try {
@@ -83,11 +85,22 @@ const AnalyticsScreen: React.FC = () => {
     }
   }, [projectId]);
 
+  const loadProjectName = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const project = await apiService.getProject(projectId);
+      setProjectName(project.name);
+    } catch (error) {
+      console.error('Error loading project name:', error);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (projectId) {
+      loadProjectName();
       loadAnalyticsSummary();
     }
-  }, [projectId, loadAnalyticsSummary]);
+  }, [projectId, loadProjectName, loadAnalyticsSummary]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -261,10 +274,15 @@ const AnalyticsScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text variant="headlineMedium" style={styles.title}>
             Analytics Dashboard
           </Text>
+          {projectName ? (
+            <Text variant="titleMedium" style={styles.projectName}>
+              {projectName}
+            </Text>
+          ) : null}
           <Text variant="bodyMedium" style={styles.subtitle}>
             Comprehensive Data Analysis
           </Text>
@@ -346,6 +364,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontWeight: 'bold',
+  },
+  projectName: {
+    color: '#6200ee',
+    marginTop: 4,
+    fontWeight: '600',
   },
   subtitle: {
     color: '#666',
