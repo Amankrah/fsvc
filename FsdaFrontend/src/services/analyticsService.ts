@@ -70,7 +70,7 @@ class AnalyticsService {
         {
           method: 'POST',
           headers,
-          body: variables ? JSON.stringify({ variables }) : undefined,
+          body: JSON.stringify({ variables: variables || [] }),
         }
       );
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -89,7 +89,7 @@ class AnalyticsService {
         {
           method: 'POST',
           headers,
-          body: variables ? JSON.stringify({ variables }) : undefined,
+          body: JSON.stringify({ variables: variables || [] }),
         }
       );
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -108,7 +108,7 @@ class AnalyticsService {
         {
           method: 'POST',
           headers,
-          body: variables ? JSON.stringify({ variables }) : undefined,
+          body: JSON.stringify({ variables: variables || [] }),
         }
       );
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
