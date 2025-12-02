@@ -263,6 +263,61 @@ function evaluateBetween(response: any, values: any[] | undefined): boolean {
 }
 
 /**
+ * Sort questions so follow-up questions appear immediately after their parent
+ * This ensures proper question flow during data collection
+ * Supports nested follow-ups (follow-ups of follow-ups)
+ */
+export function sortQuestionsWithFollowUps(questions: any[]): any[] {
+  // Build a map of parent_id -> follow-up questions
+  const followUpMap = new Map<string, any[]>();
+  const rootQuestions: any[] = [];
+
+  // Separate root questions from follow-ups
+  questions.forEach((question) => {
+    if (question.is_follow_up && question.conditional_logic?.parent_question_id) {
+      const parentId = question.conditional_logic.parent_question_id;
+      if (!followUpMap.has(parentId)) {
+        followUpMap.set(parentId, []);
+      }
+      followUpMap.get(parentId)!.push(question);
+    } else {
+      rootQuestions.push(question);
+    }
+  });
+
+  // Sort follow-ups by their original order_index within each parent
+  followUpMap.forEach((followUps) => {
+    followUps.sort((a, b) => a.order_index - b.order_index);
+  });
+
+  // Recursive function to add a question and all its follow-ups
+  const addQuestionWithFollowUps = (question: any, result: any[]): void => {
+    result.push(question);
+
+    // Recursively add follow-ups for this question
+    const followUps = followUpMap.get(question.id);
+    if (followUps) {
+      followUps.forEach((followUp) => {
+        addQuestionWithFollowUps(followUp, result);
+      });
+    }
+  };
+
+  // Build the final ordered list
+  const sortedQuestions: any[] = [];
+
+  // Sort root questions by order_index first
+  rootQuestions.sort((a, b) => a.order_index - b.order_index);
+
+  // For each root question, add it and all its nested follow-ups
+  rootQuestions.forEach((question) => {
+    addQuestionWithFollowUps(question, sortedQuestions);
+  });
+
+  return sortedQuestions;
+}
+
+/**
  * Filter questions based on conditional logic
  * Returns only questions that should be shown based on current responses
  */
@@ -270,7 +325,11 @@ export function filterQuestionsWithConditions(
   questions: any[],
   responses: { [questionId: string]: any }
 ): any[] {
-  return questions.filter((question) => {
+  // First, sort questions to ensure follow-ups come after their parents
+  const sortedQuestions = sortQuestionsWithFollowUps(questions);
+
+  // Then filter based on conditional logic
+  return sortedQuestions.filter((question) => {
     // Always show questions without conditional logic
     if (!question.conditional_logic || !question.is_follow_up) {
       return true;
