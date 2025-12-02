@@ -880,8 +880,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   roleChip: {
-    height: 28,
-    paddingVertical: 4,
+    alignSelf: 'flex-start',
   },
   joinedText: {
     color: '#999',
