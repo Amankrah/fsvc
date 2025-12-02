@@ -1,7 +1,7 @@
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response as DRFResponse
-from django.db.models import Count, Avg, Max
+from django.db.models import Count, Avg, Max, Q
 from django.http import HttpResponse
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import ResponseFilter
@@ -28,13 +28,17 @@ class ResponseViewSet(BaseModelViewSet):
     def get_queryset(self):
         """
         Filter responses by projects that belong to the authenticated user.
-        Superusers can see all responses, regular users only see responses from their projects.
+        Superusers can see all responses, regular users only see responses from their projects
+        (either created by them or where they are members).
         """
         user = self.request.user
         if user.is_superuser:
             queryset = Response.objects.all()
         else:
-            queryset = Response.objects.filter(project__created_by=user)
+            queryset = Response.objects.filter(
+                Q(project__created_by=user) |
+                Q(project__members__user=user)
+            ).distinct()
         
         # Additional filtering by query parameters
         project_id = self.request.query_params.get('project_id', None)
@@ -211,13 +215,17 @@ class RespondentViewSet(BaseModelViewSet):
     def get_queryset(self):
         """
         Filter respondents by projects that belong to the authenticated user.
-        Superusers can see all respondents, regular users only see respondents from their projects.
+        Superusers can see all respondents, regular users only see respondents from their projects
+        (either created by them or where they are members).
         """
         user = self.request.user
         if user.is_superuser:
             queryset = Respondent.objects.select_related('project', 'created_by').prefetch_related('responses')
         else:
-            queryset = Respondent.objects.filter(project__created_by=user).select_related('project', 'created_by').prefetch_related('responses')
+            queryset = Respondent.objects.filter(
+                Q(project__created_by=user) |
+                Q(project__members__user=user)
+            ).select_related('project', 'created_by').prefetch_related('responses').distinct()
         
         # Additional filtering by query parameters
         project_id = self.request.query_params.get('project_id', None)
