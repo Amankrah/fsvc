@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "FsdaFrontend",
+    "name": "Food Systems Analytics",
     "slug": "FsdaFrontend",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -29,7 +29,19 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "build": {
+        "babel": {
+          "include": ["@react-navigation", "react-native-paper"]
+        }
+      },
+      "meta": {
+        "title": "Food Systems Analytics - Data Collection",
+        "description": "Professional data collection platform for food systems research",
+        "keywords": "food systems, data collection, research, analytics"
+      }
     },
     "platforms": [
       "ios",
@@ -40,6 +52,11 @@
     "sdkVersion": "54.0.0",
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f79b991a-c33c-4fbe-9edd-c793dc0de781"
+      }
+    }
   }
 }
