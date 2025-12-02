@@ -725,86 +725,73 @@ class ModernQuestionViewSet(BaseModelViewSet):
     
     @action(detail=False, methods=['get'])
     def get_available_options(self, request):
-        """Get available respondent types, commodities, and countries from QuestionBank for a project"""
+        """Get available respondent types, commodities, and countries configured for a project"""
         project_id = request.query_params.get('project_id')
         if not project_id:
             return Response(
                 {'error': 'project_id parameter is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             # Check project access
             from projects.models import Project
             project = Project.objects.get(id=project_id)
             if not project.can_user_access(request.user):
                 raise ValidationError("You don't have permission to access this project")
-            
-            # Get all active question bank items accessible to this user
-            user = request.user
-            question_bank_items = QuestionBank.get_accessible_items(user).filter(is_active=True)
-            
-            # Extract unique values for each field
-            available_respondent_types = set()
-            available_commodities = set()
-            available_countries = set()
-            available_categories = set()
-            available_work_packages = set()
-            
-            for item in question_bank_items:
-                # Respondent types (from JSON field)
-                if item.targeted_respondents:
-                    available_respondent_types.update(item.targeted_respondents)
-                
-                # Commodities (from JSON field)
-                if item.targeted_commodities:
-                    available_commodities.update(item.targeted_commodities)
-                
-                # Countries (from JSON field)
-                if item.targeted_countries:
-                    available_countries.update(item.targeted_countries)
-                
-                # Categories
-                if item.question_category:
-                    available_categories.add(item.question_category)
-                
-                # Work packages
-                if item.work_package:
-                    available_work_packages.add(item.work_package)
-            
+
+            # Get project's configured options (set by project owner)
+            targeted_respondents = project.targeted_respondents or []
+            targeted_commodities = project.targeted_commodities or []
+            targeted_countries = project.targeted_countries or []
+
             # Get display names for respondent types and commodities
             respondent_choices = dict(QuestionBank.RESPONDENT_CHOICES)
             commodity_choices = dict(QuestionBank.COMMODITY_CHOICES)
-            category_choices = dict(QuestionBank.CATEGORY_CHOICES)
-            
+
             respondent_types_with_display = [
                 {'value': rt, 'display': respondent_choices.get(rt, rt)}
-                for rt in sorted(available_respondent_types)
+                for rt in sorted(targeted_respondents)
             ]
-            
+
             commodities_with_display = [
                 {'value': c, 'display': commodity_choices.get(c, c)}
-                for c in sorted(available_commodities)
+                for c in sorted(targeted_commodities)
             ]
-            
+
+            # Also get available categories and work packages from QuestionBank
+            # These are still useful for filtering questions
+            user = request.user
+            question_bank_items = QuestionBank.get_accessible_items(user).filter(is_active=True)
+
+            available_categories = set()
+            available_work_packages = set()
+
+            for item in question_bank_items:
+                if item.question_category:
+                    available_categories.add(item.question_category)
+                if item.work_package:
+                    available_work_packages.add(item.work_package)
+
+            category_choices = dict(QuestionBank.CATEGORY_CHOICES)
             categories_with_display = [
                 {'value': cat, 'display': category_choices.get(cat, cat)}
                 for cat in sorted(available_categories)
             ]
-            
+
             return Response({
                 'available_options': {
                     'respondent_types': respondent_types_with_display,
                     'commodities': commodities_with_display,
-                    'countries': sorted(list(available_countries)),
+                    'countries': sorted(targeted_countries),
                     'categories': categories_with_display,
                     'work_packages': sorted(list(available_work_packages)),
                 },
                 'summary': {
-                    'total_question_bank_items': question_bank_items.count(),
-                    'respondent_types_count': len(available_respondent_types),
-                    'commodities_count': len(available_commodities),
-                    'countries_count': len(available_countries),
+                    'project_name': project.name,
+                    'respondent_types_count': len(targeted_respondents),
+                    'commodities_count': len(targeted_commodities),
+                    'countries_count': len(targeted_countries),
                     'categories_count': len(available_categories),
                     'work_packages_count': len(available_work_packages),
                 }
