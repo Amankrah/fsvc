@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusChip: {
-    height: 24,
+    alignSelf: 'flex-start',
   },
   description: {
     marginBottom: 8,

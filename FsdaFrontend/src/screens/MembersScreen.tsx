@@ -867,8 +867,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   youChip: {
-    height: 24,
     backgroundColor: '#e3f2fd',
+    alignSelf: 'flex-start',
   },
   memberEmail: {
     color: '#666',
