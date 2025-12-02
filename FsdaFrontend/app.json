@@ -29,9 +29,10 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/web-favicon.png",
       "bundler": "metro",
       "output": "single",
+      "baseUrl": "/app",
       "build": {
         "babel": {
           "include": ["@react-navigation", "react-native-paper"]
