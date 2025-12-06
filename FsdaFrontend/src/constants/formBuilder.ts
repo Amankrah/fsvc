@@ -98,4 +98,6 @@ export const DEFAULT_QUESTION_STATE = {
   tags: [],
   is_follow_up: false,
   conditional_logic: null,
+  section_header: '',
+  section_preamble: '',
 };

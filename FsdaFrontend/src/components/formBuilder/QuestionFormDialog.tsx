@@ -377,6 +377,54 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               />
             </View>
 
+            <Divider style={styles.divider} />
+
+            {/* Section/Preamble Fields */}
+            <Text style={styles.sectionTitle}>Section Grouping (Optional)</Text>
+            <Text style={styles.helpText}>
+              Group related questions together with a section header and introductory text
+            </Text>
+
+            <TextInput
+              label="Section Header"
+              value={newQuestion.section_header || ''}
+              onChangeText={(text) => setNewQuestion({ ...newQuestion, section_header: text })}
+              mode="outlined"
+              style={styles.input}
+              textColor="#ffffff"
+              placeholder="e.g., Solution 1: Knowledge Sharing"
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              theme={{
+                colors: {
+                  primary: '#64c8ff',
+                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                  outline: 'rgba(100, 200, 255, 0.5)',
+                },
+              }}
+            />
+
+            <TextInput
+              label="Section Preamble"
+              value={newQuestion.section_preamble || ''}
+              onChangeText={(text) => setNewQuestion({ ...newQuestion, section_preamble: text })}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+              style={styles.input}
+              textColor="#ffffff"
+              placeholder="Introductory text shown before first question in this section..."
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              theme={{
+                colors: {
+                  primary: '#64c8ff',
+                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                  outline: 'rgba(100, 200, 255, 0.5)',
+                },
+              }}
+            />
+
+            <Divider style={styles.divider} />
+
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Follow-up Question (Conditional Logic)</Text>
               <Switch value={isFollowUp} onValueChange={setIsFollowUp} color="#64c8ff" />
@@ -474,6 +522,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
     marginTop: 8,
+  },
+  helpText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   label: {
     color: 'rgba(255, 255, 255, 0.8)',

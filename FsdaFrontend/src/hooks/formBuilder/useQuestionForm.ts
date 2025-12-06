@@ -50,6 +50,8 @@ export const useQuestionForm = () => {
       tags: question.tags || [],
       is_follow_up: question.is_follow_up || false,
       conditional_logic: question.conditional_logic || null,
+      section_header: question.section_header || '',
+      section_preamble: question.section_preamble || '',
     });
     setSelectedTargetedRespondents(question.targeted_respondents || []);
     setSelectedCommodities(question.targeted_commodities || []);

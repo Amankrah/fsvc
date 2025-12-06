@@ -353,6 +353,33 @@ const DataCollectionScreen: React.FC = () => {
                   </View>
                 )}
 
+                {/* Section Header and Preamble */}
+                {currentQuestion.section_header && (
+                  <>
+                    {/* Show section header */}
+                    <View style={styles.sectionHeaderContainer}>
+                      <Text style={styles.sectionHeaderText}>
+                        {currentQuestion.section_header}
+                      </Text>
+                    </View>
+
+                    {/* Show preamble only for first question in section */}
+                    {currentQuestion.section_preamble && (
+                      (() => {
+                        const prevQuestion = questions.questions[responses.currentQuestionIndex - 1];
+                        const isFirstInSection = !prevQuestion || prevQuestion.section_header !== currentQuestion.section_header;
+                        return isFirstInSection ? (
+                          <View style={styles.sectionPreambleContainer}>
+                            <Text style={styles.sectionPreambleText}>
+                              {currentQuestion.section_preamble}
+                            </Text>
+                          </View>
+                        ) : null;
+                      })()
+                    )}
+                  </>
+                )}
+
                 {/* Question Number and Type */}
                 <View style={styles.questionHeader}>
                   <View style={styles.questionBadge}>
@@ -489,6 +516,35 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     borderLeftWidth: 2,
     borderLeftColor: 'rgba(255, 152, 0, 0.3)',
+  },
+  sectionHeaderContainer: {
+    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#64c8ff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  sectionHeaderText: {
+    color: '#64c8ff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  sectionPreambleContainer: {
+    backgroundColor: 'rgba(100, 200, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+  },
+  sectionPreambleText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    lineHeight: 22,
   },
   questionHeader: {
     flexDirection: 'row',

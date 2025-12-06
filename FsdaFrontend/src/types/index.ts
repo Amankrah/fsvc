@@ -353,6 +353,9 @@ export interface Question {
   // Conditional Logic fields
   is_follow_up?: boolean;
   conditional_logic?: ConditionalLogic | null;
+  // Section/Preamble fields
+  section_header?: string;
+  section_preamble?: string;
 }
 
 export interface CreateQuestionData {
@@ -519,6 +522,9 @@ export interface QuestionBank {
   // Conditional Logic fields
   is_follow_up?: boolean;
   conditional_logic?: ConditionalLogic | null;
+  // Section/Preamble fields
+  section_header?: string;
+  section_preamble?: string;
 }
 
 export interface CreateQuestionBankData {
@@ -540,6 +546,8 @@ export interface CreateQuestionBankData {
   priority_score?: number;
   is_active?: boolean;
   tags?: string[];
+  section_header?: string;
+  section_preamble?: string;
 }
 
 export interface DynamicQuestionSession {
