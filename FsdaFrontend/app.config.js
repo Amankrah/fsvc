@@ -24,7 +24,6 @@ module.exports = {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: "com.fsda.frontend",
-      supportsRtl: true,
       softwareKeyboardLayoutMode: "pan"
     },
     web: {

@@ -40,25 +40,45 @@ if [ ! -f "web-build/index.html" ]; then
   exit 1
 fi
 
-echo -e "${BLUE}Step 2:${NC} Fixing asset paths for /app base URL..."
+echo -e "${BLUE}Step 2:${NC} Fixing asset paths and adding font CSS..."
 # The baseUrl in app.config.js should handle most paths, but we ensure all are correct
 if [[ "$OSTYPE" == "darwin"* ]]; then
   # macOS sed syntax
   sed -i '' 's|href="/favicon\.ico"|href="/app/favicon.ico"|g' web-build/index.html
   sed -i '' 's|src="/_expo/|src="/app/_expo/|g' web-build/index.html
+  # Add MaterialCommunityIcons font CSS
+  sed -i '' 's|</style>|</style>\
+    <style>\
+      @font-face {\
+        font-family: '"'"'MaterialCommunityIcons'"'"';\
+        src: url('"'"'/app/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.6e435534bd35da5fef04168860a9b8fa.ttf'"'"') format('"'"'truetype'"'"');\
+        font-display: swap;\
+      }\
+    </style>|g' web-build/index.html
 else
-  # Linux sed syntax
+  # Linux/Git Bash sed syntax
   sed -i 's|href="/favicon\.ico"|href="/app/favicon.ico"|g' web-build/index.html
   sed -i 's|src="/_expo/|src="/app/_expo/|g' web-build/index.html
+  # Add MaterialCommunityIcons font CSS
+  sed -i 's|</style>|</style>\n    <style>\n      @font-face {\n        font-family: '"'"'MaterialCommunityIcons'"'"';\n        src: url('"'"'/app/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.6e435534bd35da5fef04168860a9b8fa.ttf'"'"') format('"'"'truetype'"'"');\n        font-display: swap;\n      }\n    </style>|g' web-build/index.html
 fi
-echo -e "${GREEN}✓ Asset paths fixed${NC}"
+echo -e "${GREEN}✓ Asset paths and fonts configured${NC}"
 
 echo -e "${BLUE}Step 3:${NC} Creating deployment directory on server..."
 ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST "sudo mkdir -p $WEB_APP_DIR && sudo chown -R $REMOTE_USER:$REMOTE_USER $WEB_APP_DIR"
 echo -e "${GREEN}✓ Deployment directory ready${NC}"
 
 echo -e "${BLUE}Step 4:${NC} Uploading web build to server..."
-rsync -avz --delete -e "ssh -i $SSH_KEY" web-build/ $REMOTE_USER@$REMOTE_HOST:$WEB_APP_DIR/
+# Check if rsync is available, otherwise use scp
+if command -v rsync &> /dev/null; then
+  rsync -avz --delete -e "ssh -i $SSH_KEY" web-build/ $REMOTE_USER@$REMOTE_HOST:$WEB_APP_DIR/
+else
+  echo -e "${YELLOW}rsync not found, using scp (slower)${NC}"
+  # Clean remote directory first
+  ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST "rm -rf $WEB_APP_DIR/*"
+  # Upload files
+  scp -i $SSH_KEY -r web-build/* $REMOTE_USER@$REMOTE_HOST:$WEB_APP_DIR/
+fi
 echo -e "${GREEN}✓ Files uploaded${NC}"
 
 echo -e "${BLUE}Step 5:${NC} Setting correct permissions..."
