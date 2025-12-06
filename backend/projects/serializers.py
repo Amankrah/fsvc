@@ -5,7 +5,7 @@ from authentication.serializers import UserSerializer
 class ProjectMemberSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
     invited_by_details = UserSerializer(source='invited_by', read_only=True)
-    permissions_list = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
     is_partner = serializers.SerializerMethodField()
     partner_config = serializers.SerializerMethodField()
     accessible_question_sources = serializers.SerializerMethodField()
@@ -13,15 +13,15 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectMember
         fields = [
-            'id', 'user', 'user_details', 'role', 'permissions', 'permissions_list',
+            'id', 'user', 'user_details', 'role', 'permissions',
             'partner_organization', 'is_partner', 'partner_config', 'accessible_question_sources',
             'joined_at', 'invited_by', 'invited_by_details'
         ]
-        read_only_fields = ['id', 'joined_at', 'invited_by']
-    
-    def get_permissions_list(self, obj):
-        """Get permissions as a list"""
-        return obj.get_permissions_list()
+        read_only_fields = ['id', 'joined_at', 'invited_by', 'permissions']
+
+    def get_permissions(self, obj):
+        """Get fixed permissions for members"""
+        return obj.get_permissions()
 
     def get_is_partner(self, obj):
         """Check if member is a partner"""
@@ -50,28 +50,9 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         project = self.context.get('project')
         if project and project.created_by == value:
             raise serializers.ValidationError("Project creator is automatically a team member.")
-        
+
         if project and project.members.filter(user=value).exists():
             raise serializers.ValidationError("User is already a team member of this project.")
-        
-        return value
-    
-    def validate_permissions(self, value):
-        """Validate permissions format"""
-        if not value:
-            return 'view_project,view_responses'
-
-        # If it's a list, convert to string
-        if isinstance(value, list):
-            return ','.join(value)
-
-        # Validate that permissions are valid
-        valid_permissions = [choice[0] for choice in ProjectMember.PERMISSION_CHOICES]
-        permissions_list = value.split(',') if isinstance(value, str) else value
-
-        for perm in permissions_list:
-            if perm.strip() not in valid_permissions:
-                raise serializers.ValidationError(f"Invalid permission: {perm}")
 
         return value
 
@@ -124,7 +105,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             'targeted_respondents', 'targeted_commodities', 'targeted_countries'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'question_count', 'response_count',
-                           'team_members_count', 'team_members', 'user_permissions', 'created_by']
+                           'team_members_count', 'team_members', 'user_permissions', 'created_by',
+                           'targeted_respondents', 'targeted_commodities', 'targeted_countries']
         
     def validate_name(self, value):
         """Validate project name"""
@@ -230,65 +212,63 @@ class ProjectMemberInviteSerializer(serializers.Serializer):
     """Serializer for inviting registered users to projects"""
     user_id = serializers.UUIDField()
     role = serializers.ChoiceField(choices=ProjectMember.ROLE_CHOICES, default='member')
-    permissions = serializers.ListField(
-        child=serializers.ChoiceField(choices=[choice[0] for choice in ProjectMember.PERMISSION_CHOICES]),
-        required=False
-    )
-    
+    partner_organization = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     def validate_user_id(self, value):
         """Validate user ID and check if user exists"""
         from authentication.models import User
-        
+
         try:
             user = User.objects.get(id=value)
             return user
         except User.DoesNotExist:
             raise serializers.ValidationError("User not found.")
-    
+
     def validate(self, attrs):
         """Validate the invite data"""
         project = self.context.get('project')
         user = attrs.get('user_id')  # This is now a User object from validate_user_id
-        
+
         # Validate user constraints
         if project.created_by == user:
             raise serializers.ValidationError("Cannot invite project creator as a team member.")
-        
+
         if project.members.filter(user=user).exists():
             raise serializers.ValidationError(f"User {user.username} is already a team member of this project.")
-        
+
         # Store user object for easy access in the view
         attrs['user_object'] = user
-        
-        # Set default permissions based on role if not provided
-        if 'permissions' not in attrs or not attrs['permissions']:
-            attrs['permissions'] = ProjectMember.get_default_permissions_for_role(attrs['role'])
-        
+
         return attrs
 
 
 class ProjectMemberUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating project member role and permissions"""
-    permissions_list = serializers.ListField(
-        child=serializers.ChoiceField(choices=[choice[0] for choice in ProjectMember.PERMISSION_CHOICES]),
-        source='permissions',
-        required=False
-    )
-    
+    """Serializer for updating project member role"""
+
     class Meta:
         model = ProjectMember
-        fields = ['role', 'permissions_list']
-    
+        fields = ['role', 'partner_organization']
+
     def validate_role(self, value):
         """Validate role change"""
         # Add any business logic for role changes here
         return value
-    
-    def update(self, instance, validated_data):
-        """Update project member"""
-        if 'permissions' in validated_data:
-            # Convert list back to comma-separated string
-            permissions = validated_data.pop('permissions')
-            validated_data['permissions'] = ','.join(permissions) if isinstance(permissions, list) else permissions
-        
-        return super().update(instance, validated_data) 
+
+    def validate(self, attrs):
+        """Validate update data"""
+        role = attrs.get('role', self.instance.role)
+        partner_org = attrs.get('partner_organization', self.instance.partner_organization)
+
+        # If role is 'partner', partner_organization must be provided
+        if role == 'partner' and not partner_org:
+            raise serializers.ValidationError({
+                'partner_organization': 'Partner organization is required for partner role.'
+            })
+
+        # If partner_organization is provided, role must be 'partner'
+        if partner_org and role != 'partner':
+            raise serializers.ValidationError({
+                'partner_organization': 'Partner organization can only be set for members with role="partner".'
+            })
+
+        return attrs 

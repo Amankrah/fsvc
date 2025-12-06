@@ -90,6 +90,24 @@ class ProjectViewSet(BaseModelViewSet):
         return Response(stats)
 
     @action(detail=True, methods=['get'])
+    def available_options(self, request, pk=None):
+        """
+        Get available respondent types, commodities, and countries
+        from the project's question bank for question generation.
+        """
+        project = self.get_object()
+
+        # Check if user can access this project
+        if not project.can_user_access(request.user):
+            return Response(
+                {'error': 'You do not have permission to access this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        options = project.get_available_question_options()
+        return Response(options)
+
+    @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
         """Get all team members for a project including pending invitations"""
         project = self.get_object()
@@ -166,22 +184,23 @@ class ProjectViewSet(BaseModelViewSet):
             validated_data = serializer.validated_data
             invited_user = validated_data['user_object']
             role = validated_data['role']
-            permissions = validated_data['permissions']
-            
-            print(f"Inviting user: {invited_user.username} with role: {role} and permissions: {permissions}")
-            
+            partner_organization = validated_data.get('partner_organization')
+
+            print(f"Inviting user: {invited_user.username} with role: {role}")
+
             # Create team membership directly
+            # Permissions are fixed - all members get the same permissions (handled by model)
             member = ProjectMember.objects.create(
                 project=project,
                 user=invited_user,
                 role=role,
-                permissions=','.join(permissions) if isinstance(permissions, list) else permissions,
+                partner_organization=partner_organization if role == 'partner' else None,
                 invited_by=request.user
             )
-            
+
             # Create notification for the invited user
             self._create_invitation_notification(invited_user, project, request.user)
-            
+
             return Response({
                 'message': f'Successfully invited {invited_user.username} to project {project.name}. They will receive a notification to accept the invitation.',
                 'member': {
@@ -189,7 +208,7 @@ class ProjectViewSet(BaseModelViewSet):
                     'user_email': invited_user.email,
                     'username': invited_user.username,
                     'role': member.role,
-                    'permissions': member.get_permissions_list(),
+                    'permissions': member.get_permissions(),
                     'joined_at': member.joined_at.isoformat()
                 },
                 'invitation_type': 'notification'

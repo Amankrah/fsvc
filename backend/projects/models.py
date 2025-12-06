@@ -96,30 +96,27 @@ class Project(models.Model):
                 'username': member.user.username,
                 'email': member.user.email,
                 'role': member.role,
-                'permissions': member.permissions.split(',') if member.permissions else [],
+                'permissions': member.get_permissions(),
                 'joined_at': member.joined_at.isoformat(),
                 'is_creator': False
             } for member in members
         ]
     
-    def add_team_member(self, user, role='member', permissions=None, actor=None):
+    def add_team_member(self, user, role='member', partner_organization=None, actor=None):
         """Add a team member to the project"""
         if user == self.created_by:
             return False, "Project creator is already a team member"
-        
+
         if self.members.filter(user=user).exists():
             return False, "User is already a team member"
-        
-        if permissions is None:
-            permissions = ['view_project', 'view_responses']
-        
+
         member = ProjectMember.objects.create(
             project=self,
             user=user,
             role=role,
-            permissions=','.join(permissions) if isinstance(permissions, list) else permissions
+            partner_organization=partner_organization
         )
-        
+
         # Create activity record
         if actor:
             self.create_activity(
@@ -128,23 +125,23 @@ class Project(models.Model):
                 target_user=user,
                 metadata={
                     'role': role,
-                    'permissions': permissions if isinstance(permissions, list) else permissions.split(',')
+                    'partner_organization': partner_organization
                 }
             )
-        
+
         return True, member
     
     def remove_team_member(self, user, actor=None):
         """Remove a team member from the project"""
         if user == self.created_by:
             return False, "Cannot remove project creator"
-        
+
         try:
             member = self.members.get(user=user)
             # Store member info before deletion for activity
             member_role = member.role
-            member_permissions = member.get_permissions_list()
-            
+            member_partner_org = member.partner_organization
+
             # Create activity record before deletion
             if actor:
                 self.create_activity(
@@ -153,33 +150,33 @@ class Project(models.Model):
                     target_user=user,
                     metadata={
                         'role': member_role,
-                        'permissions': member_permissions
+                        'partner_organization': member_partner_org
                     }
                 )
-            
+
             member.delete()
             return True, "Team member removed successfully"
         except ProjectMember.DoesNotExist:
             return False, "User is not a team member"
     
-    def update_team_member(self, user, role=None, permissions=None, actor=None):
-        """Update a team member's role and permissions"""
+    def update_team_member(self, user, role=None, partner_organization=None, actor=None):
+        """Update a team member's role"""
         if user == self.created_by:
-            return False, "Cannot modify project creator permissions"
-        
+            return False, "Cannot modify project creator"
+
         try:
             member = self.members.get(user=user)
             # Store old values for activity
             old_role = member.role
-            old_permissions = member.get_permissions_list()
-            
+            old_partner_org = member.partner_organization
+
             # Update member
             if role:
                 member.role = role
-            if permissions:
-                member.permissions = ','.join(permissions) if isinstance(permissions, list) else permissions
+            if partner_organization is not None:
+                member.partner_organization = partner_organization
             member.save()
-            
+
             # Create activity record
             if actor:
                 self.create_activity(
@@ -189,11 +186,11 @@ class Project(models.Model):
                     metadata={
                         'old_role': old_role,
                         'new_role': member.role,
-                        'old_permissions': old_permissions,
-                        'new_permissions': member.get_permissions_list()
+                        'old_partner_organization': old_partner_org,
+                        'new_partner_organization': member.partner_organization
                     }
                 )
-            
+
             return True, member
         except ProjectMember.DoesNotExist:
             return False, "User is not a team member"
@@ -211,33 +208,31 @@ class Project(models.Model):
         return False
     
     def can_user_edit(self, user):
-        """Check if a user can edit this project (create/modify questions, etc.)"""
+        """Check if a user can edit this project (only owner can edit project settings)"""
         if user.is_superuser:
             return True
         if self.created_by == user:
             return True
-        # Check if user is a team member with edit permissions
-        try:
-            member = self.members.get(user=user)
-            permissions = member.permissions.split(',') if member.permissions else []
-            return 'all' in permissions or 'edit_project' in permissions or 'manage_questions' in permissions
-        except ProjectMember.DoesNotExist:
-            # Check if user has admin/researcher role
-            if hasattr(user, 'role') and user.role in ['admin', 'researcher']:
-                return True
-            return False
+        return False
+
+    def can_user_collect_data(self, user):
+        """Check if user can collect data (generate questions and collect responses)"""
+        if user.is_superuser:
+            return True
+        if self.created_by == user:
+            return True
+        # Members can collect data
+        return self.members.filter(user=user).exists()
     
     def get_user_permissions(self, user):
         """Get specific permissions for a user in this project"""
         if user.is_superuser or self.created_by == user:
-            return ['all']
-        
+            return ['all']  # Owner has all permissions
+
         try:
             member = self.members.get(user=user)
-            return member.permissions.split(',') if member.permissions else ['view_project']
+            return member.get_permissions()
         except ProjectMember.DoesNotExist:
-            if user.role in ['admin', 'researcher']:
-                return ['view_project', 'view_responses']
             return []
     
     def get_summary_stats(self):
@@ -248,6 +243,41 @@ class Project(models.Model):
             'analytics_count': self.get_analytics_count(),
             'participants_count': self.get_participants_count(),
             'team_members_count': self.get_team_members_count(),
+        }
+
+    def get_available_question_options(self):
+        """
+        Get available respondent types, commodities, and countries
+        from the project's question bank items.
+        This is used for generating questions from the question bank.
+        """
+        from forms.models import QuestionBank
+
+        # Get all question bank items for this project
+        question_bank_items = QuestionBank.objects.filter(project=self)
+
+        # Extract unique respondent types
+        respondent_types = set()
+        for item in question_bank_items:
+            if item.targeted_respondents:
+                respondent_types.update(item.targeted_respondents)
+
+        # Extract unique commodities
+        commodities = set()
+        for item in question_bank_items:
+            if item.targeted_commodities:
+                commodities.update(item.targeted_commodities)
+
+        # Extract unique countries
+        countries = set()
+        for item in question_bank_items:
+            if item.targeted_countries:
+                countries.update(item.targeted_countries)
+
+        return {
+            'respondent_types': sorted(list(respondent_types)),
+            'commodities': sorted(list(commodities)),
+            'countries': sorted(list(countries)),
         }
     
     def create_activity(self, activity_type, actor, target_user=None, description=None, metadata=None):
@@ -282,35 +312,18 @@ class Project(models.Model):
 
 class ProjectMember(models.Model):
     """Model to represent team members in a project"""
-    
+
+    # Simplified role - members have fixed permissions
+    # They can: collect data (generate questions), view responses, view shareable link
     ROLE_CHOICES = [
-        ('member', 'Member'),
-        ('analyst', 'Analyst'),
-        ('collaborator', 'Collaborator'),
-        ('partner', 'Partner Organization'),
-        ('viewer', 'Viewer'),
+        ('member', 'Member'),  # Standard member with fixed permissions
+        ('partner', 'Partner Organization'),  # Partner with same permissions but different data access
     ]
-    
-    PERMISSION_CHOICES = [
-        ('view_project', 'View Project'),
-        ('edit_project', 'Edit Project'),
-        ('view_responses', 'View Responses'),
-        ('edit_responses', 'Edit Responses'),
-        ('delete_responses', 'Delete Responses'),
-        ('view_analytics', 'View Analytics'),
-        ('run_analytics', 'Run Analytics'),
-        ('manage_questions', 'Manage Questions'),
-        ('export_data', 'Export Data'),
-    ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='members')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
-    permissions = models.TextField(
-        help_text="Comma-separated list of permissions",
-        default='view_project,view_responses'
-    )
 
     # Partner organization affiliation
     partner_organization = models.CharField(
@@ -335,30 +348,18 @@ class ProjectMember(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.project.name} ({self.role})"
-    
-    def get_permissions_list(self):
-        """Get permissions as a list"""
-        return self.permissions.split(',') if self.permissions else []
-    
+
+    def get_permissions(self):
+        """Get fixed permissions for members - all members have the same permissions"""
+        return [
+            'collect_data',  # Can generate questions from question bank and collect responses
+            'view_responses',  # Can view responses
+            'view_share_link',  # Can view shareable response link
+        ]
+
     def has_permission(self, permission):
         """Check if member has a specific permission"""
-        return permission in self.get_permissions_list()
-    
-    def add_permission(self, permission):
-        """Add a permission to the member"""
-        current_permissions = self.get_permissions_list()
-        if permission not in current_permissions:
-            current_permissions.append(permission)
-            self.permissions = ','.join(current_permissions)
-            self.save()
-    
-    def remove_permission(self, permission):
-        """Remove a permission from the member"""
-        current_permissions = self.get_permissions_list()
-        if permission in current_permissions:
-            current_permissions.remove(permission)
-            self.permissions = ','.join(current_permissions)
-            self.save()
+        return permission in self.get_permissions()
     
     def is_partner(self):
         """Check if this member represents a partner organization"""
@@ -400,16 +401,9 @@ class ProjectMember(models.Model):
 
     @classmethod
     def get_default_permissions_for_role(cls, role):
-        """Get default permissions for a role"""
-        role_permissions = {
-            'viewer': ['view_project', 'view_responses'],
-            'member': ['view_project', 'view_responses', 'edit_responses', 'view_analytics'],
-            'analyst': ['view_project', 'view_responses', 'view_analytics', 'run_analytics', 'export_data'],
-            'collaborator': ['view_project', 'edit_project', 'view_responses', 'edit_responses',
-                           'view_analytics', 'run_analytics', 'manage_questions', 'export_data'],
-            'partner': ['view_project', 'view_responses', 'view_analytics', 'export_data'],
-        }
-        return role_permissions.get(role, ['view_project', 'view_responses'])
+        """Get default permissions for a role - all roles have same permissions now"""
+        # All members have the same fixed permissions regardless of role
+        return ['collect_data', 'view_responses', 'view_share_link']
 
 class ProjectMemberActivity(models.Model):
     """Model to track activities related to team members and project management"""

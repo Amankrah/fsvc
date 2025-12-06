@@ -25,7 +25,6 @@ import {
   RESPONSE_TYPE_CATEGORIES,
   COUNTRY_OPTIONS,
   CONDITION_OPERATORS,
-  PRIORITY_SCORES,
 } from '../../constants/formBuilder';
 import { Question, RespondentType, ResponseType, ResponseTypeInfo } from '../../types';
 
@@ -69,6 +68,32 @@ interface QuestionFormDialogProps {
   questionBankChoices: any;
   questions: Question[];
 }
+
+/**
+ * Helper function to get auto-assigned category based on respondent type
+ * Matches backend logic in import_export.py RESPONDENT_TO_CATEGORY_MAPPING
+ */
+const getAutoCategoryFromRespondents = (respondent: RespondentType): string => {
+  const categoryMapping: Record<string, string> = {
+    'input_suppliers': 'Input Supply',
+    'farmers': 'Production',
+    'aggregators_lbcs': 'Distribution',
+    'processors': 'Processing',
+    'processors_eu': 'Processing',
+    'retailers_food_vendors': 'Distribution',
+    'retailers_food_vendors_eu': 'Distribution',
+    'local_consumers': 'Consumption',
+    'consumers_eu_prolific': 'Consumption',
+    'client_business_eu_prolific': 'Consumption',
+    'government': 'Governance',
+    'ngos': 'Governance',
+    'certification_schemes': 'Certification',
+    'coop': 'Distribution',
+    'chief': 'Governance',
+  };
+
+  return categoryMapping[respondent] || 'General';
+};
 
 export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
   visible,
@@ -299,118 +324,26 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
 
             <Divider style={styles.divider} />
 
-            {/* Question Category */}
-            <Text style={styles.sectionTitle}>Question Category</Text>
-            <View style={styles.chipContainer}>
-              {questionBankChoices.categories?.map((cat: any) => (
-                <Chip
-                  key={cat.value}
-                  selected={newQuestion.question_category === cat.value}
-                  onPress={() =>
-                    setNewQuestion({ ...newQuestion, question_category: cat.value })
-                  }
-                  style={[
-                    styles.chip,
-                    newQuestion.question_category === cat.value && styles.selectedChip,
-                  ]}
-                  textStyle={styles.chipText}>
-                  {cat.label}
-                </Chip>
-              ))}
-            </View>
-
-            {/* Data Source */}
-            <Text style={styles.sectionTitle}>Data Source</Text>
-            <View style={styles.chipContainer}>
-              {questionBankChoices.data_sources?.map((source: any) => (
-                <Chip
-                  key={source.value}
-                  selected={newQuestion.data_source === source.value}
-                  onPress={() => setNewQuestion({ ...newQuestion, data_source: source.value })}
-                  style={[
-                    styles.chip,
-                    newQuestion.data_source === source.value && styles.selectedChip,
-                  ]}
-                  textStyle={styles.chipText}>
-                  {source.label}
-                </Chip>
-              ))}
-            </View>
-
-            {/* Research Partner Details (if external) */}
-            {newQuestion.data_source === 'research_partner' && (
+            {/* Auto Category Preview - Read-only display */}
+            {selectedTargetedRespondents.length > 0 && (
               <>
-                <TextInput
-                  label="Research Partner Name"
-                  value={newQuestion.research_partner_name}
-                  onChangeText={(text) =>
-                    setNewQuestion({ ...newQuestion, research_partner_name: text })
-                  }
-                  mode="outlined"
-                  style={styles.input}
-                  textColor="#ffffff"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
-                <TextInput
-                  label="Research Partner Contact"
-                  value={newQuestion.research_partner_contact}
-                  onChangeText={(text) =>
-                    setNewQuestion({ ...newQuestion, research_partner_contact: text })
-                  }
-                  mode="outlined"
-                  style={styles.input}
-                  textColor="#ffffff"
-                  theme={{
-                    colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
-                    },
-                  }}
-                />
+                <Text style={styles.sectionTitle}>
+                  Category (Auto-assigned) ✨
+                </Text>
+                <View style={styles.autoCategoryContainer}>
+                  <Chip
+                    icon="auto-fix"
+                    mode="outlined"
+                    style={styles.autoCategoryChip}
+                    textStyle={styles.autoCategoryText}>
+                    {getAutoCategoryFromRespondents(selectedTargetedRespondents[0])}
+                  </Chip>
+                  <Text style={styles.autoCategoryHint}>
+                    Based on first selected respondent
+                  </Text>
+                </View>
               </>
             )}
-
-            {/* Work Package */}
-            <TextInput
-              label="Work Package (Optional)"
-              value={newQuestion.work_package}
-              onChangeText={(text) => setNewQuestion({ ...newQuestion, work_package: text })}
-              mode="outlined"
-              style={styles.input}
-              textColor="#ffffff"
-              theme={{
-                colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
-                },
-              }}
-            />
-
-            {/* Priority Score */}
-            <Text style={styles.sectionTitle}>Priority Score: {newQuestion.priority_score}</Text>
-            <View style={styles.chipContainer}>
-              {PRIORITY_SCORES.map((score) => (
-                <Chip
-                  key={score}
-                  selected={newQuestion.priority_score === score}
-                  onPress={() => setNewQuestion({ ...newQuestion, priority_score: score })}
-                  style={[
-                    styles.chip,
-                    newQuestion.priority_score === score && styles.selectedChip,
-                  ]}
-                  textStyle={styles.chipText}>
-                  {score}
-                </Chip>
-              ))}
-            </View>
 
             <Divider style={styles.divider} />
 
@@ -627,5 +560,25 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: 'rgba(100, 200, 255, 0.3)',
+  },
+  autoCategoryContainer: {
+    marginBottom: 16,
+  },
+  autoCategoryChip: {
+    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    borderColor: '#64c8ff',
+    borderWidth: 1.5,
+    alignSelf: 'flex-start',
+  },
+  autoCategoryText: {
+    color: '#64c8ff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  autoCategoryHint: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 6,
   },
 });

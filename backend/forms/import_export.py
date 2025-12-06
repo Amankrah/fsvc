@@ -15,19 +15,33 @@ from .models import QuestionBank, Question
 class QuestionImportExport:
     """Handle import/export of questions from CSV/Excel"""
 
+    # Mapping of respondent types to default categories
+    RESPONDENT_TO_CATEGORY_MAPPING = {
+        'input_suppliers': 'input_supply',
+        'farmers': 'production',
+        'aggregators_lbcs': 'distribution',
+        'processors': 'processing',
+        'processors_eu': 'processing',
+        'retailers_food_vendors': 'distribution',
+        'retailers_food_vendors_eu': 'distribution',
+        'local_consumers': 'consumption',
+        'consumers_eu_prolific': 'consumption',
+        'client_business_eu_prolific': 'consumption',
+        'government': 'governance',
+        'ngos': 'governance',
+        'certification_schemes': 'certification',
+        'coop': 'distribution',
+        'chief': 'governance',
+    }
+
     # Template column definitions
     TEMPLATE_COLUMNS = [
         'question_text',
-        'question_category',
         'response_type',
         'targeted_respondents',
         'targeted_commodities',
         'targeted_countries',
         'data_source',
-        'research_partner_name',
-        'research_partner_contact',
-        'work_package',
-        'priority_score',
         'is_required',
         'options',
         'is_follow_up',
@@ -39,16 +53,11 @@ class QuestionImportExport:
     # Column descriptions for template
     COLUMN_DESCRIPTIONS = {
         'question_text': 'The actual question text (REQUIRED)',
-        'question_category': 'Category: production, processing, distribution, etc. (REQUIRED)',
         'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (REQUIRED)',
         'targeted_respondents': 'Comma-separated: farmers,processors,retailers_food_vendors (REQUIRED)',
         'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (REQUIRED)',
         'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (REQUIRED)',
         'data_source': 'Source: internal, partner_university, partner_ngo, etc. (default: internal)',
-        'research_partner_name': 'Name of research partner (optional, for non-internal sources)',
-        'research_partner_contact': 'Partner email contact (optional)',
-        'work_package': 'Work package ID, e.g., WP1, WP2 (optional)',
-        'priority_score': 'Priority 1-10, higher = selected first (default: 5)',
         'is_required': 'true or false - Should this question be required? (default: true)',
         'options': 'For choice questions only: Option1|Option2|Option3 (pipe-separated)',
         'is_follow_up': 'true or false - Is this a follow-up/conditional question? (default: false)',
@@ -86,16 +95,11 @@ class QuestionImportExport:
         # Write example row
         example_row = [
             'What is your primary source of income?',
-            'production',
             'choice_single',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
             'internal',
-            '',
-            '',
-            'WP1',
-            '5',
             'true',
             'Farming|Trading|Processing|Other',
             'false',
@@ -108,16 +112,11 @@ class QuestionImportExport:
         # Write a follow-up question example
         followup_row = [
             'How many hectares of farmland do you own?',
-            'production',
             'numeric_decimal',
             'farmers',
             'cocoa,maize',
             'Ghana,Nigeria',
             'internal',
-            '',
-            '',
-            'WP1',
-            '5',
             'true',
             '',
             'true',
@@ -160,16 +159,11 @@ class QuestionImportExport:
         # Write example row (regular question)
         example_row = [
             'What is your primary source of income?',
-            'production',
             'choice_single',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
             'internal',
-            '',
-            '',
-            'WP1',
-            '5',
             'true',
             'Farming|Trading|Processing|Other',
             'false',
@@ -184,16 +178,11 @@ class QuestionImportExport:
         # Write follow-up question example
         followup_row = [
             'How many hectares of farmland do you own?',
-            'production',
             'numeric_decimal',
             'farmers',
             'cocoa,maize',
             'Ghana,Nigeria',
             'internal',
-            '',
-            '',
-            'WP1',
-            '5',
             'true',
             '',
             'true',
@@ -206,7 +195,7 @@ class QuestionImportExport:
             cell.fill = PatternFill(start_color="FFF4CC", end_color="FFF4CC", fill_type="solid")
 
         # Adjust column widths
-        column_widths = [50, 25, 20, 35, 30, 25, 25, 30, 30, 15, 12, 15, 40, 15, 40, 20, 30]
+        column_widths = [50, 20, 35, 30, 25, 25, 15, 40, 15, 40, 20, 30]
         for col_idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
@@ -258,14 +247,14 @@ class QuestionImportExport:
             reader = csv.DictReader(io.StringIO(content))
 
             # Validate headers
-            required_cols = ['question_text', 'question_category', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
+            required_cols = ['question_text', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
             if not all(col in reader.fieldnames for col in required_cols):
                 errors.append(f"CSV must contain all required columns: {', '.join(required_cols)}")
                 return [], errors
 
-            for row_num, row in enumerate(reader, start=3):  # Start at 3 (header + description + data)
-                # Skip description and example rows
-                if row_num == 2 or (row.get('question_text', '').startswith('What is') and row_num == 3):
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 (header + data rows)
+                # Skip description row (row 2 contains column descriptions)
+                if row_num == 2 and any(desc in str(row.get('question_text', '')) for desc in ['The actual question', 'REQUIRED']):
                     continue
 
                 # Skip empty rows
@@ -301,7 +290,7 @@ class QuestionImportExport:
                     headers.append(cell.value)
 
             # Validate headers
-            required_cols = ['question_text', 'question_category', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
+            required_cols = ['question_text', 'response_type', 'targeted_respondents', 'targeted_commodities', 'targeted_countries']
             if not all(col in headers for col in required_cols):
                 errors.append(f"Excel must contain all required columns: {', '.join(required_cols)}")
                 return [], errors
@@ -343,45 +332,28 @@ class QuestionImportExport:
 
         # Required fields
         question_text = str(row.get('question_text', '')).strip()
-        question_category = str(row.get('question_category', '')).strip().lower()
         response_type = str(row.get('response_type', '')).strip().lower()
 
         if not question_text:
             errors.append("question_text is required")
-
-        if not question_category:
-            errors.append("question_category is required")
-        elif question_category not in cls.VALID_CATEGORIES:
-            errors.append(f"Invalid question_category '{question_category}'. Valid: {', '.join(cls.VALID_CATEGORIES)}")
 
         if not response_type:
             errors.append("response_type is required")
         elif response_type not in cls.VALID_RESPONSE_TYPES:
             errors.append(f"Invalid response_type '{response_type}'. Valid: {', '.join(cls.VALID_RESPONSE_TYPES)}")
 
-        # Parse data source and partner info
+        # Parse data source (set defaults for removed fields)
         data_source = str(row.get('data_source', 'internal')).strip().lower()
         if data_source and data_source not in cls.VALID_DATA_SOURCES:
             errors.append(f"Invalid data_source '{data_source}'. Valid: {', '.join(cls.VALID_DATA_SOURCES)}")
         if not data_source:
             data_source = 'internal'
 
-        research_partner_name = str(row.get('research_partner_name', '')).strip()
-        research_partner_contact = str(row.get('research_partner_contact', '')).strip()
-        work_package = str(row.get('work_package', '')).strip()
-
-        # Parse priority score
-        priority_score = 5  # Default
-        try:
-            priority_value = row.get('priority_score', 5)
-            if priority_value:
-                priority_score = int(priority_value)
-                if priority_score < 1 or priority_score > 10:
-                    errors.append("priority_score must be between 1 and 10")
-                    priority_score = 5
-        except (ValueError, TypeError):
-            errors.append("priority_score must be a number between 1 and 10")
-            priority_score = 5
+        # Set default values for removed fields
+        research_partner_name = ''
+        research_partner_contact = ''
+        work_package = ''
+        priority_score = 5
 
         # Parse boolean fields
         is_required = cls._parse_boolean(row.get('is_required'), default=True)
@@ -456,6 +428,12 @@ class QuestionImportExport:
         for respondent in targeted_respondents:
             if respondent not in cls.VALID_RESPONDENTS:
                 errors.append(f"Invalid respondent '{respondent}'. Valid: {', '.join(cls.VALID_RESPONDENTS)}")
+
+        # Auto-determine question_category based on primary (first) targeted respondent
+        question_category = 'general'  # Default fallback
+        if targeted_respondents:
+            primary_respondent = targeted_respondents[0]
+            question_category = cls.RESPONDENT_TO_CATEGORY_MAPPING.get(primary_respondent, 'general')
 
         targeted_commodities = cls._parse_list_field(row.get('targeted_commodities'))
         if not targeted_commodities:
@@ -538,42 +516,57 @@ class QuestionImportExport:
         return [item.strip() for item in str(value).split(',') if item.strip()]
 
     @classmethod
-    def import_questions_to_bank(cls, questions_data: List[Dict[str, Any]], created_by: str = '', owner=None) -> Dict[str, Any]:
-        """Import questions to QuestionBank"""
+    def import_questions_to_bank(cls, questions_data: List[Dict[str, Any]], project, created_by_user, created_by: str = '') -> Dict[str, Any]:
+        """
+        Import questions to QuestionBank for a specific project.
+
+        Args:
+            questions_data: List of question data dictionaries
+            project: Project instance (required - question banks are project-specific)
+            created_by_user: User instance who is creating these questions
+            created_by: Legacy string field for backward compatibility
+        """
         created_count = 0
         updated_count = 0
         errors = []
         question_text_to_id = {}  # Map question text to QuestionBank ID
 
+        print(f"\n=== IMPORT DEBUG ===")
+        print(f"Total questions to import: {len(questions_data)}")
+        for i, qd in enumerate(questions_data):
+            print(f"  {i+1}. '{qd.get('question_text')[:60]}...' (is_follow_up={qd.get('is_follow_up')})")
+        print()
+
         # First pass: Import/update regular questions
+        print("FIRST PASS: Regular questions")
         for question_data in questions_data:
             # Skip follow-up questions in first pass
             if question_data.get('is_follow_up'):
                 continue
 
             try:
-                # Check if question already exists (by question_text, category, and owner)
+                # Check if question already exists (by question_text, category, and project)
                 query_filter = {
                     'question_text': question_data['question_text'],
-                    'question_category': question_data['question_category']
+                    'question_category': question_data['question_category'],
+                    'project': project
                 }
-                if owner:
-                    query_filter['owner'] = owner
 
                 existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
                     # Update existing question
                     for key, value in question_data.items():
-                        setattr(existing, key, value)
+                        if key not in ['project', 'created_by_user']:  # Don't update these
+                            setattr(existing, key, value)
                     existing.save()
                     updated_count += 1
                     question_text_to_id[question_data['question_text']] = existing.id
                 else:
                     # Create new question
                     question_data['created_by'] = created_by
-                    if owner:
-                        question_data['owner'] = owner
+                    question_data['project'] = project
+                    question_data['created_by_user'] = created_by_user
                     new_question = QuestionBank.objects.create(**question_data)
                     created_count += 1
                     question_text_to_id[question_data['question_text']] = new_question.id
@@ -581,7 +574,13 @@ class QuestionImportExport:
             except Exception as e:
                 errors.append(f"Failed to import '{question_data.get('question_text', 'Unknown')}': {str(e)}")
 
+        print(f"\nFirst pass complete. Created mapping for {len(question_text_to_id)} questions:")
+        for q_text, q_id in question_text_to_id.items():
+            print(f"  '{q_text}' -> {q_id}")
+        print()
+
         # Second pass: Import/update follow-up questions (resolve parent references)
+        print("SECOND PASS: Follow-up questions")
         for question_data in questions_data:
             # Only process follow-up questions
             if not question_data.get('is_follow_up'):
@@ -592,15 +591,23 @@ class QuestionImportExport:
                 conditional_logic = question_data.get('conditional_logic')
                 if conditional_logic:
                     parent_text = conditional_logic.get('parent_question_text')
+                    print(f"  Processing follow-up: '{question_data.get('question_text')[:50]}'")
+                    print(f"    Looking for parent: '{parent_text}'")
+                    print(f"    Parent text repr: {repr(parent_text)}")
+                    print(f"    Available keys in mapping:")
+                    for key in question_text_to_id.keys():
+                        print(f"      - {repr(key)}")
+                    print(f"    Parent in mapping? {parent_text in question_text_to_id}")
                     if parent_text in question_text_to_id:
                         # Convert parent_question_text to parent_question_id
                         conditional_logic['parent_question_id'] = str(question_text_to_id[parent_text])
                         del conditional_logic['parent_question_text']
                     else:
-                        # Try to find existing parent question
-                        parent_query = {'question_text': parent_text}
-                        if owner:
-                            parent_query['owner'] = owner
+                        # Try to find existing parent question in the same project
+                        parent_query = {
+                            'question_text': parent_text,
+                            'project': project
+                        }
                         parent_question = QuestionBank.objects.filter(**parent_query).first()
                         if parent_question:
                             conditional_logic['parent_question_id'] = str(parent_question.id)
@@ -612,24 +619,24 @@ class QuestionImportExport:
                 # Check if question already exists
                 query_filter = {
                     'question_text': question_data['question_text'],
-                    'question_category': question_data['question_category']
+                    'question_category': question_data['question_category'],
+                    'project': project
                 }
-                if owner:
-                    query_filter['owner'] = owner
 
                 existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
                     # Update existing question
                     for key, value in question_data.items():
-                        setattr(existing, key, value)
+                        if key not in ['project', 'created_by_user']:  # Don't update these
+                            setattr(existing, key, value)
                     existing.save()
                     updated_count += 1
                 else:
                     # Create new question
                     question_data['created_by'] = created_by
-                    if owner:
-                        question_data['owner'] = owner
+                    question_data['project'] = project
+                    question_data['created_by_user'] = created_by_user
                     QuestionBank.objects.create(**question_data)
                     created_count += 1
 

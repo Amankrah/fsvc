@@ -77,8 +77,15 @@ const LoginScreen: React.FC = () => {
           Alert.alert('Error', 'Invalid response from server');
         }
       } catch (error: any) {
+        // Log full error for debugging
+        console.error('🚨 Login Error:', error);
+        console.error('🚨 Error response:', error.response);
+        console.error('🚨 Error message:', error.message);
+        console.error('🚨 Error code:', error.code);
+
         const errorMessage = error.response?.data?.error ||
                             error.response?.data?.message ||
+                            error.message ||
                             'Invalid email or password';
         Alert.alert('Login Failed', errorMessage);
       } finally {

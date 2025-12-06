@@ -31,7 +31,11 @@ export const useQuestionBank = (projectId: string) => {
 
   const loadQuestions = useCallback(async () => {
     try {
-      const questionBankData = await apiService.getQuestionBank({ page_size: 1000 });
+      // Fetch question bank items for this specific project
+      const questionBankData = await apiService.getQuestionBank({
+        project_id: projectId,
+        page_size: 1000,
+      });
       const questionsList = Array.isArray(questionBankData)
         ? questionBankData
         : questionBankData.results || [];
@@ -42,7 +46,7 @@ export const useQuestionBank = (projectId: string) => {
       Alert.alert('Error', 'Failed to load questions');
       return [];
     }
-  }, []);
+  }, [projectId]);
 
   const loadProjectAndQuestions = useCallback(async () => {
     try {
@@ -86,7 +90,7 @@ export const useQuestionBank = (projectId: string) => {
         setSaving(true);
         const questionBankData = {
           ...questionData,
-          base_project: projectId,
+          project: projectId, // Changed from base_project to project (now required)
         };
         await apiService.createQuestionBankItem(questionBankData);
         await loadQuestions();
@@ -171,7 +175,7 @@ export const useQuestionBank = (projectId: string) => {
     return new Promise<void>((resolve, reject) => {
       Alert.alert(
         'Delete All Question Bank Items',
-        'This will permanently delete ALL questions from your Question Bank. Do you also want to delete questions generated from these items in projects?',
+        'This will permanently delete ALL questions from this project\'s Question Bank. Do you also want to delete questions generated from these items?',
         [
           { text: 'Cancel', style: 'cancel', onPress: () => reject() },
           {
@@ -180,7 +184,7 @@ export const useQuestionBank = (projectId: string) => {
             onPress: async () => {
               try {
                 setSaving(true);
-                const result = await apiService.deleteAllQuestionBankItems(true, false);
+                const result = await apiService.deleteAllQuestionBankItems(projectId, true, false);
                 await loadQuestions();
                 Alert.alert('Success', result.message || 'All Question Bank items deleted');
                 resolve();
@@ -199,7 +203,7 @@ export const useQuestionBank = (projectId: string) => {
             onPress: async () => {
               try {
                 setSaving(true);
-                const result = await apiService.deleteAllQuestionBankItems(true, true);
+                const result = await apiService.deleteAllQuestionBankItems(projectId, true, true);
                 await loadQuestions();
                 Alert.alert(
                   'Success',
@@ -218,7 +222,7 @@ export const useQuestionBank = (projectId: string) => {
         ]
       );
     });
-  }, [loadQuestions]);
+  }, [projectId, loadQuestions]);
 
   return {
     questions,

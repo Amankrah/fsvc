@@ -20,8 +20,6 @@ import {
   Menu,
   Divider,
   ActivityIndicator,
-  Checkbox,
-  List,
 } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import apiService from '../services/api';
@@ -47,50 +45,25 @@ type MembersScreenRouteProp = RouteProp<RootStackParamList, 'Members'>;
 const ROLE_DISPLAY_NAMES: Record<ProjectMemberRole, string> = {
   owner: 'Owner',
   member: 'Member',
-  analyst: 'Analyst',
-  collaborator: 'Collaborator',
   partner: 'Partner Organization',
-  viewer: 'Viewer',
 };
 
 const ROLE_COLORS: Record<ProjectMemberRole, string> = {
   owner: '#6200ee',
   member: '#03dac6',
-  analyst: '#ff6f00',
-  collaborator: '#00bcd4',
   partner: '#9c27b0',
-  viewer: '#9e9e9e',
 };
 
 const PERMISSION_DISPLAY_NAMES: Record<ProjectPermission, string> = {
   all: 'All Permissions',
-  view_project: 'View Project',
-  edit_project: 'Edit Project',
+  collect_data: 'Generate Questions & Collect Data',
   view_responses: 'View Responses',
-  edit_responses: 'Edit Responses',
-  delete_responses: 'Delete Responses',
-  view_analytics: 'View Analytics',
-  run_analytics: 'Run Analytics',
-  manage_questions: 'Manage Questions',
-  export_data: 'Export Data',
+  view_share_link: 'View Shareable Link',
 };
 
-const DEFAULT_PERMISSIONS_FOR_ROLE: Record<Exclude<ProjectMemberRole, 'owner'>, ProjectPermission[]> = {
-  viewer: ['view_project', 'view_responses'],
-  member: ['view_project', 'view_responses', 'edit_responses', 'view_analytics'],
-  analyst: ['view_project', 'view_responses', 'view_analytics', 'run_analytics', 'export_data'],
-  collaborator: [
-    'view_project',
-    'edit_project',
-    'view_responses',
-    'edit_responses',
-    'view_analytics',
-    'run_analytics',
-    'manage_questions',
-    'export_data',
-  ],
-  partner: ['view_project', 'view_responses', 'view_analytics', 'export_data'],
-};
+// All members have FIXED permissions - these cannot be customized
+// Backend enforces: collect_data, view_responses, view_share_link
+const FIXED_MEMBER_PERMISSIONS: ProjectPermission[] = ['collect_data', 'view_responses', 'view_share_link'];
 
 const MembersScreen: React.FC = () => {
   const route = useRoute<MembersScreenRouteProp>();
@@ -108,20 +81,17 @@ const MembersScreen: React.FC = () => {
   const [searchedUsers, setSearchedUsers] = useState<SearchedUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
   const [inviteRole, setInviteRole] = useState<ProjectMemberRole>('member');
-  const [invitePermissions, setInvitePermissions] = useState<ProjectPermission[]>(
-    DEFAULT_PERMISSIONS_FOR_ROLE.member
-  );
+  // Permissions are now fixed - all members get the same permissions
   const [invitePartnerOrg, setInvitePartnerOrg] = useState<string>('');
   const [isInviting, setIsInviting] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showPartnerMenu, setShowPartnerMenu] = useState(false);
 
-  // Edit Member Dialog State
+  // Edit Member Dialog State (role only - permissions are fixed)
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingMember, setEditingMember] = useState<ProjectMember | null>(null);
   const [editRole, setEditRole] = useState<ProjectMemberRole>('member');
-  const [editPermissions, setEditPermissions] = useState<ProjectPermission[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEditRoleMenu, setShowEditRoleMenu] = useState(false);
 
@@ -211,7 +181,8 @@ const MembersScreen: React.FC = () => {
       const inviteData: InviteMemberData = {
         user_id: selectedUser.id,
         role: inviteRole,
-        permissions: invitePermissions,
+        // Permissions are fixed by backend - no need to send them
+        permissions: FIXED_MEMBER_PERMISSIONS,
         partner_organization: inviteRole === 'partner' ? invitePartnerOrg : undefined,
       };
 
@@ -222,7 +193,6 @@ const MembersScreen: React.FC = () => {
       setSelectedUser(null);
       setSearchedUsers([]);
       setInviteRole('member');
-      setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE.member);
       setInvitePartnerOrg('');
       setShowInviteDialog(false);
       loadMembers();
@@ -237,7 +207,7 @@ const MembersScreen: React.FC = () => {
     } finally {
       setIsInviting(false);
     }
-  }, [selectedUser, inviteRole, invitePermissions, invitePartnerOrg, projectId, loadMembers]);
+  }, [selectedUser, inviteRole, invitePartnerOrg, projectId, loadMembers]);
 
   const handleUpdateMember = useCallback(async () => {
     if (!editingMember) return;
@@ -247,12 +217,13 @@ const MembersScreen: React.FC = () => {
       const updateData: UpdateMemberData = {
         user_id: editingMember.id,
         role: editRole,
-        permissions_list: editPermissions,
+        // Permissions are fixed - all members have the same permissions
+        permissions_list: FIXED_MEMBER_PERMISSIONS,
       };
 
       await apiService.updateMember(projectId, updateData);
 
-      Alert.alert('Success', 'Member updated successfully');
+      Alert.alert('Success', 'Member role updated successfully');
       setShowEditDialog(false);
       setEditingMember(null);
       loadMembers();
@@ -263,7 +234,7 @@ const MembersScreen: React.FC = () => {
     } finally {
       setIsUpdating(false);
     }
-  }, [editingMember, editRole, editPermissions, projectId, loadMembers]);
+  }, [editingMember, editRole, projectId, loadMembers]);
 
   const handleRemoveMember = useCallback(
     (member: ProjectMember) => {
@@ -297,7 +268,6 @@ const MembersScreen: React.FC = () => {
   const openEditDialog = useCallback((member: ProjectMember) => {
     setEditingMember(member);
     setEditRole(member.role);
-    setEditPermissions(member.permissions);
     setShowEditDialog(true);
     setActiveMenuMemberId(null);
   }, []);
@@ -305,32 +275,14 @@ const MembersScreen: React.FC = () => {
   const handleRoleChange = useCallback((role: ProjectMemberRole, isEditMode: boolean = false) => {
     if (isEditMode) {
       setEditRole(role);
-      if (role !== 'owner') {
-        setEditPermissions(DEFAULT_PERMISSIONS_FOR_ROLE[role]);
-      }
       setShowEditRoleMenu(false);
     } else {
       setInviteRole(role);
-      if (role !== 'owner') {
-        setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE[role]);
-      }
       // Reset partner organization if role is not partner
       if (role !== 'partner') {
         setInvitePartnerOrg('');
       }
       setShowRoleMenu(false);
-    }
-  }, []);
-
-  const togglePermission = useCallback((permission: ProjectPermission, isEditMode: boolean = false) => {
-    if (isEditMode) {
-      setEditPermissions((prev) =>
-        prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission]
-      );
-    } else {
-      setInvitePermissions((prev) =>
-        prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission]
-      );
     }
   }, []);
 
@@ -432,7 +384,6 @@ const MembersScreen: React.FC = () => {
       setSelectedUser(null);
       setSearchedUsers([]);
       setInviteRole('member');
-      setInvitePermissions(DEFAULT_PERMISSIONS_FOR_ROLE.member);
       setInvitePartnerOrg('');
     }} style={styles.inviteDialog}>
       <Dialog.Title>Invite Team Member</Dialog.Title>
@@ -585,24 +536,21 @@ const MembersScreen: React.FC = () => {
         )}
 
         <Text variant="labelMedium" style={styles.sectionLabel}>
-          Permissions
+          Member Permissions
         </Text>
-        {(Object.keys(PERMISSION_DISPLAY_NAMES) as ProjectPermission[])
-          .filter((perm) => perm !== 'all')
-          .map((permission) => (
-            <List.Item
-              key={permission}
-              title={PERMISSION_DISPLAY_NAMES[permission]}
-              left={() => (
-                <Checkbox
-                  status={invitePermissions.includes(permission) ? 'checked' : 'unchecked'}
-                  onPress={() => togglePermission(permission, false)}
-                />
-              )}
-              onPress={() => togglePermission(permission, false)}
-              style={styles.permissionItem}
-            />
+        <View style={styles.infoBox}>
+          <Text variant="bodySmall" style={styles.infoText}>
+            All members have the same fixed permissions:
+          </Text>
+          {FIXED_MEMBER_PERMISSIONS.map((permission) => (
+            <View key={permission} style={styles.permissionInfoRow}>
+              <IconButton icon="check-circle" size={16} iconColor="#4caf50" style={styles.permissionIcon} />
+              <Text variant="bodySmall" style={styles.permissionInfoText}>
+                {PERMISSION_DISPLAY_NAMES[permission]}
+              </Text>
+            </View>
           ))}
+        </View>
         </View>
         </ScrollView>
       </Dialog.ScrollArea>
@@ -659,24 +607,21 @@ const MembersScreen: React.FC = () => {
         </Menu>
 
         <Text variant="labelMedium" style={styles.sectionLabel}>
-          Permissions
+          Member Permissions
         </Text>
-        {(Object.keys(PERMISSION_DISPLAY_NAMES) as ProjectPermission[])
-          .filter((perm) => perm !== 'all')
-          .map((permission) => (
-            <List.Item
-              key={permission}
-              title={PERMISSION_DISPLAY_NAMES[permission]}
-              left={() => (
-                <Checkbox
-                  status={editPermissions.includes(permission) ? 'checked' : 'unchecked'}
-                  onPress={() => togglePermission(permission, true)}
-                />
-              )}
-              onPress={() => togglePermission(permission, true)}
-              style={styles.permissionItem}
-            />
+        <View style={styles.infoBox}>
+          <Text variant="bodySmall" style={styles.infoText}>
+            All members have the same fixed permissions:
+          </Text>
+          {FIXED_MEMBER_PERMISSIONS.map((permission) => (
+            <View key={permission} style={styles.permissionInfoRow}>
+              <IconButton icon="check-circle" size={16} iconColor="#4caf50" style={styles.permissionIcon} />
+              <Text variant="bodySmall" style={styles.permissionInfoText}>
+                {PERMISSION_DISPLAY_NAMES[permission]}
+              </Text>
+            </View>
           ))}
+        </View>
       </Dialog.Content>
       <Dialog.Actions>
         <Button onPress={() => setShowEditDialog(false)} disabled={isUpdating}>
@@ -1035,6 +980,31 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: '#856404',
+  },
+  infoBox: {
+    backgroundColor: '#e8f5e9',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+    padding: 12,
+    marginVertical: 8,
+    borderRadius: 4,
+  },
+  infoText: {
+    color: '#2e7d32',
+    marginBottom: 8,
+  },
+  permissionInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  permissionIcon: {
+    margin: 0,
+    padding: 0,
+  },
+  permissionInfoText: {
+    color: '#2e7d32',
+    marginLeft: -4,
   },
   inviteDialog: {
     maxHeight: '85%',

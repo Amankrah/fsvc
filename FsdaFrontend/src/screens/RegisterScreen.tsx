@@ -105,6 +105,12 @@ const RegisterScreen: React.FC = () => {
         // Django returns errors in different formats
         let errorMessage = 'An error occurred during registration';
 
+        // Log full error for debugging
+        console.error('🚨 Registration Error:', error);
+        console.error('🚨 Error response:', error.response);
+        console.error('🚨 Error message:', error.message);
+        console.error('🚨 Error code:', error.code);
+
         if (error.response?.data) {
           const data = error.response.data;
           if (typeof data === 'string') {
@@ -118,6 +124,9 @@ const RegisterScreen: React.FC = () => {
           } else if (data.message) {
             errorMessage = data.message;
           }
+        } else if (error.message) {
+          // Network error or timeout
+          errorMessage = `Network Error: ${error.message}`;
         }
 
         Alert.alert('Registration Failed', errorMessage);

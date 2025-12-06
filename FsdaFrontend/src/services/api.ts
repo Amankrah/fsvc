@@ -285,8 +285,9 @@ class ApiService {
     return await this.get(`/forms/questions/get_partner_distribution/?project_id=${projectId}`);
   }
 
-  // QuestionBank endpoints
+  // QuestionBank endpoints - now project-specific
   async getQuestionBank(params?: {
+    project_id?: string;
     respondent_type?: string;
     commodity?: string;
     category?: string;
@@ -324,7 +325,7 @@ class ApiService {
     research_partner_name?: string;
     research_partner_contact?: string;
     work_package?: string;
-    base_project?: string;
+    project: string; // Required - question banks are now project-specific
     response_type: string;
     is_required?: boolean;
     allow_multiple?: boolean;
@@ -353,9 +354,13 @@ class ApiService {
     return await this.post('/forms/question-bank/bulk_delete/', data);
   }
 
-  async deleteAllQuestionBankItems(hardDelete: boolean = false, deleteGenerated: boolean = false) {
-    // Get all question bank items first, then bulk delete
-    const response = await this.getQuestionBank({ page_size: 10000 });
+  async deleteAllQuestionBankItems(
+    projectId: string,
+    hardDelete: boolean = false,
+    deleteGenerated: boolean = false
+  ) {
+    // Get all question bank items for the project first, then bulk delete
+    const response = await this.getQuestionBank({ project_id: projectId, page_size: 10000 });
     const questionBankIds = response.results?.map((item: any) => item.id) || [];
     if (questionBankIds.length === 0) {
       return { message: 'No question bank items to delete', deleted_count: 0 };
@@ -421,9 +426,10 @@ class ApiService {
     return response.blob();
   }
 
-  async importQuestions(file: File | any) {
+  async importQuestions(file: File | any, projectId: string) {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('project_id', projectId);
 
     const token = await secureStorage.getItem('auth_token');
     const response = await fetch(`${API_BASE_URL}/forms/question-bank/import_questions/`, {

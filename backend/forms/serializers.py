@@ -4,27 +4,33 @@ from projects.serializers import ProjectSerializer
 
 
 class QuestionBankSerializer(serializers.ModelSerializer):
-    """Serializer for QuestionBank model with comprehensive validation"""
-    
-    base_project_details = ProjectSerializer(source='base_project', read_only=True)
+    """Serializer for QuestionBank model with comprehensive validation and auto-category support"""
+
+    project_details = ProjectSerializer(source='project', read_only=True)
     targeted_respondents_display = serializers.ReadOnlyField(source='get_targeted_respondents_display')
     targeted_commodities_display = serializers.ReadOnlyField(source='get_targeted_commodities_display')
-    owner_username = serializers.CharField(source='owner.username', read_only=True)
+    created_by_user_username = serializers.CharField(source='created_by_user.username', read_only=True)
     can_edit = serializers.SerializerMethodField()
-    
+    auto_category_preview = serializers.SerializerMethodField(
+        help_text="Preview of category that will be auto-assigned based on targeted respondents"
+    )
+
     class Meta:
         model = QuestionBank
         fields = [
             'id', 'question_text', 'question_category', 'targeted_respondents',
             'targeted_commodities', 'targeted_countries', 'data_source',
             'research_partner_name', 'research_partner_contact', 'work_package',
-            'base_project', 'base_project_details', 'response_type', 'is_required',
+            'project', 'project_details', 'response_type', 'is_required',
             'allow_multiple', 'options', 'validation_rules', 'priority_score',
-            'is_active', 'tags', 'owner', 'owner_username', 'is_public',
+            'is_active', 'tags', 'is_owner_question', 'question_sources',
+            'created_by_user', 'created_by_user_username', 'is_follow_up', 'conditional_logic',
             'created_at', 'updated_at', 'created_by',
-            'targeted_respondents_display', 'targeted_commodities_display', 'can_edit'
+            'targeted_respondents_display', 'targeted_commodities_display',
+            'can_edit', 'auto_category_preview'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username', 'can_edit']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_user_username',
+                           'can_edit', 'auto_category_preview', 'question_category']
     
     def get_can_edit(self, obj):
         """Check if current user can edit this QuestionBank item"""
@@ -32,12 +38,17 @@ class QuestionBankSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             return obj.can_user_edit(request.user)
         return False
-    
+
+    def get_auto_category_preview(self, obj):
+        """Get the category that would be auto-assigned based on targeted respondents"""
+        return obj.auto_set_category_from_respondents()
+
     def create(self, validated_data):
-        """Set owner to current user when creating"""
+        """Set created_by_user to current user when creating"""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            validated_data['owner'] = request.user
+            validated_data['created_by_user'] = request.user
+            validated_data['created_by'] = str(request.user)
         return super().create(validated_data)
     
     def validate_question_text(self, value):
@@ -106,15 +117,13 @@ class QuestionBankSerializer(serializers.ModelSerializer):
         """Cross-field validation"""
         response_type = data.get('response_type')
         options = data.get('options')
-        data_source = data.get('data_source')
-        research_partner_name = data.get('research_partner_name')
-        
+
         # Validate options for choice questions
         choice_types = ['choice_single', 'choice_multiple']
         if response_type in choice_types:
             if not options or len(options) < 2:
                 raise serializers.ValidationError("Choice questions must have at least 2 options.")
-            
+
             # Check for empty or duplicate options
             cleaned_options = []
             for option in options:
@@ -124,16 +133,13 @@ class QuestionBankSerializer(serializers.ModelSerializer):
                 if cleaned_option in cleaned_options:
                     raise serializers.ValidationError("Options must be unique.")
                 cleaned_options.append(cleaned_option)
-        
+
         elif response_type not in choice_types and options and len(options) > 0:
             raise serializers.ValidationError("Options should only be provided for choice questions.")
-        
-        # Validate research partner information
-        if data_source != 'internal' and not research_partner_name:
-            raise serializers.ValidationError(
-                "Research partner name is required for external data sources."
-            )
-        
+
+        # Note: research_partner_name is now optional for all data sources
+        # The model save method will handle defaults
+
         return data
 
 
@@ -153,7 +159,12 @@ class QuestionSerializer(serializers.ModelSerializer):
             'created_at', 'sync_status', 'assigned_respondent_type', 'assigned_commodity',
             'assigned_country', 'is_dynamically_generated', 'research_partner_info',
             'should_send_response_to_partner', 'is_owner_question', 'partner_organization',
-            'partner_data_storage', 'targeted_respondents', 'question_sources'
+            'partner_data_storage', 'targeted_respondents', 'question_sources',
+            # Research partnership fields (copied from QuestionBank)
+            'question_category', 'data_source', 'research_partner_name',
+            'research_partner_contact', 'work_package', 'created_by_user',
+            # Conditional logic fields
+            'is_follow_up', 'conditional_logic'
         ]
         read_only_fields = ['id', 'created_at']
         

@@ -214,9 +214,6 @@ const DashboardScreen: React.FC = () => {
         description: newProjectDescription.trim() || undefined,
         has_partners: hasPartners,
         partner_organizations: partnerOrganizations.length > 0 ? partnerOrganizations : undefined,
-        targeted_respondents: selectedRespondents.length > 0 ? selectedRespondents : undefined,
-        targeted_commodities: selectedCommodities.length > 0 ? selectedCommodities : undefined,
-        targeted_countries: selectedCountries.length > 0 ? selectedCountries : undefined,
       });
 
       setProjects((prev) => [newProject, ...prev]);
@@ -237,7 +234,7 @@ const DashboardScreen: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
-  }, [newProjectName, newProjectDescription, hasPartners, partnerOrganizations, selectedRespondents, selectedCommodities, selectedCountries]);
+  }, [newProjectName, newProjectDescription, hasPartners, partnerOrganizations]);
 
   const handleAddPartner = useCallback(() => {
     if (selectedPartner) {
@@ -298,9 +295,6 @@ const DashboardScreen: React.FC = () => {
         description: newProjectDescription.trim() || undefined,
         has_partners: hasPartners,
         partner_organizations: partnerOrganizations.length > 0 ? partnerOrganizations : undefined,
-        targeted_respondents: selectedRespondents.length > 0 ? selectedRespondents : undefined,
-        targeted_commodities: selectedCommodities.length > 0 ? selectedCommodities : undefined,
-        targeted_countries: selectedCountries.length > 0 ? selectedCountries : undefined,
       });
 
       setProjects((prev) => prev.map(p => p.id === editingProject.id ? updatedProject : p));
@@ -322,7 +316,7 @@ const DashboardScreen: React.FC = () => {
     } finally {
       setIsUpdating(false);
     }
-  }, [editingProject, newProjectName, newProjectDescription, hasPartners, partnerOrganizations, selectedRespondents, selectedCommodities, selectedCountries]);
+  }, [editingProject, newProjectName, newProjectDescription, hasPartners, partnerOrganizations]);
 
   const handleProjectPress = useCallback(
     (project: Project) => {
@@ -608,63 +602,6 @@ const DashboardScreen: React.FC = () => {
                     )}
                   </View>
                 )}
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Respondents</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the types of respondents for this project
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {RESPONDENT_TYPES.map((type) => (
-                    <Chip
-                      key={type}
-                      selected={selectedRespondents.includes(type)}
-                      onPress={() => toggleRespondent(type)}
-                      style={styles.selectionChip}
-                    >
-                      {type}
-                    </Chip>
-                  ))}
-                </View>
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Commodities</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the commodities this project focuses on
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {COMMODITY_TYPES.map((commodity) => (
-                    <Chip
-                      key={commodity}
-                      selected={selectedCommodities.includes(commodity)}
-                      onPress={() => toggleCommodity(commodity)}
-                      style={styles.selectionChip}
-                    >
-                      {commodity}
-                    </Chip>
-                  ))}
-                </View>
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Countries/Regions</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the countries or regions this project covers
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {COUNTRY_OPTIONS.map((country) => (
-                    <Chip
-                      key={country}
-                      selected={selectedCountries.includes(country)}
-                      onPress={() => toggleCountry(country)}
-                      style={styles.selectionChip}
-                    >
-                      {country}
-                    </Chip>
-                  ))}
-                </View>
               </View>
             </ScrollView>
           </Dialog.ScrollArea>
@@ -788,63 +725,6 @@ const DashboardScreen: React.FC = () => {
                     )}
                   </View>
                 )}
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Respondents</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the types of respondents for this project
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {RESPONDENT_TYPES.map((type) => (
-                    <Chip
-                      key={type}
-                      selected={selectedRespondents.includes(type)}
-                      onPress={() => toggleRespondent(type)}
-                      style={styles.selectionChip}
-                    >
-                      {type}
-                    </Chip>
-                  ))}
-                </View>
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Commodities</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the commodities this project focuses on
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {COMMODITY_TYPES.map((commodity) => (
-                    <Chip
-                      key={commodity}
-                      selected={selectedCommodities.includes(commodity)}
-                      onPress={() => toggleCommodity(commodity)}
-                      style={styles.selectionChip}
-                    >
-                      {commodity}
-                    </Chip>
-                  ))}
-                </View>
-
-                <Divider style={styles.divider} />
-
-                <Text variant="labelLarge" style={styles.sectionLabel}>Targeted Countries/Regions</Text>
-                <Text variant="bodySmall" style={styles.sectionDescription}>
-                  Select the countries or regions this project covers
-                </Text>
-                <View style={styles.chipsContainer}>
-                  {COUNTRY_OPTIONS.map((country) => (
-                    <Chip
-                      key={country}
-                      selected={selectedCountries.includes(country)}
-                      onPress={() => toggleCountry(country)}
-                      style={styles.selectionChip}
-                    >
-                      {country}
-                    </Chip>
-                  ))}
-                </View>
               </View>
             </ScrollView>
           </Dialog.ScrollArea>

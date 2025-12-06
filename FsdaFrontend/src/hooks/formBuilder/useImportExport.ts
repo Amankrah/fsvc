@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import apiService from '../../services/api';
 
-export const useImportExport = (onImportSuccess: () => Promise<void>) => {
+export const useImportExport = (projectId: string, onImportSuccess: () => Promise<void>) => {
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -126,8 +126,8 @@ export const useImportExport = (onImportSuccess: () => Promise<void>) => {
 
         setImportProgress(0.3);
 
-        // Upload and import to QuestionBank
-        const importResultData = await apiService.importQuestions(fileToUpload);
+        // Upload and import to QuestionBank (project-specific)
+        const importResultData = await apiService.importQuestions(fileToUpload, projectId);
 
         setImportProgress(1.0);
         setImportResult(importResultData);
@@ -187,7 +187,7 @@ export const useImportExport = (onImportSuccess: () => Promise<void>) => {
         Alert.alert('Error', 'Failed to select file');
       }
     }
-  }, [onImportSuccess]);
+  }, [projectId, onImportSuccess]);
 
   return {
     showImportExportDialog,

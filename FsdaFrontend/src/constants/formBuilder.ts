@@ -74,11 +74,17 @@ export const CONDITION_OPERATORS = [
   { value: 'is_not_empty', label: 'Is Not Empty' },
 ];
 
+// Note: Priority scores are now auto-set to 5 by default, but kept here for reference
 export const PRIORITY_SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+/**
+ * DEFAULT_QUESTION_STATE - Simplified form state
+ * Note: question_category is now auto-set based on targeted_respondents
+ * Note: research_partner_name, research_partner_contact, work_package, priority_score
+ *       are now optional and have sensible backend defaults
+ */
 export const DEFAULT_QUESTION_STATE = {
   question_text: '',
-  question_category: 'production',
   response_type: 'text_short' as ResponseType,
   is_required: true,
   allow_multiple: false,
@@ -88,10 +94,6 @@ export const DEFAULT_QUESTION_STATE = {
   targeted_commodities: [],
   targeted_countries: [],
   data_source: 'internal',
-  research_partner_name: '',
-  research_partner_contact: '',
-  work_package: '',
-  priority_score: 5,
   is_active: true,
   tags: [],
   is_follow_up: false,

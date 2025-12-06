@@ -37,7 +37,6 @@ export const useQuestionForm = () => {
   const loadQuestionForEdit = useCallback((question: Question) => {
     setNewQuestion({
       question_text: question.question_text,
-      question_category: question.question_category || 'production',
       response_type: question.response_type,
       is_required: question.is_required,
       allow_multiple: question.allow_multiple || false,
@@ -47,10 +46,6 @@ export const useQuestionForm = () => {
       targeted_commodities: question.targeted_commodities || [],
       targeted_countries: question.targeted_countries || [],
       data_source: question.data_source || 'internal',
-      research_partner_name: question.research_partner_name || '',
-      research_partner_contact: question.research_partner_contact || '',
-      work_package: question.work_package || '',
-      priority_score: question.priority_score || 5,
       is_active: question.is_active !== undefined ? question.is_active : true,
       tags: question.tags || [],
       is_follow_up: question.is_follow_up || false,
@@ -108,27 +103,43 @@ export const useQuestionForm = () => {
       };
     }
 
-    return {
+    // Build the question data aligned with QuestionBank model structure
+    const questionData: any = {
       question_text: newQuestion.question_text,
-      question_category: newQuestion.question_category,
+      // Note: question_category is auto-set by backend based on targeted_respondents[0]
+      // See models.py:auto_set_category_from_respondents()
       targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : [],
-      targeted_commodities: selectedCommodities,
-      targeted_countries: selectedCountries,
+      targeted_commodities: selectedCommodities || [],
+      targeted_countries: selectedCountries || [],
       response_type: newQuestion.response_type,
-      is_required: newQuestion.is_required,
-      allow_multiple: newQuestion.allow_multiple,
-      options: newQuestion.options,
-      validation_rules: newQuestion.validation_rules,
-      data_source: newQuestion.data_source,
-      research_partner_name: newQuestion.research_partner_name,
-      research_partner_contact: newQuestion.research_partner_contact,
-      work_package: newQuestion.work_package,
-      priority_score: newQuestion.priority_score,
-      is_active: newQuestion.is_active,
-      tags: newQuestion.tags,
+      is_required: newQuestion.is_required ?? true,
+      allow_multiple: newQuestion.allow_multiple ?? false,
+      options: newQuestion.options || null,
+      validation_rules: newQuestion.validation_rules || null,
+      is_active: newQuestion.is_active ?? true,
+      tags: newQuestion.tags || [],
       is_follow_up: isFollowUp,
       conditional_logic: conditionalLogic,
     };
+
+    // Add optional fields only if they have values (otherwise backend will use defaults)
+    if (newQuestion.data_source && newQuestion.data_source !== 'internal') {
+      questionData.data_source = newQuestion.data_source;
+    }
+    if (newQuestion.research_partner_name?.trim()) {
+      questionData.research_partner_name = newQuestion.research_partner_name.trim();
+    }
+    if (newQuestion.research_partner_contact?.trim()) {
+      questionData.research_partner_contact = newQuestion.research_partner_contact.trim();
+    }
+    if (newQuestion.work_package?.trim()) {
+      questionData.work_package = newQuestion.work_package.trim();
+    }
+    if (newQuestion.priority_score && newQuestion.priority_score !== 5) {
+      questionData.priority_score = newQuestion.priority_score;
+    }
+
+    return questionData;
   }, [
     newQuestion,
     selectedTargetedRespondents,

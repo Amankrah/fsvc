@@ -100,45 +100,46 @@ class QuestionBank(models.Model):
         default=list
     )
     
-    # Research partnership information
+    # Research partnership information (kept for backward compatibility, but simplified)
     data_source = models.CharField(
         max_length=30,
         choices=DATA_SOURCE_CHOICES,
         default='internal',
-        help_text="Source/partner who created this question"
+        help_text="Source/partner who created this question (default: internal)"
     )
     research_partner_name = models.CharField(
         max_length=200,
         blank=True,
-        help_text="Name of the specific research partner"
+        default='',
+        help_text="Name of the specific research partner (optional, not required for import)"
     )
     research_partner_contact = models.EmailField(
         blank=True,
-        help_text="Contact email for the research partner"
+        default='',
+        help_text="Contact email for the research partner (optional, not required for import)"
     )
     is_owner_question = models.BooleanField(
-        default=False,
-        help_text="Whether this question is created by the project owner"
+        default=True,
+        help_text="Whether this question is created by the project owner (default: True)"
     )
     question_sources = models.JSONField(
         default=list,
         blank=True,
-        help_text="List of sources (owner and/or partner names) for this question"
+        help_text="List of sources (owner and/or partner names) for this question (default: ['owner'])"
     )
 
-    # Work package and project linking
+    # Work package and project linking (optional field, not required for import)
     work_package = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Work package identifier for this question"
+        default='',
+        help_text="Work package identifier for this question (optional, not required for import)"
     )
-    base_project = models.ForeignKey(
+    project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
         related_name='question_bank_items',
-        null=True,
-        blank=True,
-        help_text="Optional base project this question belongs to"
+        help_text="Project this question bank item belongs to - question banks are project-specific"
     )
     
     # Question configuration
@@ -179,10 +180,10 @@ class QuestionBank(models.Model):
     options = models.JSONField(null=True, blank=True, help_text="For multiple choice questions")
     validation_rules = models.JSONField(null=True, blank=True)
     
-    # Metadata
+    # Metadata (simplified with sensible defaults)
     priority_score = models.IntegerField(
-        default=1,
-        help_text="Priority for question selection (1-10, 10 being highest)"
+        default=5,
+        help_text="Priority for question selection (1-10, higher = more important, default: 5)"
     )
     is_active = models.BooleanField(
         default=True,
@@ -205,18 +206,12 @@ class QuestionBank(models.Model):
         help_text="Conditional logic template for questions generated from this QuestionBank"
     )
 
-    # Ownership and access control
-    owner = models.ForeignKey(
+    # Creator tracking (kept for audit purposes)
+    created_by_user = models.ForeignKey(
         'authentication.User',
         on_delete=models.CASCADE,
-        related_name='owned_question_banks',
-        null=True,
-        blank=True,
-        help_text="Owner of this QuestionBank item"
-    )
-    is_public = models.BooleanField(
-        default=False,
-        help_text="If True, this QuestionBank item is accessible to all users"
+        related_name='created_question_banks',
+        help_text="User who created this QuestionBank item"
     )
     
     # Timestamps
@@ -227,30 +222,59 @@ class QuestionBank(models.Model):
     class Meta:
         ordering = ['-priority_score', 'question_category', 'created_at']
         indexes = [
-            models.Index(fields=['question_category']),
-            models.Index(fields=['data_source']),
-            models.Index(fields=['is_active']),
-            models.Index(fields=['priority_score']),
-            models.Index(fields=['owner']),
-            models.Index(fields=['is_public']),
+            models.Index(fields=['project', 'question_category']),
+            models.Index(fields=['project', 'data_source']),
+            models.Index(fields=['project', 'is_active']),
+            models.Index(fields=['project', 'priority_score']),
+            models.Index(fields=['created_by_user']),
         ]
     
     def __str__(self):
         return f"{self.question_category}: {self.question_text[:50]}..."
-    
+
+    def auto_set_category_from_respondents(self):
+        """
+        Automatically set question_category based on the primary (first) targeted respondent.
+        Uses the same mapping as the import/export functionality.
+        """
+        from forms.import_export import QuestionImportExport
+
+        if self.targeted_respondents and len(self.targeted_respondents) > 0:
+            primary_respondent = self.targeted_respondents[0]
+            auto_category = QuestionImportExport.RESPONDENT_TO_CATEGORY_MAPPING.get(
+                primary_respondent,
+                'general'
+            )
+            return auto_category
+        return 'general'
+
+    def save(self, *args, **kwargs):
+        """
+        Override save to auto-set category if not provided and set default question_sources.
+        """
+        # Auto-set category if it's empty or 'general' and we have targeted respondents
+        if (not self.question_category or self.question_category == 'general') and self.targeted_respondents:
+            self.question_category = self.auto_set_category_from_respondents()
+
+        # Set default question_sources if empty
+        if not self.question_sources:
+            self.question_sources = ['owner']
+
+        super().save(*args, **kwargs)
+
     def can_user_access(self, user):
-        """Check if a user can access this QuestionBank item - only owner can access"""
+        """Check if a user can access this QuestionBank item"""
         if user.is_superuser:
             return True
-        # Only the owner can access their QuestionBank items
-        return self.owner == user
-    
+        # User can access if they can access the project
+        return self.project.can_user_access(user)
+
     def can_user_edit(self, user):
-        """Check if a user can edit this QuestionBank item - only owner can edit"""
+        """Check if a user can edit this QuestionBank item - only project owner and creator can edit"""
         if user.is_superuser:
             return True
-        # Only the owner can edit their QuestionBank items
-        return self.owner == user
+        # Only project owner or question creator can edit
+        return self.project.created_by == user or self.created_by_user == user
     
     def get_targeted_respondents_display(self):
         """Get human-readable list of targeted respondents"""
@@ -302,27 +326,49 @@ class QuestionBank(models.Model):
             targeted_respondents=self.targeted_respondents,
             is_owner_question=self.is_owner_question,
             question_sources=self.question_sources,
+            # Copy research partnership information
+            question_category=self.question_category,
+            data_source=self.data_source,
+            research_partner_name=self.research_partner_name,
+            research_partner_contact=self.research_partner_contact,
+            work_package=self.work_package,
+            created_by_user=self.created_by_user,
         )
     
     @classmethod
-    def get_accessible_items(cls, user):
-        """Get QuestionBank items accessible to a user - only returns items owned by the user"""
+    def get_accessible_items(cls, user, project=None):
+        """Get QuestionBank items accessible to a user"""
         if user.is_superuser:
+            if project:
+                return cls.objects.filter(project=project)
             return cls.objects.all()
-        
-        # User can ONLY access their own QuestionBank items
-        # QuestionBanks are private to each user
-        return cls.objects.filter(owner=user)
+
+        # User can access question banks from projects they have access to
+        from django.db.models import Q
+
+        # Get projects where user is owner or member
+        accessible_projects = Project.objects.filter(
+            Q(created_by=user) | Q(members__user=user)
+        ).distinct()
+
+        queryset = cls.objects.filter(project__in=accessible_projects)
+
+        # If specific project is requested, filter by it
+        if project:
+            queryset = queryset.filter(project=project)
+
+        return queryset
     
     @classmethod
-    def get_questions_for_respondent(cls, respondent_type, commodity=None, country=None, 
+    def get_questions_for_respondent(cls, respondent_type, project, commodity=None, country=None,
                                    category=None, work_package=None, limit=None, user=None):
         """Get applicable questions for a specific respondent type with optional filters"""
-        queryset = cls.objects.filter(is_active=True)
-        
+        # Questions must belong to a specific project
+        queryset = cls.objects.filter(project=project, is_active=True)
+
         # Filter by user access if provided
         if user:
-            queryset = cls.get_accessible_items(user).filter(is_active=True)
+            queryset = cls.get_accessible_items(user, project=project).filter(is_active=True)
         
         # Filter by respondent type
         queryset = queryset.filter(targeted_respondents__contains=[respondent_type])
@@ -416,6 +462,46 @@ class Question(models.Model):
     order_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     sync_status = models.CharField(max_length=20, default='pending')
+
+    # Research partnership information (copied from QuestionBank for direct access, with sensible defaults)
+    question_category = models.CharField(
+        max_length=50,
+        blank=True,
+        default='general',
+        help_text="Category/type of question for organization (auto-set from respondents if not provided)"
+    )
+    data_source = models.CharField(
+        max_length=30,
+        choices=QuestionBank.DATA_SOURCE_CHOICES,
+        default='internal',
+        blank=True,
+        help_text="Source/partner who created this question (default: internal)"
+    )
+    research_partner_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text="Name of the specific research partner (optional, not required)"
+    )
+    research_partner_contact = models.EmailField(
+        blank=True,
+        default='',
+        help_text="Contact email for the research partner (optional, not required)"
+    )
+    work_package = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Work package identifier for this question (optional, not required)"
+    )
+    created_by_user = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_questions',
+        help_text="User who created/generated this question"
+    )
 
     # Question ownership and partner collaboration (UPDATED FOR MULTI-SOURCE SUPPORT)
     is_owner_question = models.BooleanField(

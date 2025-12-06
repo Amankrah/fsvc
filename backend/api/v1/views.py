@@ -99,9 +99,8 @@ def dashboard_stats(request):
             project__in=user_projects
         ).count()
         
-        # Count user's own QuestionBank templates (private to each user)
-        questionbank_count = QuestionBank.objects.filter(
-            owner=user,
+        # Count user's QuestionBank templates (project-specific, accessible through projects)
+        questionbank_count = QuestionBank.get_accessible_items(user).filter(
             is_active=True
         ).count()
         

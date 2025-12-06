@@ -49,10 +49,24 @@ A modern, production-ready React Native application built with TypeScript and Ex
 
 3. **Configure Backend API**
 
-   Update the API base URL in `src/services/api.ts`:
-   ```typescript
-   const API_BASE_URL = 'http://YOUR_BACKEND_URL/api';
+   Copy the environment template and configure your backend URL:
+   ```bash
+   cp .env.example .env.local
    ```
+
+   Edit `.env.local`:
+   ```bash
+   # For same machine (localhost)
+   EXPO_PUBLIC_API_URL=http://localhost:8000/api
+
+   # For physical device (replace with your computer's IP)
+   EXPO_PUBLIC_API_URL=http://192.168.1.100:8000/api
+
+   # For Android emulator
+   EXPO_PUBLIC_API_URL=http://10.0.2.2:8000/api
+   ```
+
+   See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for detailed configuration guide.
 
 ## Backend Integration
 
@@ -181,26 +195,38 @@ Configured with:
 - Larger touch targets
 - Optimized spacing for tablet screens
 
-## Environment Variables
+## Environment Configuration
 
-For production, consider using `expo-constants` and `app.config.js`:
+The app uses environment variables for configuration. See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for comprehensive setup guide.
 
-```javascript
-// app.config.js
-export default {
-  expo: {
-    extra: {
-      apiUrl: process.env.API_URL || 'http://localhost:3000/api',
-    },
-  },
-};
+### Quick Setup
+
+**Development:**
+```bash
+cp .env.example .env.local
+# Edit .env.local with your local backend URL
+npm start
 ```
 
-Access in code:
-```typescript
-import Constants from 'expo-constants';
-const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl;
+**Production:**
+```bash
+cp .env.example .env.production
+# Edit .env.production with production backend URL
+npm run build:web:prod
 ```
+
+### Environment Files
+
+- `.env.example` - Template (committed to git)
+- `.env.local` - Local development config (NOT committed)
+- `.env.production` - Production config (NOT committed)
+
+### Available Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `EXPO_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000/api` |
+| `EXPO_PUBLIC_ENVIRONMENT` | Environment name | `development` or `production` |
 
 ## Building for Production
 

@@ -137,7 +137,7 @@ const FormBuilderScreen: React.FC = () => {
     importProgress,
     handleDownloadTemplate,
     handleImportQuestions,
-  } = useImportExport(async () => {
+  } = useImportExport(projectId, async () => {
     await loadProjectAndQuestions();
   });
 

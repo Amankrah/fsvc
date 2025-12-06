@@ -15,7 +15,7 @@ import AnalyticsScreen from '../screens/AnalyticsScreen';
 import MembersScreen from '../screens/MembersScreen';
 import SyncScreen from '../screens/SyncScreen';
 import DataCollectionScreen from '../screens/DataCollectionScreen';
-import ResponsesScreen from '../screens/ResponsesScreen';
+import ResponsesScreen from '../screens/ResponsesScreen.v2';
 import ResponseLinksScreen from '../screens/ResponseLinksScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 

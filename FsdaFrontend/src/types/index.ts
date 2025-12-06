@@ -85,19 +85,17 @@ export interface User {
 }
 
 // Project Member Types
-export type ProjectMemberRole = 'owner' | 'member' | 'analyst' | 'collaborator' | 'partner' | 'viewer';
+// Backend only supports 'member' and 'partner' roles
+// 'owner' is not a role - it's the project creator shown separately
+export type ProjectMemberRole = 'owner' | 'member' | 'partner';
 
+// All members have fixed permissions - these cannot be customized
+// Fixed permissions: collect_data, view_responses, view_share_link
 export type ProjectPermission =
   | 'all'
-  | 'view_project'
-  | 'edit_project'
+  | 'collect_data'
   | 'view_responses'
-  | 'edit_responses'
-  | 'delete_responses'
-  | 'view_analytics'
-  | 'run_analytics'
-  | 'manage_questions'
-  | 'export_data';
+  | 'view_share_link';
 
 export interface ProjectMember {
   id: string;
@@ -346,6 +344,7 @@ export interface Question {
   research_partner_name?: string;
   research_partner_contact?: string;
   work_package?: string;
+  created_by_user?: string;
   priority_score?: number;
   targeted_commodities?: CommodityType[];
   targeted_countries?: string[];
