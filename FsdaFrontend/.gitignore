@@ -42,7 +42,7 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+# /android - Commented out to allow android folder for EAS builds with Kotlin config
 
 # Markdown files (except README)
 *.md
