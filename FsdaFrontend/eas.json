@@ -18,6 +18,10 @@
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://foodsystemsanalytics.com/api",
+        "EXPO_PUBLIC_ENVIRONMENT": "production"
+      },
       "android": {
         "buildType": "apk"
       },
