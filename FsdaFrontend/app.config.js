@@ -6,6 +6,12 @@ module.exports = {
     orientation: "landscape",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
+    updates: {
+      enabled: true,
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 0,
+      url: "https://u.expo.dev/f79b991a-c33c-4fbe-9edd-c793dc0de781"
+    },
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -14,7 +20,10 @@ module.exports = {
     ios: {
       supportsTablet: true,
       requireFullScreen: false,
-      bundleIdentifier: "com.fsda.frontend"
+      bundleIdentifier: "com.fsda.frontend",
+      runtimeVersion: {
+        policy: "appVersion"
+      }
     },
     android: {
       adaptiveIcon: {
@@ -24,7 +33,8 @@ module.exports = {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: "com.fsda.frontend",
-      softwareKeyboardLayoutMode: "pan"
+      softwareKeyboardLayoutMode: "pan",
+      runtimeVersion: "1.0.0"
     },
     web: {
       favicon: "./assets/web-favicon.png",

@@ -45,10 +45,10 @@ staticfiles/
 static_root/
 media_root/
 
-# Django migrations (optional - uncomment if you want to ignore migrations)
-# */migrations/*.py
-# */migrations/*.pyc
-# !*/migrations/__init__.py
+# Django migrations - ignore to prevent dev/prod conflicts
+*/migrations/*.py
+*/migrations/*.pyc
+!*/migrations/__init__.py
 
 # FastAPI
 .pytest_cache/
