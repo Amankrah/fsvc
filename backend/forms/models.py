@@ -719,21 +719,63 @@ class Question(models.Model):
         except ResponseType.DoesNotExist:
             # Fallback to default
             return ResponseType.objects.get(name='text_short')
-    
+
+    def _is_valid_other_response(self, response_value):
+        """
+        Check if a response value is a valid "Other" option with custom text.
+
+        "Other" options allow respondents to provide custom text.
+        Valid formats:
+        - "Other: custom text"
+        - "Others: custom text"
+        - "Other (please specify): custom text"
+
+        Returns True if the response matches an "Other" option in self.options
+        and contains custom text after a colon separator.
+        """
+        if not isinstance(response_value, str) or ':' not in response_value:
+            return False
+
+        # Split on first colon to get base option and custom text
+        parts = response_value.split(':', 1)
+        if len(parts) != 2:
+            return False
+
+        base_option = parts[0].strip()
+        custom_text = parts[1].strip()
+
+        # Custom text must not be empty
+        if not custom_text:
+            return False
+
+        # Check if base_option matches any option in self.options (case-insensitive)
+        if self.options:
+            for option in self.options:
+                if option.lower().strip() == base_option.lower():
+                    # Verify it's actually an "Other" type option
+                    if 'other' in option.lower():
+                        return True
+
+        return False
+
     def validate_response_value(self, response_value):
         """Validate a response value against this question's rules"""
         if not response_value and self.is_required:
             return False, "This question is required"
-        
+
         if not response_value:
             return True, None  # Empty response is valid for non-required questions
-        
+
         # Type-specific validation
         if self.response_type in ['choice_single', 'choice_multiple', 'choice']:
             if not self.options:
                 return False, "Question has no options defined"
-            
+
             if self.response_type == 'choice_single':
+                # Check if response is an "Other" option with custom text
+                if self._is_valid_other_response(response_value):
+                    return True, None
+
                 if response_value not in self.options:
                     return False, f"'{response_value}' is not a valid option"
             else:  # multiple choice
@@ -743,8 +785,12 @@ class Question(models.Model):
                     choices = response_value
                 else:
                     choices = [str(response_value)]
-                
+
                 for choice in choices:
+                    # Check if choice is an "Other" option with custom text
+                    if self._is_valid_other_response(choice):
+                        continue
+
                     if choice not in self.options:
                         return False, f"'{choice}' is not a valid option"
         

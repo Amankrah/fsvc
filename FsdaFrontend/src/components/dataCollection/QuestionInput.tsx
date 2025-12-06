@@ -20,9 +20,25 @@ interface QuestionInputProps {
 export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, onChange }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const [otherText, setOtherText] = useState('');
 
   const handleValueChange = (newValue: string | string[]) => {
     onChange(question.id, newValue);
+  };
+
+  // Helper function to check if an option is "Other"
+  const isOtherOption = (option: string): boolean => {
+    return option.toLowerCase().includes('other');
+  };
+
+  // Helper function to get the stored "Other" value or extract it
+  const getOtherValue = (currentValue: string | string[] | undefined): string => {
+    if (!currentValue) return '';
+    const valueStr = Array.isArray(currentValue) ? currentValue.find(v => v.startsWith('Other:')) : currentValue;
+    if (valueStr && valueStr.startsWith('Other:')) {
+      return valueStr.substring(6).trim(); // Remove "Other: " prefix
+    }
+    return '';
   };
 
   // Text Short
@@ -150,15 +166,63 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
 
   // Choice Single
   if (question.response_type === 'choice_single') {
+    const currentValue = value as string || '';
+    const selectedOtherOption = question.options?.find(opt => isOtherOption(opt) && currentValue.startsWith(opt));
+    const isOtherSelected = selectedOtherOption !== undefined;
+    const displayValue = isOtherSelected ? selectedOtherOption : currentValue;
+
+    const handleRadioChange = (selectedOption: string) => {
+      if (isOtherOption(selectedOption)) {
+        // When "Other" is selected, set it but wait for text input
+        handleValueChange(selectedOption);
+      } else {
+        handleValueChange(selectedOption);
+      }
+    };
+
+    const handleOtherTextChange = (text: string) => {
+      setOtherText(text);
+      if (selectedOtherOption) {
+        // Store as "Other: user input"
+        handleValueChange(`${selectedOtherOption}: ${text}`);
+      }
+    };
+
     return (
-      <RadioButton.Group value={value as string || ''} onValueChange={handleValueChange}>
-        {question.options?.map((option) => (
-          <View key={option} style={styles.radioOption}>
-            <RadioButton value={option} color="#64c8ff" />
-            <Text style={styles.optionText}>{option}</Text>
-          </View>
-        ))}
-      </RadioButton.Group>
+      <View>
+        <RadioButton.Group value={displayValue} onValueChange={handleRadioChange}>
+          {question.options?.map((option) => (
+            <View key={option}>
+              <View style={styles.radioOption}>
+                <RadioButton value={option} color="#64c8ff" />
+                <Text style={styles.optionText}>{option}</Text>
+              </View>
+              {/* Show text input if this "Other" option is selected */}
+              {isOtherOption(option) && displayValue === option && (
+                <View style={styles.otherInputContainer}>
+                  <TextInput
+                    label="Please specify"
+                    value={otherText || getOtherValue(currentValue)}
+                    onChangeText={handleOtherTextChange}
+                    mode="outlined"
+                    style={styles.otherInput}
+                    textColor="#ffffff"
+                    placeholder="Enter your answer..."
+                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                    theme={{
+                      colors: {
+                        primary: '#64c8ff',
+                        onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                        outline: 'rgba(100, 200, 255, 0.5)',
+                      },
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          ))}
+        </RadioButton.Group>
+      </View>
     );
   }
 
@@ -166,23 +230,83 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
   if (question.response_type === 'choice_multiple') {
     const selectedValues = Array.isArray(value) ? value : [];
 
+    // Check if any selected value is an "Other" option
+    const selectedOtherOption = question.options?.find(opt =>
+      isOtherOption(opt) && selectedValues.some(v => v.startsWith(opt))
+    );
+    const isOtherChecked = selectedOtherOption !== undefined;
+
     const toggleOption = (option: string) => {
-      const newValues = selectedValues.includes(option)
-        ? selectedValues.filter((v) => v !== option)
-        : [...selectedValues, option];
-      handleValueChange(newValues);
+      if (isOtherOption(option)) {
+        // When toggling "Other", add/remove it
+        if (selectedValues.some(v => v.startsWith(option))) {
+          // Remove all "Other" variations
+          const newValues = selectedValues.filter(v => !v.startsWith(option));
+          handleValueChange(newValues);
+          setOtherText('');
+        } else {
+          // Add the base "Other" option
+          handleValueChange([...selectedValues, option]);
+        }
+      } else {
+        const newValues = selectedValues.includes(option)
+          ? selectedValues.filter((v) => v !== option)
+          : [...selectedValues, option];
+        handleValueChange(newValues);
+      }
+    };
+
+    const handleOtherTextChange = (text: string) => {
+      setOtherText(text);
+      if (selectedOtherOption) {
+        // Replace the base "Other" with "Other: user input"
+        const newValues = selectedValues.filter(v => !v.startsWith(selectedOtherOption));
+        const otherValue = text.trim() ? `${selectedOtherOption}: ${text}` : selectedOtherOption;
+        handleValueChange([...newValues, otherValue]);
+      }
+    };
+
+    const isOptionChecked = (option: string): boolean => {
+      if (isOtherOption(option)) {
+        return selectedValues.some(v => v.startsWith(option));
+      }
+      return selectedValues.includes(option);
     };
 
     return (
       <View>
         {question.options?.map((option) => (
-          <View key={option} style={styles.checkboxOption}>
-            <Checkbox
-              status={selectedValues.includes(option) ? 'checked' : 'unchecked'}
-              onPress={() => toggleOption(option)}
-              color="#64c8ff"
-            />
-            <Text style={styles.optionText}>{option}</Text>
+          <View key={option}>
+            <View style={styles.checkboxOption}>
+              <Checkbox
+                status={isOptionChecked(option) ? 'checked' : 'unchecked'}
+                onPress={() => toggleOption(option)}
+                color="#64c8ff"
+              />
+              <Text style={styles.optionText}>{option}</Text>
+            </View>
+            {/* Show text input if this "Other" option is checked */}
+            {isOtherOption(option) && isOptionChecked(option) && (
+              <View style={styles.otherInputContainer}>
+                <TextInput
+                  label="Please specify"
+                  value={otherText || getOtherValue(selectedValues)}
+                  onChangeText={handleOtherTextChange}
+                  mode="outlined"
+                  style={styles.otherInput}
+                  textColor="#ffffff"
+                  placeholder="Enter your answer..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  theme={{
+                    colors: {
+                      primary: '#64c8ff',
+                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                      outline: 'rgba(100, 200, 255, 0.5)',
+                    },
+                  }}
+                />
+              </View>
+            )}
           </View>
         ))}
       </View>
@@ -376,6 +500,16 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     flex: 1,
+  },
+  otherInputContainer: {
+    marginLeft: 40,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  otherInput: {
+    backgroundColor: 'rgba(100, 200, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.3)',
   },
   dateButton: {
     marginBottom: 16,
