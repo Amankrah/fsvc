@@ -537,7 +537,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            if not project.can_user_edit(request.user):
+            # Members can generate questions (use question bank), but only owners can add to question bank
+            if not project.can_user_access(request.user):
                 raise ValidationError("You don't have permission to generate questions for this project")
             
             # DEBUG: Log parameters
@@ -1012,10 +1013,10 @@ class QuestionBankViewSet(BaseModelViewSet):
         serializer.validated_data['created_by_user'] = self.request.user
         serializer.validated_data['created_by'] = str(self.request.user)
 
-        # Verify user has access to the project
+        # Only project owner can add to question bank (members can only use existing questions)
         project = serializer.validated_data.get('project')
-        if project and not project.can_user_access(self.request.user):
-            raise ValidationError("You don't have permission to add questions to this project")
+        if project and not project.can_user_edit(self.request.user):
+            raise ValidationError("Only project owners can add questions to the question bank")
 
         with transaction.atomic():
             question_bank = serializer.save()
