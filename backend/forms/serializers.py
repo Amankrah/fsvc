@@ -29,8 +29,8 @@ class QuestionBankSerializer(serializers.ModelSerializer):
             'targeted_respondents_display', 'targeted_commodities_display',
             'can_edit', 'auto_category_preview'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_user_username',
-                           'can_edit', 'auto_category_preview', 'question_category']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_user', 'created_by',
+                           'created_by_user_username', 'can_edit', 'auto_category_preview', 'question_category']
     
     def get_can_edit(self, obj):
         """Check if current user can edit this QuestionBank item"""
