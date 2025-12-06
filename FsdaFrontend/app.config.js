@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "Food Systems Analytics",
     slug: "FsdaFrontend",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "landscape",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
