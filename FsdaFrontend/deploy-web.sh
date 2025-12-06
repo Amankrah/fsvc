@@ -10,6 +10,8 @@ echo "🌐 Starting Web App Deployment"
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Configuration
@@ -18,29 +20,63 @@ REMOTE_USER="ubuntu"
 REMOTE_HOST="13.60.137.180"
 SSH_KEY="../fsda_key.pem"
 
-echo -e "${BLUE}Step 1:${NC} Building web app locally..."
-npm run build:web
+# Verify SSH key exists
+if [ ! -f "$SSH_KEY" ]; then
+  echo -e "${RED}❌ Error: SSH key not found at $SSH_KEY${NC}"
+  exit 1
+fi
 
-echo -e "${BLUE}Step 1.5:${NC} Fixing asset paths for /app base URL..."
-# Fix paths in index.html to work with /app base URL
-sed -i 's|href="/favicon.ico"|href="/app/favicon.ico"|g' web-build/index.html
-sed -i 's|src="/_expo/|src="/app/_expo/|g' web-build/index.html
+echo -e "${BLUE}Step 0:${NC} Cleaning up old build..."
+rm -rf web-build
+echo -e "${GREEN}✓ Old build removed${NC}"
 
-echo -e "${BLUE}Step 1.6:${NC} Adding icon font CSS for web..."
-# Add font-face declaration for MaterialCommunityIcons bundled font
-FONT_PATH="/app/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.6e435534bd35da5fef04168860a9b8fa.ttf"
-sed -i "s|</style>|</style>\n    <style>\n      @font-face {\n        font-family: 'MaterialCommunityIcons';\n        src: url('$FONT_PATH') format('truetype');\n        font-display: swap;\n      }\n    </style>|g" web-build/index.html
+echo -e "${BLUE}Step 1:${NC} Building production web app..."
+EXPO_PUBLIC_ENVIRONMENT=production EXPO_PUBLIC_API_URL=https://foodsystemsanalytics.com/api npm run build:web
+echo -e "${GREEN}✓ Build completed${NC}"
 
-echo -e "${BLUE}Step 2:${NC} Creating deployment directory on server..."
+# Verify build exists
+if [ ! -f "web-build/index.html" ]; then
+  echo -e "${RED}❌ Error: Build failed - index.html not found${NC}"
+  exit 1
+fi
+
+echo -e "${BLUE}Step 2:${NC} Fixing asset paths for /app base URL..."
+# The baseUrl in app.config.js should handle most paths, but we ensure all are correct
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # macOS sed syntax
+  sed -i '' 's|href="/favicon\.ico"|href="/app/favicon.ico"|g' web-build/index.html
+  sed -i '' 's|src="/_expo/|src="/app/_expo/|g' web-build/index.html
+else
+  # Linux sed syntax
+  sed -i 's|href="/favicon\.ico"|href="/app/favicon.ico"|g' web-build/index.html
+  sed -i 's|src="/_expo/|src="/app/_expo/|g' web-build/index.html
+fi
+echo -e "${GREEN}✓ Asset paths fixed${NC}"
+
+echo -e "${BLUE}Step 3:${NC} Creating deployment directory on server..."
 ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST "sudo mkdir -p $WEB_APP_DIR && sudo chown -R $REMOTE_USER:$REMOTE_USER $WEB_APP_DIR"
+echo -e "${GREEN}✓ Deployment directory ready${NC}"
 
-echo -e "${BLUE}Step 3:${NC} Uploading web build to server..."
-rsync -avz -e "ssh -i $SSH_KEY" web-build/ $REMOTE_USER@$REMOTE_HOST:$WEB_APP_DIR/
+echo -e "${BLUE}Step 4:${NC} Uploading web build to server..."
+rsync -avz --delete -e "ssh -i $SSH_KEY" web-build/ $REMOTE_USER@$REMOTE_HOST:$WEB_APP_DIR/
+echo -e "${GREEN}✓ Files uploaded${NC}"
 
-echo -e "${BLUE}Step 4:${NC} Setting correct permissions..."
+echo -e "${BLUE}Step 5:${NC} Setting correct permissions..."
 ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST "sudo chown -R www-data:www-data $WEB_APP_DIR && sudo chmod -R 755 $WEB_APP_DIR"
+echo -e "${GREEN}✓ Permissions set${NC}"
 
+echo -e "${BLUE}Step 6:${NC} Verifying deployment..."
+RESPONSE=$(ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST "ls -la $WEB_APP_DIR/index.html 2>&1" || echo "error")
+if [[ "$RESPONSE" == *"error"* ]] || [[ "$RESPONSE" == *"No such file"* ]]; then
+  echo -e "${RED}❌ Deployment verification failed${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✓ Deployment verified${NC}"
+
+echo ""
 echo -e "${GREEN}✅ Web app deployed successfully!${NC}"
 echo ""
-echo "Web app is now available at: https://foodsystemsanalytics.com/app"
+echo -e "📱 Web app is now available at: ${BLUE}https://foodsystemsanalytics.com/app${NC}"
+echo -e "🔧 Environment: ${YELLOW}production${NC}"
+echo -e "🌐 API URL: ${YELLOW}https://foodsystemsanalytics.com/api${NC}"
 echo ""
