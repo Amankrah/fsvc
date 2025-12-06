@@ -955,6 +955,9 @@ class Question(models.Model):
                 targeted_respondents=bank_question.targeted_respondents,
                 is_owner_question=bank_question.is_owner_question,
                 question_sources=bank_question.question_sources,
+                # Copy section/preamble information
+                section_header=bank_question.section_header,
+                section_preamble=bank_question.section_preamble,
             )
             
             logger.info(f"[QuestionGen] Created question {i+1}: '{bank_question.question_text[:50]}...'")

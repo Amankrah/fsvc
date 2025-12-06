@@ -44,6 +44,8 @@ class QuestionImportExport:
         'data_source',
         'is_required',
         'options',
+        'section_header',
+        'section_preamble',
         'is_follow_up',
         'parent_question_text',
         'condition_operator',
@@ -60,6 +62,8 @@ class QuestionImportExport:
         'data_source': 'Source: internal, partner_university, partner_ngo, etc. (default: internal)',
         'is_required': 'true or false - Should this question be required? (default: true)',
         'options': 'For choice questions only: Option1|Option2|Option3 (pipe-separated)',
+        'section_header': 'Section/group title - questions with same header are grouped together (optional)',
+        'section_preamble': 'Introductory text displayed before first question in section (optional)',
         'is_follow_up': 'true or false - Is this a follow-up/conditional question? (default: false)',
         'parent_question_text': 'Text of parent question (for follow-up questions only)',
         'condition_operator': 'Operator: equals, contains, greater_than, in, etc. (for follow-up questions)',
@@ -119,12 +123,52 @@ class QuestionImportExport:
             'internal',
             'true',
             '',
+            '',
+            '',
             'true',
             'What is your primary source of income?',
             'equals',
             'Farming',
         ]
         writer.writerow(followup_row)
+
+        # Write section with preamble example (first question in section)
+        section_example_1 = [
+            'How effective do you think better knowledge sharing help solve current challenges in the value chain?',
+            'choice_single',
+            'farmers,processors,aggregators_lbcs',
+            'cocoa,maize,palm_oil',
+            'Ghana,Nigeria',
+            'internal',
+            'true',
+            'Not effective at all|Slightly effective|Somewhat effective|Moderately effective|Effective|Very effective|Extremely effective',
+            'Solution 1: Facilitation and Improvement of Knowledge Sharing',
+            'This solution is about improving how information, skills, and experiences are exchanged across the value chain.',
+            'false',
+            '',
+            '',
+            '',
+        ]
+        writer.writerow(section_example_1)
+
+        # Write another question in same section (same section_header, empty preamble)
+        section_example_2 = [
+            'How feasible would it be to implement this solution in your local context?',
+            'choice_single',
+            'farmers,processors,aggregators_lbcs',
+            'cocoa,maize,palm_oil',
+            'Ghana,Nigeria',
+            'internal',
+            'true',
+            'Not feasible at all|Slightly feasible|Somewhat feasible|Moderately feasible|Feasible|Very feasible|Extremely feasible',
+            'Solution 1: Facilitation and Improvement of Knowledge Sharing',
+            '',
+            'false',
+            '',
+            '',
+            '',
+        ]
+        writer.writerow(section_example_2)
 
         return response
 
@@ -166,6 +210,8 @@ class QuestionImportExport:
             'internal',
             'true',
             'Farming|Trading|Processing|Other',
+            '',
+            '',
             'false',
             '',
             '',
@@ -185,6 +231,8 @@ class QuestionImportExport:
             'internal',
             'true',
             '',
+            '',
+            '',
             'true',
             'What is your primary source of income?',
             'equals',
@@ -194,8 +242,51 @@ class QuestionImportExport:
             cell = sheet.cell(row=4, column=col_idx, value=value)
             cell.fill = PatternFill(start_color="FFF4CC", end_color="FFF4CC", fill_type="solid")
 
-        # Adjust column widths
-        column_widths = [50, 20, 35, 30, 25, 25, 15, 40, 15, 40, 20, 30]
+        # Write section with preamble example (first question in section)
+        section_fill = PatternFill(start_color="E7E6FF", end_color="E7E6FF", fill_type="solid")
+        section_row_1 = [
+            'How effective do you think better knowledge sharing help solve current challenges in the value chain?',
+            'choice_single',
+            'farmers,processors,aggregators_lbcs',
+            'cocoa,maize,palm_oil',
+            'Ghana,Nigeria',
+            'internal',
+            'true',
+            'Not effective at all|Slightly effective|Somewhat effective|Moderately effective|Effective|Very effective|Extremely effective',
+            'Solution 1: Facilitation and Improvement of Knowledge Sharing',
+            'This solution is about improving how information, skills, and experiences are exchanged across the value chain.',
+            'false',
+            '',
+            '',
+            '',
+        ]
+        for col_idx, value in enumerate(section_row_1, start=1):
+            cell = sheet.cell(row=5, column=col_idx, value=value)
+            cell.fill = section_fill
+
+        # Write another question in same section (same section_header, empty preamble)
+        section_row_2 = [
+            'How feasible would it be to implement this solution in your local context?',
+            'choice_single',
+            'farmers,processors,aggregators_lbcs',
+            'cocoa,maize,palm_oil',
+            'Ghana,Nigeria',
+            'internal',
+            'true',
+            'Not feasible at all|Slightly feasible|Somewhat feasible|Moderately feasible|Feasible|Very feasible|Extremely feasible',
+            'Solution 1: Facilitation and Improvement of Knowledge Sharing',
+            '',
+            'false',
+            '',
+            '',
+            '',
+        ]
+        for col_idx, value in enumerate(section_row_2, start=1):
+            cell = sheet.cell(row=6, column=col_idx, value=value)
+            cell.fill = section_fill
+
+        # Adjust column widths (updated for new columns)
+        column_widths = [50, 20, 35, 30, 25, 25, 15, 40, 40, 50, 15, 40, 20, 30]
         for col_idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
@@ -471,6 +562,10 @@ class QuestionImportExport:
             is_owner_question = True
             question_sources = ['owner']
 
+        # Parse section fields
+        section_header = str(row.get('section_header', '')).strip()
+        section_preamble = str(row.get('section_preamble', '')).strip()
+
         # Build question data
         question_data = {
             'question_text': question_text,
@@ -494,6 +589,8 @@ class QuestionImportExport:
             'is_active': True,
             'is_follow_up': is_follow_up,
             'conditional_logic': conditional_logic,
+            'section_header': section_header,
+            'section_preamble': section_preamble,
         }
 
         return question_data, errors
