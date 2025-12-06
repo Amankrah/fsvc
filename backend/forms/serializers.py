@@ -25,6 +25,7 @@ class QuestionBankSerializer(serializers.ModelSerializer):
             'allow_multiple', 'options', 'validation_rules', 'priority_score',
             'is_active', 'tags', 'is_owner_question', 'question_sources',
             'created_by_user', 'created_by_user_username', 'is_follow_up', 'conditional_logic',
+            'section_header', 'section_preamble',
             'created_at', 'updated_at', 'created_by',
             'targeted_respondents_display', 'targeted_commodities_display',
             'can_edit', 'auto_category_preview'
@@ -163,6 +164,8 @@ class QuestionSerializer(serializers.ModelSerializer):
             # Research partnership fields (copied from QuestionBank)
             'question_category', 'data_source', 'research_partner_name',
             'research_partner_contact', 'work_package', 'created_by_user',
+            # Section/preamble fields
+            'section_header', 'section_preamble',
             # Conditional logic fields
             'is_follow_up', 'conditional_logic'
         ]

@@ -195,6 +195,19 @@ class QuestionBank(models.Model):
         help_text="Additional tags for question organization"
     )
 
+    # Section/Group Information (for preambles and organization)
+    section_header = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text="Section/group title - questions with the same section_header are grouped together"
+    )
+    section_preamble = models.TextField(
+        blank=True,
+        default='',
+        help_text="Introductory text displayed before the first question in this section"
+    )
+
     # Conditional/Follow-up Question Logic
     is_follow_up = models.BooleanField(
         default=False,
@@ -333,6 +346,9 @@ class QuestionBank(models.Model):
             research_partner_contact=self.research_partner_contact,
             work_package=self.work_package,
             created_by_user=self.created_by_user,
+            # Copy section/preamble information
+            section_header=self.section_header,
+            section_preamble=self.section_preamble,
         )
     
     @classmethod
@@ -547,6 +563,19 @@ class Question(models.Model):
         max_length=100,
         blank=True,
         help_text="Country this question was generated for"
+    )
+
+    # Section/Group Information (for preambles and organization)
+    section_header = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text="Section/group title - questions with the same section_header are grouped together"
+    )
+    section_preamble = models.TextField(
+        blank=True,
+        default='',
+        help_text="Introductory text displayed before the first question in this section"
     )
 
     # Conditional/Follow-up Question Logic
