@@ -307,3 +307,4 @@ celerybeat.pid
 *.md
 !README.md
 DEPLOYMENT.md
+/FsdaFrontend/android
