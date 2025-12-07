@@ -643,9 +643,9 @@ class QuestionImportExport:
 
             try:
                 # Check if question already exists
-                # A duplicate is: same question_text + same primary respondent type + same section_preamble + same project
+                # A duplicate is: same question_text + same respondent type list + same section_preamble + same project
                 # This allows the same question for different respondent types or different sections
-                primary_respondent = question_data['targeted_respondents'][0] if question_data.get('targeted_respondents') else None
+                targeted_respondents = question_data.get('targeted_respondents', [])
                 section_preamble = question_data.get('section_preamble', '') or ''
 
                 # Build query filter for duplicate detection
@@ -655,18 +655,14 @@ class QuestionImportExport:
                     'section_preamble': section_preamble
                 }
 
-                # Filter by primary respondent type if available
+                # Filter by exact match of targeted_respondents list
                 existing = None
-                if primary_respondent:
-                    # Find questions where the first element of targeted_respondents matches
-                    candidates = QuestionBank.objects.filter(**query_filter)
-                    for candidate in candidates:
-                        if candidate.targeted_respondents and len(candidate.targeted_respondents) > 0:
-                            if candidate.targeted_respondents[0] == primary_respondent:
-                                existing = candidate
-                                break
-                else:
-                    existing = QuestionBank.objects.filter(**query_filter).first()
+                candidates = QuestionBank.objects.filter(**query_filter)
+                for candidate in candidates:
+                    # Compare the full targeted_respondents list (order matters)
+                    if candidate.targeted_respondents == targeted_respondents:
+                        existing = candidate
+                        break
 
                 if existing:
                     # Update existing question
@@ -731,7 +727,7 @@ class QuestionImportExport:
                             continue
 
                 # Check if question already exists (same duplicate logic as first pass)
-                primary_respondent = question_data['targeted_respondents'][0] if question_data.get('targeted_respondents') else None
+                targeted_respondents = question_data.get('targeted_respondents', [])
                 section_preamble = question_data.get('section_preamble', '') or ''
 
                 query_filter = {
@@ -740,18 +736,14 @@ class QuestionImportExport:
                     'section_preamble': section_preamble
                 }
 
-                # Filter by primary respondent type if available
+                # Filter by exact match of targeted_respondents list
                 existing = None
-                if primary_respondent:
-                    # Find questions where the first element of targeted_respondents matches
-                    candidates = QuestionBank.objects.filter(**query_filter)
-                    for candidate in candidates:
-                        if candidate.targeted_respondents and len(candidate.targeted_respondents) > 0:
-                            if candidate.targeted_respondents[0] == primary_respondent:
-                                existing = candidate
-                                break
-                else:
-                    existing = QuestionBank.objects.filter(**query_filter).first()
+                candidates = QuestionBank.objects.filter(**query_filter)
+                for candidate in candidates:
+                    # Compare the full targeted_respondents list (order matters)
+                    if candidate.targeted_respondents == targeted_respondents:
+                        existing = candidate
+                        break
 
                 if existing:
                     # Update existing question
