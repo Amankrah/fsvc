@@ -642,14 +642,31 @@ class QuestionImportExport:
                 continue
 
             try:
-                # Check if question already exists (by question_text, category, and project)
+                # Check if question already exists
+                # A duplicate is: same question_text + same primary respondent type + same section_preamble + same project
+                # This allows the same question for different respondent types or different sections
+                primary_respondent = question_data['targeted_respondents'][0] if question_data.get('targeted_respondents') else None
+                section_preamble = question_data.get('section_preamble', '') or ''
+
+                # Build query filter for duplicate detection
                 query_filter = {
                     'question_text': question_data['question_text'],
-                    'question_category': question_data['question_category'],
-                    'project': project
+                    'project': project,
+                    'section_preamble': section_preamble
                 }
 
-                existing = QuestionBank.objects.filter(**query_filter).first()
+                # Filter by primary respondent type if available
+                existing = None
+                if primary_respondent:
+                    # Find questions where the first element of targeted_respondents matches
+                    candidates = QuestionBank.objects.filter(**query_filter)
+                    for candidate in candidates:
+                        if candidate.targeted_respondents and len(candidate.targeted_respondents) > 0:
+                            if candidate.targeted_respondents[0] == primary_respondent:
+                                existing = candidate
+                                break
+                else:
+                    existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
                     # Update existing question
@@ -713,14 +730,28 @@ class QuestionImportExport:
                             errors.append(f"Parent question '{parent_text}' not found for follow-up question '{question_data.get('question_text')}'")
                             continue
 
-                # Check if question already exists
+                # Check if question already exists (same duplicate logic as first pass)
+                primary_respondent = question_data['targeted_respondents'][0] if question_data.get('targeted_respondents') else None
+                section_preamble = question_data.get('section_preamble', '') or ''
+
                 query_filter = {
                     'question_text': question_data['question_text'],
-                    'question_category': question_data['question_category'],
-                    'project': project
+                    'project': project,
+                    'section_preamble': section_preamble
                 }
 
-                existing = QuestionBank.objects.filter(**query_filter).first()
+                # Filter by primary respondent type if available
+                existing = None
+                if primary_respondent:
+                    # Find questions where the first element of targeted_respondents matches
+                    candidates = QuestionBank.objects.filter(**query_filter)
+                    for candidate in candidates:
+                        if candidate.targeted_respondents and len(candidate.targeted_respondents) > 0:
+                            if candidate.targeted_respondents[0] == primary_respondent:
+                                existing = candidate
+                                break
+                else:
+                    existing = QuestionBank.objects.filter(**query_filter).first()
 
                 if existing:
                     # Update existing question
