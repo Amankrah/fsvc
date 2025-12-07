@@ -58,7 +58,7 @@ export const useResponseState = (
   }, [currentQuestionIndex]);
 
   const handleSubmit = useCallback(
-    async (onSuccess: () => void) => {
+    async (onSuccess: () => void, onFinish?: () => void) => {
       // Check if all required visible questions are answered
       const unansweredRequired = visibleQuestions.filter(
         q => q.is_required && !responses[q.id]
@@ -121,7 +121,11 @@ export const useResponseState = (
           },
           {
             text: 'Finish & Go Back',
-            onPress: () => {},
+            onPress: () => {
+              if (onFinish) {
+                onFinish();
+              }
+            },
             style: 'cancel',
           },
         ]);

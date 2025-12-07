@@ -114,6 +114,11 @@ const DataCollectionScreen: React.FC = () => {
     setShowRespondentForm(true);
   };
 
+  // Handle Finish and Go Back
+  const handleFinishAndGoBack = () => {
+    navigation.goBack();
+  };
+
   // Handle Back to Form
   const handleBackToForm = () => {
     setShowRespondentForm(true);
@@ -461,7 +466,7 @@ const DataCollectionScreen: React.FC = () => {
             progress={responses.progress}
             onPrevious={responses.handlePrevious}
             onNext={responses.handleNext}
-            onSubmit={() => responses.handleSubmit(handleSubmitSuccess)}
+            onSubmit={() => responses.handleSubmit(handleSubmitSuccess, handleFinishAndGoBack)}
             submitting={responses.submitting}
             canGoBack={responses.currentQuestionIndex > 0}
             isLastQuestion={
