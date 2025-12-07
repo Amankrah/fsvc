@@ -116,7 +116,8 @@ const DataCollectionScreen: React.FC = () => {
 
   // Handle Finish and Go Back
   const handleFinishAndGoBack = () => {
-    navigation.goBack();
+    // Navigate to Dashboard after finishing data collection session
+    navigation.navigate('Dashboard');
   };
 
   // Handle Back to Form
