@@ -13,6 +13,7 @@ interface UseQuestionsProps {
   selectedRespondentType: RespondentType | '';
   selectedCommodities: CommodityType[];
   selectedCountry: string;
+  useProjectBankOnly?: boolean;
 }
 
 export const useQuestions = ({
@@ -20,6 +21,7 @@ export const useQuestions = ({
   selectedRespondentType,
   selectedCommodities,
   selectedCountry,
+  useProjectBankOnly = true,
 }: UseQuestionsProps) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
@@ -127,6 +129,7 @@ export const useQuestions = ({
           respondent_type: selectedRespondentType,
           commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : undefined,
           country: selectedCountry || undefined,
+          use_project_bank_only: useProjectBankOnly,
           replace_existing: false,
           notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesText}${
             selectedCountry ? `, ${selectedCountry}` : ''

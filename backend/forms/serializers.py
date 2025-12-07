@@ -387,6 +387,10 @@ class GenerateDynamicQuestionsSerializer(serializers.Serializer):
         allow_empty=True,
         help_text="Work packages to include"
     )
+    use_project_bank_only = serializers.BooleanField(
+        default=True,
+        help_text="If true, only use questions from this project's question bank. If false, use all accessible question banks."
+    )
     replace_existing = serializers.BooleanField(
         default=False,
         help_text="Whether to replace existing questions or append"

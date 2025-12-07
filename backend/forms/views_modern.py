@@ -524,6 +524,7 @@ class ModernQuestionViewSet(BaseModelViewSet):
             country = serializer.validated_data.get('country')
             categories = serializer.validated_data.get('categories', [])
             work_packages = serializer.validated_data.get('work_packages', [])
+            use_project_bank_only = serializer.validated_data.get('use_project_bank_only', True)
             replace_existing = serializer.validated_data.get('replace_existing', False)
             notes = serializer.validated_data.get('notes', '')
             
@@ -551,12 +552,13 @@ class ModernQuestionViewSet(BaseModelViewSet):
             print(f"Country: '{country}'")
             print(f"Categories: {categories}")
             print(f"Work Packages: {work_packages}")
+            print(f"Use Project Bank Only: {use_project_bank_only}")
             print(f"Replace Existing: {replace_existing}")
-            
+
             # Check QuestionBank items available
             total_bank_items = QuestionBank.objects.filter(is_active=True).count()
             print(f"Total active QuestionBank items: {total_bank_items}")
-            
+
             logger.info(f"========== GENERATE DYNAMIC QUESTIONS DEBUG ==========")
             logger.info(f"Project: {project.name} ({project_id})")
             logger.info(f"Respondent Type: {respondent_type}")
@@ -564,6 +566,7 @@ class ModernQuestionViewSet(BaseModelViewSet):
             logger.info(f"Country: {country}")
             logger.info(f"Categories: {categories}")
             logger.info(f"Work Packages: {work_packages}")
+            logger.info(f"Use Project Bank Only: {use_project_bank_only}")
             logger.info(f"Replace Existing: {replace_existing}")
             logger.info(f"Total active QuestionBank items: {total_bank_items}")
             
@@ -597,7 +600,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     country=country,
                     categories=categories,
                     work_packages=work_packages,
-                    user=request.user  # Pass user for access control
+                    user=request.user,  # Pass user for access control
+                    use_project_bank_only=use_project_bank_only  # Control question bank scope
                 )
                 
                 print(f"✅ Generated {len(generated_questions)} questions")

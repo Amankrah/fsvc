@@ -257,6 +257,7 @@ class ApiService {
     country?: string;
     categories?: string[];
     work_packages?: string[];
+    use_project_bank_only?: boolean;
     replace_existing?: boolean;
     notes?: string;
   }) {

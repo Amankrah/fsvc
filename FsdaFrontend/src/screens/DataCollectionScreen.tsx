@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button } from 'react-native-paper';
+import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 
@@ -47,6 +47,7 @@ const DataCollectionScreen: React.FC = () => {
   const [linkExpirationDays, setLinkExpirationDays] = useState('7');
   const [linkMaxResponses, setLinkMaxResponses] = useState('100');
   const [creatingLink, setCreatingLink] = useState(false);
+  const [useProjectBankOnly, setUseProjectBankOnly] = useState(true);
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -57,6 +58,7 @@ const DataCollectionScreen: React.FC = () => {
     selectedRespondentType: respondent.selectedRespondentType,
     selectedCommodities: respondent.selectedCommodities,
     selectedCountry: respondent.selectedCountry,
+    useProjectBankOnly,
   });
 
   // Response State Hook
@@ -231,6 +233,32 @@ const DataCollectionScreen: React.FC = () => {
               onPress={handleOpenLinkDialog}
             />
           </View>
+
+          {/* Question Bank Scope Configuration */}
+          <Card style={styles.configCard}>
+            <Card.Content>
+              <View style={styles.scopeControl}>
+                <View style={styles.scopeTextContainer}>
+                  <Text variant="titleMedium" style={styles.scopeTitle}>
+                    Question Bank Scope
+                  </Text>
+                  <Text variant="bodySmall" style={styles.scopeDescription}>
+                    {useProjectBankOnly
+                      ? 'Using only questions from this project\'s question bank'
+                      : 'Using questions from all accessible question banks'}
+                  </Text>
+                </View>
+                <Switch
+                  value={useProjectBankOnly}
+                  onValueChange={setUseProjectBankOnly}
+                  color="#6200ee"
+                />
+              </View>
+              <Text variant="bodySmall" style={styles.scopeHelpText}>
+                Toggle to choose between project-specific questions or all accessible questions
+              </Text>
+            </Card.Content>
+          </Card>
 
           {/* Respondent Form */}
           <RespondentForm
@@ -609,6 +637,37 @@ const styles = StyleSheet.create({
   loadingText: {
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 16,
+  },
+  configCard: {
+    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(75, 30, 133, 0.3)',
+    marginBottom: 16,
+  },
+  scopeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  scopeTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  scopeTitle: {
+    color: '#ffffff',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  scopeDescription: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 18,
+  },
+  scopeHelpText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });
 

@@ -877,21 +877,39 @@ class Question(models.Model):
                 self.question_bank_source.research_partner_contact)
     
     @classmethod
-    def generate_dynamic_questions_for_project(cls, project, respondent_type, 
-                                             commodity=None, country=None, 
-                                             categories=None, work_packages=None, user=None):
-        """Generate dynamic questions from QuestionBank for a specific project"""
+    def generate_dynamic_questions_for_project(cls, project, respondent_type,
+                                             commodity=None, country=None,
+                                             categories=None, work_packages=None, user=None,
+                                             use_project_bank_only=True):
+        """Generate dynamic questions from QuestionBank for a specific project
+
+        Args:
+            use_project_bank_only: If True, only use questions from this project's bank.
+                                   If False, use all accessible question banks. Default: True
+        """
         from django.db.models import Max
         import logging
         logger = logging.getLogger(__name__)
-        
+
         questions = []
-        
-        # Get all active questions accessible to the user
-        if user:
-            all_bank_questions = list(QuestionBank.get_accessible_items(user).filter(is_active=True))
+
+        # Get question bank items based on scope preference
+        if use_project_bank_only:
+            # Get questions ONLY from this specific project's question bank
+            all_bank_questions = list(
+                QuestionBank.objects.filter(
+                    project=project,
+                    is_active=True
+                )
+            )
+            logger.info(f"[QuestionGen] Using project-specific question bank only for project '{project.name}'")
         else:
-            all_bank_questions = list(QuestionBank.objects.filter(is_active=True))
+            # Get questions from all accessible question banks
+            if user:
+                all_bank_questions = list(QuestionBank.get_accessible_items(user).filter(is_active=True))
+            else:
+                all_bank_questions = list(QuestionBank.objects.filter(is_active=True))
+            logger.info(f"[QuestionGen] Using all accessible question banks for user")
         print(f"[QuestionGen] Step 1: Found {len(all_bank_questions)} active QuestionBank items")
         logger.info(f"[QuestionGen] Step 1: Found {len(all_bank_questions)} active QuestionBank items")
 
