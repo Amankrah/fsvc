@@ -197,6 +197,42 @@ const ResponseLinksScreen: React.FC = () => {
                   Project: {link.project_name}
                 </Text>
 
+                {/* Tags for Respondent Type, Commodity, Country */}
+                {(link.respondent_type_display || link.commodity_display || link.country_display) && (
+                  <View style={styles.tagsContainer}>
+                    {link.respondent_type_display && (
+                      <Chip
+                        icon="account"
+                        style={styles.tag}
+                        textStyle={styles.tagText}
+                        compact
+                      >
+                        {link.respondent_type_display}
+                      </Chip>
+                    )}
+                    {link.commodity_display && (
+                      <Chip
+                        icon="package-variant"
+                        style={styles.tag}
+                        textStyle={styles.tagText}
+                        compact
+                      >
+                        {link.commodity_display}
+                      </Chip>
+                    )}
+                    {link.country_display && (
+                      <Chip
+                        icon="map-marker"
+                        style={styles.tag}
+                        textStyle={styles.tagText}
+                        compact
+                      >
+                        {link.country_display}
+                      </Chip>
+                    )}
+                  </View>
+                )}
+
                 <Divider style={styles.divider} />
 
                 {/* Statistics */}
@@ -422,7 +458,20 @@ const styles = StyleSheet.create({
   },
   projectName: {
     color: '#666',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  tag: {
+    backgroundColor: '#e3f2fd',
+  },
+  tagText: {
+    color: '#1976d2',
+    fontSize: 11,
   },
   divider: {
     marginVertical: 12,

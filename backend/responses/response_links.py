@@ -209,7 +209,15 @@ class ResponseLink(models.Model):
 
     def __str__(self):
         status = "Active" if self.is_valid() else "Expired"
-        return f"{self.title or self.token[:8]}... - {status} ({self.response_count}/{self.max_responses or '∞'})"
+        tags = []
+        if self.respondent_type:
+            tags.append(self.respondent_type)
+        if self.commodity:
+            tags.append(self.commodity)
+        if self.country:
+            tags.append(self.country)
+        tag_str = f" [{', '.join(tags)}]" if tags else ""
+        return f"{self.title or self.token[:8]}...{tag_str} - {status} ({self.response_count}/{self.max_responses or '∞'})"
 
     def clean(self):
         """Model validation"""

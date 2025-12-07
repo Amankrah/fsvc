@@ -146,6 +146,9 @@ const DataCollectionScreen: React.FC = () => {
       const linkData = {
         project: projectId,
         question_set: questionIds,
+        respondent_type: respondent.selectedRespondentType || '',
+        commodity: respondent.selectedCommodities.join(',') || '',
+        country: respondent.selectedCountry || '',
         title: linkTitle || projectName,
         description: linkDescription,
         expiration_days: parseInt(linkExpirationDays) || 7,

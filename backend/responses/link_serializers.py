@@ -18,6 +18,9 @@ class ResponseLinkSerializer(serializers.ModelSerializer):
     statistics = serializers.SerializerMethodField()
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    respondent_type_display = serializers.SerializerMethodField()
+    commodity_display = serializers.SerializerMethodField()
+    country_display = serializers.ReadOnlyField(source='country')
 
     class Meta:
         model = ResponseLink
@@ -30,8 +33,11 @@ class ResponseLinkSerializer(serializers.ModelSerializer):
             'created_by_name',
             'question_set',
             'respondent_type',
+            'respondent_type_display',
             'commodity',
+            'commodity_display',
             'country',
+            'country_display',
             'is_active',
             'max_responses',
             'response_count',
@@ -63,6 +69,32 @@ class ResponseLinkSerializer(serializers.ModelSerializer):
             'last_accessed_at',
             'access_count',
         ]
+
+    def get_respondent_type_display(self, obj):
+        """Get human-readable respondent type"""
+        from forms.models import QuestionBank
+        if not obj.respondent_type:
+            return None
+        for value, display in QuestionBank.RESPONDENT_CHOICES:
+            if value == obj.respondent_type:
+                return display
+        return obj.respondent_type
+
+    def get_commodity_display(self, obj):
+        """Get human-readable commodity name(s)"""
+        from forms.models import QuestionBank
+        if not obj.commodity:
+            return None
+        commodities = [c.strip() for c in obj.commodity.split(',')]
+        display_names = []
+        for commodity in commodities:
+            for value, display in QuestionBank.COMMODITY_CHOICES:
+                if value == commodity:
+                    display_names.append(display)
+                    break
+            else:
+                display_names.append(commodity)
+        return ', '.join(display_names)
 
     def get_statistics(self, obj):
         """Get link statistics"""

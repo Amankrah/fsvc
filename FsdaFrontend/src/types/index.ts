@@ -12,8 +12,11 @@ export interface ResponseLink {
   created_by_name: string;
   question_set: string[];
   respondent_type: string;
+  respondent_type_display: string | null;
   commodity: string;
+  commodity_display: string | null;
   country: string;
+  country_display: string | null;
   is_active: boolean;
   max_responses: number;
   response_count: number;
