@@ -3,7 +3,7 @@ Descriptive Analytics Endpoints
 Handles comprehensive statistical analysis including distributions, correlations, and data quality assessment.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional, Union
 import pandas as pd
@@ -71,7 +71,7 @@ router = APIRouter()
 @router.post("/project/{project_id}/analyze/basic-statistics")
 async def analyze_basic_statistics(
     project_id: str,
-    variables: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -107,7 +107,7 @@ async def analyze_basic_statistics(
 @router.post("/project/{project_id}/analyze/distributions")
 async def analyze_distributions(
     project_id: str,
-    variables: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -143,7 +143,7 @@ async def analyze_distributions(
 @router.post("/project/{project_id}/analyze/categorical")
 async def analyze_categorical_data(
     project_id: str,
-    variables: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -179,8 +179,8 @@ async def analyze_categorical_data(
 @router.post("/project/{project_id}/analyze/outliers")
 async def analyze_outliers(
     project_id: str,
-    variables: Optional[List[str]] = None,
-    methods: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
+    methods: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -285,8 +285,8 @@ async def analyze_data_quality(
 @router.post("/project/{project_id}/analyze/descriptive")
 async def analyze_descriptive(
     project_id: str,
-    analysis_type: str = "comprehensive",
-    target_variables: Optional[List[str]] = None,
+    analysis_type: str = Body("comprehensive", embed=True),
+    target_variables: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -323,7 +323,7 @@ async def analyze_descriptive(
 @router.post("/project/{project_id}/generate-report")
 async def generate_comprehensive_report(
     project_id: str,
-    include_plots: bool = False,
+    include_plots: bool = Body(False, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -740,11 +740,11 @@ async def get_available_questions(
 @router.post("/project/{project_id}/analyze/geospatial")
 async def analyze_geospatial_data(
     project_id: str,
-    lat_column: str,
-    lon_column: str,
-    value_column: Optional[str] = None,
-    max_distance_km: float = 10.0,
-    n_clusters: int = 5,
+    lat_column: str = Body(..., embed=True),
+    lon_column: str = Body(..., embed=True),
+    value_column: Optional[str] = Body(None, embed=True),
+    max_distance_km: float = Body(10.0, embed=True),
+    n_clusters: int = Body(5, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -808,10 +808,10 @@ async def analyze_geospatial_data(
 @router.post("/project/{project_id}/analyze/temporal")
 async def analyze_temporal_data(
     project_id: str,
-    date_column: str,
-    value_columns: Optional[List[str]] = None,
-    detect_seasonal: bool = True,
-    seasonal_period: Optional[int] = None,
+    date_column: str = Body(..., embed=True),
+    value_columns: Optional[List[str]] = Body(None, embed=True),
+    detect_seasonal: bool = Body(True, embed=True),
+    seasonal_period: Optional[int] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -882,9 +882,9 @@ async def analyze_temporal_data(
 @router.post("/project/{project_id}/analyze/cross-tabulation")
 async def analyze_cross_tabulation_data(
     project_id: str,
-    var1: str,
-    var2: str,
-    normalize: Optional[str] = None,
+    var1: str = Body(..., embed=True),
+    var2: str = Body(..., embed=True),
+    normalize: Optional[str] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -931,8 +931,8 @@ async def analyze_cross_tabulation_data(
 @router.post("/project/{project_id}/analyze/normality")
 async def test_normality_data(
     project_id: str,
-    variables: Optional[List[str]] = None,
-    alpha: float = 0.05,
+    variables: Optional[List[str]] = Body(None, embed=True),
+    alpha: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -977,8 +977,8 @@ async def test_normality_data(
 @router.post("/project/{project_id}/analyze/distribution-fitting")
 async def fit_distributions_data(
     project_id: str,
-    variables: Optional[List[str]] = None,
-    distributions: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
+    distributions: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1022,8 +1022,8 @@ async def fit_distributions_data(
 @router.post("/project/{project_id}/analyze/weighted-statistics")
 async def calculate_weighted_statistics(
     project_id: str,
-    value_column: str,
-    weight_column: str,
+    value_column: str = Body(..., embed=True),
+    weight_column: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1069,9 +1069,9 @@ async def calculate_weighted_statistics(
 @router.post("/project/{project_id}/analyze/grouped-statistics")
 async def calculate_grouped_statistics(
     project_id: str,
-    group_by: Union[str, List[str]],
-    target_columns: Optional[List[str]] = None,
-    stats_functions: Optional[List[str]] = None,
+    group_by: Union[str, List[str]] = Body(..., embed=True),
+    target_columns: Optional[List[str]] = Body(None, embed=True),
+    stats_functions: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1119,8 +1119,8 @@ async def calculate_grouped_statistics(
 @router.post("/project/{project_id}/analyze/missing-patterns")
 async def analyze_missing_patterns(
     project_id: str,
-    max_patterns: int = 20,
-    group_column: Optional[str] = None,
+    max_patterns: int = Body(20, embed=True),
+    group_column: Optional[str] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1172,7 +1172,7 @@ async def analyze_missing_patterns(
 @router.post("/project/{project_id}/analyze/diversity-metrics")
 async def calculate_diversity_metrics_data(
     project_id: str,
-    variables: Optional[List[str]] = None,
+    variables: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1216,8 +1216,8 @@ async def calculate_diversity_metrics_data(
 @router.post("/project/{project_id}/analyze/categorical-associations")
 async def analyze_categorical_associations_data(
     project_id: str,
-    variables: Optional[List[str]] = None,
-    method: str = 'cramers_v',
+    variables: Optional[List[str]] = Body(None, embed=True),
+    method: str = Body('cramers_v', embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1291,9 +1291,9 @@ async def generate_executive_summary_report(
 @router.post("/project/{project_id}/export-report")
 async def export_analysis_report(
     project_id: str,
-    format: str = 'json',
-    analysis_type: str = 'comprehensive',
-    include_metadata: bool = True,
+    format: str = Body('json', embed=True),
+    analysis_type: str = Body('comprehensive', embed=True),
+    include_metadata: bool = Body(True, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """

@@ -841,13 +841,29 @@ class AnalyticsUtils:
             # Check if we have survey data in long format
             if 'question_text' in df.columns:
                 # Filter to only NUMERIC response types
-                if 'response_data_type' in df.columns:
+                # Check response_type column for numeric types
+                if 'response_type' in df.columns:
+                    numeric_types = ['numeric_integer', 'numeric_decimal', 'scale_rating', 'number']
+                    numeric_df = df[df['response_type'].isin(numeric_types)].copy()
+                elif 'response_data_type' in df.columns:
                     numeric_df = df[df['response_data_type'] == 'numeric'].copy()
                 elif 'analytics_category' in df.columns:
                     numeric_df = df[df['analytics_category'] == 'descriptive'].copy()
                 else:
                     # Fallback: use rows where numeric_value is not null
                     numeric_df = df[df['numeric_value'].notna()].copy()
+
+                # Workaround for data quality issue: response_type might be incorrect
+                # Also try to find numeric data by attempting to convert response_value
+                if numeric_df.empty and 'response_value' in df.columns:
+                    # Try to convert all response_values to numeric
+                    df_test = df.copy()
+                    df_test['_is_numeric'] = pd.to_numeric(df_test['response_value'], errors='coerce').notna()
+                    # Find questions where most responses are numeric
+                    numeric_questions = df_test.groupby('question_text')['_is_numeric'].mean()
+                    numeric_questions = numeric_questions[numeric_questions > 0.5].index.tolist()
+                    if numeric_questions:
+                        numeric_df = df[df['question_text'].isin(numeric_questions)].copy()
 
                 if numeric_df.empty:
                     return {
@@ -860,11 +876,19 @@ class AnalyticsUtils:
                         }
                     }
 
+                # Convert response_value to numeric for numeric questions
+                # (numeric_value column might be NULL if not properly populated)
+                numeric_df['value_to_analyze'] = pd.to_numeric(numeric_df['response_value'], errors='coerce')
+
+                # If value_to_analyze is all NaN, try numeric_value column
+                if numeric_df['value_to_analyze'].isna().all() and 'numeric_value' in numeric_df.columns:
+                    numeric_df['value_to_analyze'] = numeric_df['numeric_value']
+
                 # Pivot the numeric data from long to wide format
                 pivoted = numeric_df.pivot_table(
                     index='respondent_id',
                     columns='question_text',
-                    values='numeric_value',
+                    values='value_to_analyze',
                     aggfunc='first'
                 )
 
@@ -969,32 +993,61 @@ class AnalyticsUtils:
         """Run categorical analysis for categorical variables."""
         if df.empty:
             return {'error': 'No data available for analysis'}
-        
+
         try:
-            # Select variables or use all categorical ones
-            if variables:
-                categorical_cols = [col for col in variables if col in df.columns and 
-                                  df[col].dtype in ['object', 'category']]
-            else:
-                categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-            
-            if not categorical_cols:
-                return {'error': 'No categorical variables found for analysis'}
-            
-            results = {}
-            for col in categorical_cols:
-                try:
-                    series = df[col].dropna()
+            # Check if DataFrame is in long format (has question_text and response_value columns)
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Filter for categorical/choice questions
+                categorical_df = df[df['response_data_type'].isin(['choice', 'text', 'categorical'])]
+
+                if variables:
+                    # Filter by specific question texts
+                    categorical_df = categorical_df[categorical_df['question_text'].isin(variables)]
+
+                if categorical_df.empty:
+                    return {'error': 'No categorical variables found for analysis'}
+
+                # Analyze each question separately
+                results = {}
+                for question_text in categorical_df['question_text'].unique():
+                    question_data = categorical_df[categorical_df['question_text'] == question_text]
+                    series = question_data['response_value'].dropna()
                     if len(series) > 0:
-                        results[col] = analyze_categorical(series)
-                except Exception as e:
-                    results[col] = {'error': f'Analysis failed: {str(e)}'}
-            
+                        try:
+                            results[question_text] = analyze_categorical(series)
+                        except Exception as e:
+                            results[question_text] = {'error': f'Analysis failed: {str(e)}'}
+            else:
+                # Original logic for wide format DataFrames
+                # Select variables or use all categorical ones
+                if variables:
+                    categorical_cols = [col for col in variables if col in df.columns and
+                                      df[col].dtype in ['object', 'category']]
+                else:
+                    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+
+                if not categorical_cols:
+                    return {'error': 'No categorical variables found for analysis'}
+
+                results = {}
+                for col in categorical_cols:
+                    try:
+                        series = df[col].dropna()
+                        if len(series) > 0:
+                            results[col] = analyze_categorical(series)
+                    except Exception as e:
+                        results[col] = {'error': f'Analysis failed: {str(e)}'}
+
             # Cross-tabulation analysis for pairs of categorical variables
             cross_tabs = {}
-            if len(categorical_cols) >= 2:
-                for i, col1 in enumerate(categorical_cols):
-                    for col2 in categorical_cols[i+1:]:
+            if 'question_text' in df.columns:
+                # For long format, we can't do cross-tabulation easily
+                # Skip cross-tabs for now in long format
+                pass
+            elif len(results) >= 2:
+                categorical_cols_list = list(results.keys())
+                for i, col1 in enumerate(categorical_cols_list):
+                    for col2 in categorical_cols_list[i+1:]:
                         try:
                             cross_tab_key = f"{col1}_vs_{col2}"
                             cross_tabs[cross_tab_key] = analyze_cross_tabulation(df, col1, col2)

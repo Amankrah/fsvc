@@ -115,27 +115,77 @@ const RootNavigator: React.FC = () => {
             <Stack.Screen
               name="ProjectDetails"
               component={ProjectDetailsScreen}
-              options={{ title: 'Project Details' }}
+              options={({ navigation }) => ({
+                title: 'Project Details',
+                headerLeft: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={24}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="Forms"
               component={FormsScreen}
-              options={{ title: 'Forms & Questionnaires' }}
+              options={({ navigation }) => ({
+                title: 'Forms & Questionnaires',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="FormBuilder"
               component={FormBuilderScreen}
-              options={{ title: 'Form Builder' }}
+              options={({ navigation }) => ({
+                title: 'Form Builder',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="DataCollection"
               component={DataCollectionScreen}
-              options={{ title: 'Data Collection' }}
+              options={({ navigation }) => ({
+                title: 'Data Collection',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="Responses"
               component={ResponsesScreen}
-              options={{ title: 'Responses' }}
+              options={({ navigation }) => ({
+                title: 'Responses',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="ResponseLinks"
@@ -145,17 +195,47 @@ const RootNavigator: React.FC = () => {
             <Stack.Screen
               name="Analytics"
               component={AnalyticsScreen}
-              options={{ title: 'Analytics' }}
+              options={({ navigation }) => ({
+                title: 'Analytics',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="Members"
               component={MembersScreen}
-              options={{ title: 'Project Members' }}
+              options={({ navigation }) => ({
+                title: 'Project Members',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="Sync"
               component={SyncScreen}
-              options={{ title: 'Sync & Backup' }}
+              options={({ navigation }) => ({
+                title: 'Sync & Backup',
+                headerRight: () => (
+                  <IconButton
+                    icon="home"
+                    iconColor="#fff"
+                    size={20}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  />
+                ),
+              })}
             />
             <Stack.Screen
               name="AcceptInvitation"
