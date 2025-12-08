@@ -947,32 +947,110 @@ class AnalyticsUtils:
         """Run distribution analysis for numeric variables."""
         if df.empty:
             return {'error': 'No data available for analysis'}
-        
+
         try:
-            # Select variables or use all numeric ones
-            if variables:
-                numeric_cols = [col for col in variables if col in df.columns and 
-                               pd.api.types.is_numeric_dtype(df[col])]
-            else:
-                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
-            if not numeric_cols:
-                return {'error': 'No numeric variables found for distribution analysis'}
-            
-            results = {}
-            for col in numeric_cols:
-                try:
-                    series = df[col].dropna()
+            # Check if we have survey data in long format (same logic as basic statistics)
+            if 'question_text' in df.columns:
+                # Filter to only NUMERIC response types
+                if 'response_type' in df.columns:
+                    numeric_types = ['numeric_integer', 'numeric_decimal', 'scale_rating', 'number']
+                    numeric_df = df[df['response_type'].isin(numeric_types)].copy()
+                elif 'response_data_type' in df.columns:
+                    numeric_df = df[df['response_data_type'] == 'numeric'].copy()
+                else:
+                    numeric_df = df.copy()
+
+                # Workaround for data quality issue: response_type might be incorrect
+                if numeric_df.empty and 'response_value' in df.columns:
+                    df_test = df.copy()
+                    df_test['_is_numeric'] = pd.to_numeric(df_test['response_value'], errors='coerce').notna()
+                    numeric_questions = df_test.groupby('question_text')['_is_numeric'].mean()
+                    numeric_questions = numeric_questions[numeric_questions > 0.5].index.tolist()
+                    if numeric_questions:
+                        numeric_df = df[df['question_text'].isin(numeric_questions)].copy()
+
+                if numeric_df.empty:
+                    return {'error': 'No numeric variables found for distribution analysis'}
+
+                # Convert response_value to numeric
+                numeric_df['value_to_analyze'] = pd.to_numeric(numeric_df['response_value'], errors='coerce')
+
+                # Analyze each question separately
+                results = {}
+                for question_text in numeric_df['question_text'].unique():
+                    question_data = numeric_df[numeric_df['question_text'] == question_text]
+                    series = question_data['value_to_analyze'].dropna()
                     if len(series) > 0:
-                        results[col] = {
-                            'distribution_analysis': analyze_distribution(series),
-                            'normality_test': test_normality(series),
-                            'skewness_kurtosis': calculate_skewness_kurtosis(series),
-                            'outliers': detect_outliers_iqr(series)
-                        }
-                except Exception as e:
-                    results[col] = {'error': f'Analysis failed: {str(e)}'}
-            
+                        try:
+                            analysis_result = {}
+
+                            # Try each analysis separately to provide partial results
+                            try:
+                                analysis_result['distribution_analysis'] = analyze_distribution(series)
+                            except Exception as e:
+                                analysis_result['distribution_analysis'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['normality_test'] = test_normality(series)
+                            except Exception as e:
+                                analysis_result['normality_test'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['skewness_kurtosis'] = calculate_skewness_kurtosis(series)
+                            except Exception as e:
+                                analysis_result['skewness_kurtosis'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['outliers'] = detect_outliers_iqr(series)
+                            except Exception as e:
+                                analysis_result['outliers'] = {'error': str(e)}
+
+                            results[question_text] = analysis_result
+                        except Exception as e:
+                            results[question_text] = {'error': f'Analysis failed: {str(e)}'}
+            else:
+                # Wide format data - original logic
+                if variables:
+                    numeric_cols = [col for col in variables if col in df.columns and
+                                   pd.api.types.is_numeric_dtype(df[col])]
+                else:
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+                if not numeric_cols:
+                    return {'error': 'No numeric variables found for distribution analysis'}
+
+                results = {}
+                for col in numeric_cols:
+                    try:
+                        series = df[col].dropna()
+                        if len(series) > 0:
+                            analysis_result = {}
+
+                            # Try each analysis separately to provide partial results
+                            try:
+                                analysis_result['distribution_analysis'] = analyze_distribution(series)
+                            except Exception as e:
+                                analysis_result['distribution_analysis'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['normality_test'] = test_normality(series)
+                            except Exception as e:
+                                analysis_result['normality_test'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['skewness_kurtosis'] = calculate_skewness_kurtosis(series)
+                            except Exception as e:
+                                analysis_result['skewness_kurtosis'] = {'error': str(e)}
+
+                            try:
+                                analysis_result['outliers'] = detect_outliers_iqr(series)
+                            except Exception as e:
+                                analysis_result['outliers'] = {'error': str(e)}
+
+                            results[col] = analysis_result
+                    except Exception as e:
+                        results[col] = {'error': f'Analysis failed: {str(e)}'}
+
             result = {
                 'distribution_analysis': results,
                 'summary': {
@@ -1072,62 +1150,154 @@ class AnalyticsUtils:
             return {'error': f'Categorical analysis failed: {str(e)}'}
     
     @staticmethod
-    def run_outlier_analysis(df: pd.DataFrame, variables: Optional[List[str]] = None, 
+    def run_outlier_analysis(df: pd.DataFrame, variables: Optional[List[str]] = None,
                            methods: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run comprehensive outlier detection analysis."""
         if df.empty:
             return {'error': 'No data available for analysis'}
-        
+
         try:
-            # Select variables or use all numeric ones
-            if variables:
-                numeric_cols = [col for col in variables if col in df.columns and 
-                               pd.api.types.is_numeric_dtype(df[col])]
-            else:
-                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
-            if not numeric_cols:
-                return {'error': 'No numeric variables found for outlier analysis'}
-            
-            # Default methods if not specified
-            if not methods:
-                methods = ['iqr', 'zscore', 'isolation_forest'] if len(df) > 100 else ['iqr', 'zscore']
-            
-            results = {}
-            for col in numeric_cols:
-                try:
-                    series = df[col].dropna()
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns:
+                # Filter to only NUMERIC response types
+                if 'response_type' in df.columns:
+                    numeric_types = ['numeric_integer', 'numeric_decimal', 'scale_rating', 'number']
+                    numeric_df = df[df['response_type'].isin(numeric_types)].copy()
+                elif 'response_data_type' in df.columns:
+                    numeric_df = df[df['response_data_type'] == 'numeric'].copy()
+                else:
+                    numeric_df = df.copy()
+
+                # Workaround for data quality issue
+                if numeric_df.empty and 'response_value' in df.columns:
+                    df_test = df.copy()
+                    df_test['_is_numeric'] = pd.to_numeric(df_test['response_value'], errors='coerce').notna()
+                    numeric_questions = df_test.groupby('question_text')['_is_numeric'].mean()
+                    numeric_questions = numeric_questions[numeric_questions > 0.5].index.tolist()
+                    if numeric_questions:
+                        numeric_df = df[df['question_text'].isin(numeric_questions)].copy()
+
+                if numeric_df.empty:
+                    return {'error': 'No numeric variables found for outlier analysis'}
+
+                # Convert response_value to numeric
+                numeric_df['value_to_analyze'] = pd.to_numeric(numeric_df['response_value'], errors='coerce')
+
+                # Default methods if not specified
+                if not methods:
+                    methods = ['iqr', 'zscore']
+
+                # Analyze each question separately
+                results = {}
+                for question_text in numeric_df['question_text'].unique():
+                    question_data = numeric_df[numeric_df['question_text'] == question_text]
+                    series = question_data['value_to_analyze'].dropna()
                     if len(series) > 0:
-                        col_results = {}
-                        
-                        if 'iqr' in methods:
-                            col_results['iqr_outliers'] = detect_outliers_iqr(series)
-                        if 'zscore' in methods:
-                            col_results['zscore_outliers'] = detect_outliers_zscore(series)
-                        if 'isolation_forest' in methods and len(series) > 50:
-                            col_results['isolation_forest_outliers'] = detect_outliers_isolation_forest(series)
-                        if 'mad' in methods:
-                            col_results['mad_outliers'] = detect_outliers_mad(series)
-                        
-                        results[col] = col_results
-                except Exception as e:
-                    results[col] = {'error': f'Outlier detection failed: {str(e)}'}
-            
-            # Overall summary
-            outlier_summary = get_outlier_summary(df, numeric_cols)
-            
-            result = {
-                'outlier_analysis': results,
-                'outlier_summary': outlier_summary,
-                'methods_used': methods,
-                'summary': {
-                    'variables_analyzed': len(results),
-                    'variable_names': list(results.keys()),
-                    'observations': len(df)
+                        try:
+                            col_results = {}
+
+                            if 'iqr' in methods:
+                                try:
+                                    col_results['iqr_outliers'] = detect_outliers_iqr(series)
+                                except Exception as e:
+                                    col_results['iqr_outliers'] = {'error': str(e)}
+                            if 'zscore' in methods:
+                                try:
+                                    col_results['zscore_outliers'] = detect_outliers_zscore(series)
+                                except Exception as e:
+                                    col_results['zscore_outliers'] = {'error': str(e)}
+                            if 'isolation_forest' in methods and len(series) > 50:
+                                try:
+                                    col_results['isolation_forest_outliers'] = detect_outliers_isolation_forest(series)
+                                except Exception as e:
+                                    col_results['isolation_forest_outliers'] = {'error': str(e)}
+                            if 'mad' in methods:
+                                try:
+                                    col_results['mad_outliers'] = detect_outliers_mad(series)
+                                except Exception as e:
+                                    col_results['mad_outliers'] = {'error': str(e)}
+
+                            results[question_text] = col_results
+                        except Exception as e:
+                            results[question_text] = {'error': f'Outlier detection failed: {str(e)}'}
+
+                result = {
+                    'outlier_analysis': results,
+                    'methods_used': methods,
+                    'summary': {
+                        'variables_analyzed': len(results),
+                        'variable_names': list(results.keys()),
+                        'observations': len(df)
+                    }
                 }
-            }
+
+                return AnalyticsUtils.convert_numpy_types(result)
+
+            else:
+                # Wide format data - original logic
+                if variables:
+                    numeric_cols = [col for col in variables if col in df.columns and
+                                   pd.api.types.is_numeric_dtype(df[col])]
+                else:
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+                if not numeric_cols:
+                    return {'error': 'No numeric variables found for outlier analysis'}
             
-            return AnalyticsUtils.convert_numpy_types(result)
+                # Default methods if not specified
+                if not methods:
+                    methods = ['iqr', 'zscore', 'isolation_forest'] if len(df) > 100 else ['iqr', 'zscore']
+
+                results = {}
+                for col in numeric_cols:
+                    try:
+                        series = df[col].dropna()
+                        if len(series) > 0:
+                            col_results = {}
+
+                            if 'iqr' in methods:
+                                try:
+                                    col_results['iqr_outliers'] = detect_outliers_iqr(series)
+                                except Exception as e:
+                                    col_results['iqr_outliers'] = {'error': str(e)}
+                            if 'zscore' in methods:
+                                try:
+                                    col_results['zscore_outliers'] = detect_outliers_zscore(series)
+                                except Exception as e:
+                                    col_results['zscore_outliers'] = {'error': str(e)}
+                            if 'isolation_forest' in methods and len(series) > 50:
+                                try:
+                                    col_results['isolation_forest_outliers'] = detect_outliers_isolation_forest(series)
+                                except Exception as e:
+                                    col_results['isolation_forest_outliers'] = {'error': str(e)}
+                            if 'mad' in methods:
+                                try:
+                                    col_results['mad_outliers'] = detect_outliers_mad(series)
+                                except Exception as e:
+                                    col_results['mad_outliers'] = {'error': str(e)}
+
+                            results[col] = col_results
+                    except Exception as e:
+                        results[col] = {'error': f'Outlier detection failed: {str(e)}'}
+
+                # Overall summary
+                try:
+                    outlier_summary = get_outlier_summary(df, numeric_cols)
+                except Exception as e:
+                    outlier_summary = {'error': f'Summary generation failed: {str(e)}'}
+
+                result = {
+                    'outlier_analysis': results,
+                    'outlier_summary': outlier_summary,
+                    'methods_used': methods,
+                    'summary': {
+                        'variables_analyzed': len(results),
+                        'variable_names': list(results.keys()),
+                        'observations': len(df)
+                    }
+                }
+
+                return AnalyticsUtils.convert_numpy_types(result)
             
         except Exception as e:
             logger.error(f"Error in outlier analysis: {e}")
@@ -1879,19 +2049,67 @@ class AnalyticsUtils:
         """Enhanced correlation analysis with significance testing."""
         if df.empty:
             return {'error': 'No data available for correlation analysis'}
-        
+
         try:
-            # Get numeric columns for correlation
-            numeric_df = df.select_dtypes(include=[np.number])
-            
-            if variables:
-                # Filter to specified variables
-                available_vars = [var for var in variables if var in numeric_df.columns]
-                if len(available_vars) < 2:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Filter to only NUMERIC response types
+                if 'response_type' in df.columns:
+                    numeric_types = ['numeric_integer', 'numeric_decimal', 'scale_rating', 'number']
+                    numeric_df = df[df['response_type'].isin(numeric_types)].copy()
+                elif 'response_data_type' in df.columns:
+                    numeric_df = df[df['response_data_type'] == 'numeric'].copy()
+                else:
+                    numeric_df = df.copy()
+
+                # Workaround for data quality issue
+                if numeric_df.empty and 'response_value' in df.columns:
+                    df_test = df.copy()
+                    df_test['_is_numeric'] = pd.to_numeric(df_test['response_value'], errors='coerce').notna()
+                    numeric_questions = df_test.groupby('question_text')['_is_numeric'].mean()
+                    numeric_questions = numeric_questions[numeric_questions > 0.5].index.tolist()
+                    if numeric_questions:
+                        numeric_df = df[df['question_text'].isin(numeric_questions)].copy()
+
+                if numeric_df.empty:
+                    return {'error': 'No numeric variables found for correlation analysis'}
+
+                # Convert response_value to numeric
+                numeric_df['value_to_analyze'] = pd.to_numeric(numeric_df['response_value'], errors='coerce')
+
+                # Pivot to wide format for correlation analysis
+                pivoted = numeric_df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='value_to_analyze',
+                    aggfunc='first'
+                )
+
+                # Filter to specified variables if provided
+                if variables:
+                    available_vars = [var for var in variables if var in pivoted.columns]
+                    if len(available_vars) < 2:
+                        return {'error': 'Need at least 2 numeric variables for correlation analysis'}
+                    numeric_df = pivoted[available_vars]
+                else:
+                    numeric_df = pivoted
+
+                if len(numeric_df.columns) < 2:
                     return {'error': 'Need at least 2 numeric variables for correlation analysis'}
-                numeric_df = numeric_df[available_vars]
-            elif len(numeric_df.columns) < 2:
-                return {'error': 'Need at least 2 numeric variables for correlation analysis'}
+
+            else:
+                # Wide format data - original logic
+                # Get numeric columns for correlation
+                numeric_df = df.select_dtypes(include=[np.number])
+
+                if variables:
+                    # Filter to specified variables
+                    available_vars = [var for var in variables if var in numeric_df.columns]
+                    if len(available_vars) < 2:
+                        return {'error': 'Need at least 2 numeric variables for correlation analysis'}
+                    numeric_df = numeric_df[available_vars]
+                elif len(numeric_df.columns) < 2:
+                    return {'error': 'Need at least 2 numeric variables for correlation analysis'}
             
             # Calculate correlation matrix
             correlations = {}
