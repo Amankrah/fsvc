@@ -3,7 +3,7 @@ Inferential Analytics Endpoints
 Handles hypothesis testing, statistical inference, regression analysis, and advanced statistical methods.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 import pandas as pd
@@ -17,9 +17,9 @@ router = APIRouter()
 @router.post("/project/{project_id}/analyze/correlation")
 async def analyze_correlations(
     project_id: str,
-    variables: Optional[List[str]] = None,
-    correlation_method: str = "pearson",
-    significance_level: float = 0.05,
+    variables: Optional[List[str]] = Body(None, embed=True),
+    correlation_method: str = Body("pearson", embed=True),
+    significance_level: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -61,11 +61,11 @@ async def analyze_correlations(
 @router.post("/project/{project_id}/analyze/t-test")
 async def analyze_t_test(
     project_id: str,
-    dependent_variable: str,
-    independent_variable: Optional[str] = None,
-    test_type: str = "two_sample",
-    alternative: str = "two_sided",
-    confidence_level: float = 0.95,
+    dependent_variable: str = Body(..., embed=True),
+    independent_variable: Optional[str] = Body(None, embed=True),
+    test_type: str = Body("two_sample", embed=True),
+    alternative: str = Body("two_sided", embed=True),
+    confidence_level: float = Body(0.95, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -113,11 +113,11 @@ async def analyze_t_test(
 @router.post("/project/{project_id}/analyze/anova")
 async def analyze_anova(
     project_id: str,
-    dependent_variable: str,
-    independent_variables: List[str],
-    anova_type: str = "one_way",
-    post_hoc: bool = True,
-    post_hoc_method: str = "tukey",
+    dependent_variable: str = Body(..., embed=True),
+    independent_variables: List[str] = Body(..., embed=True),
+    anova_type: str = Body("one_way", embed=True),
+    post_hoc: bool = Body(True, embed=True),
+    post_hoc_method: str = Body("tukey", embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -165,11 +165,11 @@ async def analyze_anova(
 @router.post("/project/{project_id}/analyze/regression")
 async def analyze_regression(
     project_id: str,
-    dependent_variable: str,
-    independent_variables: List[str],
-    regression_type: str = "linear",
-    include_diagnostics: bool = True,
-    confidence_level: float = 0.95,
+    dependent_variable: str = Body(..., embed=True),
+    independent_variables: List[str] = Body(..., embed=True),
+    regression_type: str = Body("linear", embed=True),
+    include_diagnostics: bool = Body(True, embed=True),
+    confidence_level: float = Body(0.95, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -217,10 +217,10 @@ async def analyze_regression(
 @router.post("/project/{project_id}/analyze/chi-square")
 async def analyze_chi_square(
     project_id: str,
-    variable1: str,
-    variable2: Optional[str] = None,
-    test_type: str = "independence",
-    expected_frequencies: Optional[List[float]] = None,
+    variable1: str = Body(..., embed=True),
+    variable2: Optional[str] = Body(None, embed=True),
+    test_type: str = Body("independence", embed=True),
+    expected_frequencies: Optional[List[float]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -264,12 +264,12 @@ async def analyze_chi_square(
 @router.post("/project/{project_id}/analyze/hypothesis-test")
 async def analyze_hypothesis_test(
     project_id: str,
-    test_type: str,
-    variables: List[str],
-    null_hypothesis: str,
-    alternative_hypothesis: str,
-    significance_level: float = 0.05,
-    test_parameters: Optional[Dict[str, Any]] = None,
+    test_type: str = Body(..., embed=True),
+    variables: List[str] = Body(..., embed=True),
+    null_hypothesis: str = Body(..., embed=True),
+    alternative_hypothesis: str = Body(..., embed=True),
+    significance_level: float = Body(0.05, embed=True),
+    test_parameters: Optional[Dict[str, Any]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -318,10 +318,10 @@ async def analyze_hypothesis_test(
 @router.post("/project/{project_id}/analyze/confidence-intervals")
 async def analyze_confidence_intervals(
     project_id: str,
-    variables: List[str],
-    confidence_level: float = 0.95,
-    interval_type: str = "mean",
-    bootstrap_samples: int = 1000,
+    variables: List[str] = Body(..., embed=True),
+    confidence_level: float = Body(0.95, embed=True),
+    interval_type: str = Body("mean", embed=True),
+    bootstrap_samples: int = Body(1000, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -366,9 +366,9 @@ async def analyze_confidence_intervals(
 @router.post("/project/{project_id}/analyze/effect-size")
 async def analyze_effect_size(
     project_id: str,
-    dependent_variable: str,
-    independent_variable: str,
-    effect_size_measure: str = "cohen_d",
+    dependent_variable: str = Body(..., embed=True),
+    independent_variable: str = Body(..., embed=True),
+    effect_size_measure: str = Body("cohen_d", embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -411,11 +411,11 @@ async def analyze_effect_size(
 @router.post("/project/{project_id}/analyze/power-analysis")
 async def analyze_power(
     project_id: str,
-    test_type: str,
-    effect_size: Optional[float] = None,
-    sample_size: Optional[int] = None,
-    power: Optional[float] = None,
-    significance_level: float = 0.05,
+    test_type: str = Body(..., embed=True),
+    effect_size: Optional[float] = Body(None, embed=True),
+    sample_size: Optional[int] = Body(None, embed=True),
+    power: Optional[float] = Body(None, embed=True),
+    significance_level: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -462,10 +462,10 @@ async def analyze_power(
 @router.post("/project/{project_id}/analyze/nonparametric")
 async def analyze_nonparametric(
     project_id: str,
-    test_type: str,
-    variables: List[str],
-    groups: Optional[str] = None,
-    alternative: str = "two_sided",
+    test_type: str = Body(..., embed=True),
+    variables: List[str] = Body(..., embed=True),
+    groups: Optional[str] = Body(None, embed=True),
+    alternative: str = Body("two_sided", embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -510,11 +510,11 @@ async def analyze_nonparametric(
 @router.post("/project/{project_id}/analyze/bayesian-t-test")
 async def analyze_bayesian_t_test(
     project_id: str,
-    variable1: str,
-    variable2: str,
-    prior_mean: float = 0,
-    prior_variance: float = 1,
-    credible_level: float = 0.95,
+    variable1: str = Body(..., embed=True),
+    variable2: str = Body(..., embed=True),
+    prior_mean: float = Body(0, embed=True),
+    prior_variance: float = Body(1, embed=True),
+    credible_level: float = Body(0.95, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -561,11 +561,11 @@ async def analyze_bayesian_t_test(
 @router.post("/project/{project_id}/analyze/bayesian-proportion-test")
 async def analyze_bayesian_proportion_test(
     project_id: str,
-    group_variable: str,
-    success_variable: str,
-    prior_alpha: float = 1,
-    prior_beta: float = 1,
-    credible_level: float = 0.95,
+    group_variable: str = Body(..., embed=True),
+    success_variable: str = Body(..., embed=True),
+    prior_alpha: float = Body(1, embed=True),
+    prior_beta: float = Body(1, embed=True),
+    credible_level: float = Body(0.95, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -612,9 +612,9 @@ async def analyze_bayesian_proportion_test(
 @router.post("/project/{project_id}/analyze/multiple-comparisons")
 async def analyze_multiple_comparisons(
     project_id: str,
-    p_values: List[float],
-    alpha: float = 0.05,
-    correction_methods: Optional[List[str]] = None,
+    p_values: List[float] = Body(..., embed=True),
+    alpha: float = Body(0.05, embed=True),
+    correction_methods: Optional[List[str]] = Body(None, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -653,10 +653,10 @@ async def analyze_multiple_comparisons(
 @router.post("/project/{project_id}/analyze/post-hoc-tests")
 async def analyze_post_hoc_tests(
     project_id: str,
-    group_variable: str,
-    dependent_variable: str,
-    test_type: str = "tukey",
-    alpha: float = 0.05,
+    group_variable: str = Body(..., embed=True),
+    dependent_variable: str = Body(..., embed=True),
+    test_type: str = Body("tukey", embed=True),
+    alpha: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -701,9 +701,9 @@ async def analyze_post_hoc_tests(
 @router.post("/project/{project_id}/analyze/time-series/stationarity")
 async def analyze_stationarity(
     project_id: str,
-    variable: str,
-    test_types: List[str] = None,
-    alpha: float = 0.05,
+    variable: str = Body(..., embed=True),
+    test_types: Optional[List[str]] = Body(None, embed=True),
+    alpha: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -749,10 +749,10 @@ async def analyze_stationarity(
 @router.post("/project/{project_id}/analyze/time-series/granger-causality")
 async def analyze_granger_causality(
     project_id: str,
-    cause_variable: str,
-    effect_variable: str,
-    max_lag: int = 10,
-    alpha: float = 0.05,
+    cause_variable: str = Body(..., embed=True),
+    effect_variable: str = Body(..., embed=True),
+    max_lag: int = Body(10, embed=True),
+    alpha: float = Body(0.05, embed=True),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
