@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { useAuthStore } from '../store/authStore';
+import { colors } from '../constants/theme';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -48,7 +49,7 @@ const RootNavigator: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6200ee" />
+        <ActivityIndicator size="large" color={colors.primary.main} />
       </View>
     );
   }
@@ -60,9 +61,9 @@ const RootNavigator: React.FC = () => {
           headerShown: true,
           animation: 'slide_from_right',
           headerStyle: {
-            backgroundColor: '#6200ee',
+            backgroundColor: colors.primary.main,
           },
-          headerTintColor: '#fff',
+          headerTintColor: colors.primary.contrast,
           headerTitleStyle: {
             fontWeight: 'bold',
           },
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
 });
 

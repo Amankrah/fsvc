@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Text, IconButton, Chip, Avatar } from 'react-native-paper';
 import { Project } from '../types';
+import { colors } from '../constants/theme';
 
 interface ProjectCardProps {
   project: Project;
@@ -19,13 +20,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress
   const getStatusColor = () => {
     switch (project.sync_status) {
       case 'synced':
-        return '#4caf50';
+        return colors.status.success;
       case 'pending':
-        return '#ff9800';
+        return colors.status.warning;
       case 'error':
-        return '#f44336';
+        return colors.status.error;
       default:
-        return '#757575';
+        return colors.neutral.gray500;
     }
   };
 
@@ -47,7 +48,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress
               <Avatar.Text
                 size={48}
                 label={getInitials()}
-                style={[styles.avatar, { backgroundColor: '#6200ee' }]}
+                style={[styles.avatar, { backgroundColor: colors.primary.main }]}
               />
               <View style={styles.titleContainer}>
                 <Text variant="titleLarge" style={styles.title} numberOfLines={1}>
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginVertical: 8,
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
   },
   header: {
     flexDirection: 'row',
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   description: {
-    color: '#666',
+    color: colors.text.secondary,
     lineHeight: 20,
   },
   statsContainer: {
@@ -179,16 +180,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: colors.border.light,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.border.light,
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   statLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 2,
   },
   statValue: {
@@ -209,7 +210,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   dateText: {
-    color: '#999',
+    color: colors.text.disabled,
   },
   editButton: {
     margin: 0,

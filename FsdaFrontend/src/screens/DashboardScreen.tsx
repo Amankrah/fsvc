@@ -30,6 +30,7 @@ import apiService from '../services/api';
 import ProjectCard from '../components/ProjectCard';
 import NotificationBell from '../components/NotificationBell';
 import { Project, RespondentType, CommodityType, PartnerOrganization } from '../types';
+import { colors } from '../constants/theme';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -371,10 +372,10 @@ const DashboardScreen: React.FC = () => {
       </View>
 
       <View style={styles.statsGrid}>
-        {renderStatCard('folder-outline', 'Projects', stats.totalProjects, '#6200ee')}
-        {renderStatCard('file-document-outline', 'Questions', stats.totalQuestions, '#03dac6')}
-        {renderStatCard('account-outline', 'Respondents', stats.totalResponses, '#ff6f00')}
-        {renderStatCard('account-group-outline', 'Members', stats.totalMembers, '#00bcd4')}
+        {renderStatCard('folder-outline', 'Projects', stats.totalProjects, colors.visualization.purple)}
+        {renderStatCard('file-document-outline', 'Questions', stats.totalQuestions, colors.visualization.teal)}
+        {renderStatCard('account-outline', 'Respondents', stats.totalResponses, colors.accent.orange)}
+        {renderStatCard('account-group-outline', 'Members', stats.totalMembers, colors.visualization.cyan)}
       </View>
 
       <View style={styles.quickActions}>
@@ -749,15 +750,15 @@ const DashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.default,
   },
   header: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.background.paper,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: colors.border.light,
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    shadowColor: '#000',
+    shadowColor: colors.neutral.black,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -779,11 +780,11 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#212529',
+    color: colors.text.primary,
     fontSize: 28,
   },
   subtitleText: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     fontSize: 16,
   },
   statsGrid: {
@@ -799,9 +800,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.background.paper,
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: colors.neutral.black,
     shadowOffset: {
       width: 0,
       height: 1,
@@ -816,10 +817,10 @@ const styles = StyleSheet.create({
   statValue: {
     fontWeight: 'bold',
     fontSize: 24,
-    color: '#212529',
+    color: colors.text.primary,
   },
   statLabel: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     fontSize: 14,
     marginTop: 2,
   },
@@ -829,7 +830,7 @@ const styles = StyleSheet.create({
   quickActionsTitle: {
     fontWeight: 'bold',
     marginBottom: 12,
-    color: '#212529',
+    color: colors.text.primary,
     fontSize: 18,
   },
   quickActionsButtons: {
@@ -856,7 +857,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#212529',
+    color: colors.text.primary,
     fontSize: 18,
   },
   emptyList: {
@@ -872,11 +873,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
-    color: '#212529',
+    color: colors.text.primary,
     fontSize: 20,
   },
   emptyText: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 24,
     fontSize: 16,
@@ -916,7 +917,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   switchDescription: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   sectionLabel: {
@@ -924,11 +925,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sectionDescription: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     marginBottom: 12,
   },
   helperText: {
-    color: '#6c757d',
+    color: colors.text.secondary,
     fontSize: 12,
     marginTop: -8,
     marginBottom: 8,
@@ -959,36 +960,36 @@ const styles = StyleSheet.create({
   searchResultsContainer: {
     maxHeight: 250,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.border.medium,
     borderRadius: 8,
     marginBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
   },
   searchResultItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border.light,
   },
   searchResultItemSelected: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: colors.primary.light + '20',
   },
   searchResultContent: {
     gap: 4,
   },
   searchResultName: {
     fontWeight: '600',
-    color: '#212121',
+    color: colors.text.primary,
   },
   searchResultDetails: {
-    color: '#757575',
+    color: colors.text.secondary,
   },
   searchResultInstitution: {
-    color: '#9e9e9e',
+    color: colors.text.disabled,
     fontStyle: 'italic',
   },
   noResultsText: {
     textAlign: 'center',
-    color: '#9e9e9e',
+    color: colors.text.disabled,
     marginVertical: 12,
   },
   chipsContainer: {
