@@ -9,7 +9,7 @@
  * - Full Django backend compatibility
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Platform, RefreshControl } from 'react-native';
 import {
   Text,
@@ -60,6 +60,14 @@ const ResponsesScreen: React.FC = () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
+
+  // Reload data when projectId changes
+  useEffect(() => {
+    respondentsHook.loadData();
+    detailsHook.clearSelection();
+    setViewMode('list');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   // Handle respondent press
   const handleRespondentPress = async (respondent: any) => {

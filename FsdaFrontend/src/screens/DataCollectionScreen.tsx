@@ -73,19 +73,28 @@ const DataCollectionScreen: React.FC = () => {
     }
   );
 
-  // Load available options on mount
+  // Load available options on mount and when projectId changes
   useEffect(() => {
     questions.loadAvailableOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectId]);
 
-  // Auto-generate respondent ID on mount
+  // Auto-generate respondent ID on mount and when projectId changes
   useEffect(() => {
     if (respondent.useAutoId && !respondent.respondentId) {
       respondent.generateNewRespondentId();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectId]);
+
+  // Reset state when projectId changes
+  useEffect(() => {
+    setShowRespondentForm(true);
+    respondent.resetForNextRespondent();
+    responses.resetResponses();
+    questions.resetQuestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   // Handle Generate Questions
   const handleGenerateQuestions = async () => {
