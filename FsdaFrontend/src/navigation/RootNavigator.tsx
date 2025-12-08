@@ -5,6 +5,7 @@ import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { useAuthStore } from '../store/authStore';
 import { colors } from '../constants/theme';
+import ProjectSelector from '../components/ProjectSelector';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -32,7 +33,7 @@ export type RootStackParamList = {
   DataCollection: { projectId: string; projectName: string };
   Responses: { projectId: string; projectName: string };
   ResponseLinks: { projectId: string; projectName: string };
-  Analytics: { projectId: string };
+  Analytics: { projectId: string; projectName?: string };
   Members: { projectId: string };
   Sync: { projectId: string };
 };
@@ -161,30 +162,48 @@ const RootNavigator: React.FC = () => {
             <Stack.Screen
               name="DataCollection"
               component={DataCollectionScreen}
-              options={({ navigation }) => ({
+              options={({ navigation, route }) => ({
                 title: 'Data Collection',
                 headerRight: () => (
-                  <IconButton
-                    icon="home"
-                    iconColor="#fff"
-                    size={20}
-                    onPress={() => navigation.navigate('Dashboard')}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ProjectSelector
+                      currentProjectId={route.params.projectId}
+                      currentProjectName={route.params.projectName}
+                      onProjectChange={(projectId, projectName) => {
+                        navigation.setParams({ projectId, projectName });
+                      }}
+                    />
+                    <IconButton
+                      icon="home"
+                      iconColor="#fff"
+                      size={20}
+                      onPress={() => navigation.navigate('Dashboard')}
+                    />
+                  </View>
                 ),
               })}
             />
             <Stack.Screen
               name="Responses"
               component={ResponsesScreen}
-              options={({ navigation }) => ({
+              options={({ navigation, route }) => ({
                 title: 'Responses',
                 headerRight: () => (
-                  <IconButton
-                    icon="home"
-                    iconColor="#fff"
-                    size={20}
-                    onPress={() => navigation.navigate('Dashboard')}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ProjectSelector
+                      currentProjectId={route.params.projectId}
+                      currentProjectName={route.params.projectName}
+                      onProjectChange={(projectId, projectName) => {
+                        navigation.setParams({ projectId, projectName });
+                      }}
+                    />
+                    <IconButton
+                      icon="home"
+                      iconColor="#fff"
+                      size={20}
+                      onPress={() => navigation.navigate('Dashboard')}
+                    />
+                  </View>
                 ),
               })}
             />
@@ -196,15 +215,24 @@ const RootNavigator: React.FC = () => {
             <Stack.Screen
               name="Analytics"
               component={AnalyticsScreen}
-              options={({ navigation }) => ({
+              options={({ navigation, route }) => ({
                 title: 'Analytics',
                 headerRight: () => (
-                  <IconButton
-                    icon="home"
-                    iconColor="#fff"
-                    size={20}
-                    onPress={() => navigation.navigate('Dashboard')}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ProjectSelector
+                      currentProjectId={route.params.projectId}
+                      currentProjectName={route.params.projectName || ''}
+                      onProjectChange={(projectId) => {
+                        navigation.setParams({ projectId });
+                      }}
+                    />
+                    <IconButton
+                      icon="home"
+                      iconColor="#fff"
+                      size={20}
+                      onPress={() => navigation.navigate('Dashboard')}
+                    />
+                  </View>
                 ),
               })}
             />
