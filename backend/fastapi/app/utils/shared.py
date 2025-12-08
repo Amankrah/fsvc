@@ -2161,8 +2161,24 @@ class AnalyticsUtils:
         """Run t-test analysis."""
         if df.empty:
             return {'error': 'No data available for t-test analysis'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Convert long format to wide format
+                pivoted = df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='response_value',
+                    aggfunc='first'
+                )
+
+                # For numeric columns, convert to numeric
+                for col in pivoted.columns:
+                    pivoted[col] = pd.to_numeric(pivoted[col], errors='ignore')
+
+                df = pivoted.reset_index()
+
             if dependent_variable not in df.columns:
                 return {'error': f'Dependent variable {dependent_variable} not found'}
                 
@@ -2217,8 +2233,24 @@ class AnalyticsUtils:
         """Run ANOVA analysis."""
         if df.empty:
             return {'error': 'No data available for ANOVA analysis'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Convert long format to wide format
+                pivoted = df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='response_value',
+                    aggfunc='first'
+                )
+
+                # For numeric columns, convert to numeric
+                for col in pivoted.columns:
+                    pivoted[col] = pd.to_numeric(pivoted[col], errors='ignore')
+
+                df = pivoted.reset_index()
+
             if dependent_variable not in df.columns:
                 return {'error': f'Dependent variable {dependent_variable} not found'}
                 
@@ -2277,8 +2309,24 @@ class AnalyticsUtils:
         """Run regression analysis."""
         if df.empty:
             return {'error': 'No data available for regression analysis'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Convert long format to wide format
+                pivoted = df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='response_value',
+                    aggfunc='first'
+                )
+
+                # For numeric columns, convert to numeric
+                for col in pivoted.columns:
+                    pivoted[col] = pd.to_numeric(pivoted[col], errors='ignore')
+
+                df = pivoted.reset_index()
+
             if dependent_variable not in df.columns:
                 return {'error': f'Dependent variable {dependent_variable} not found'}
                 
@@ -2337,8 +2385,19 @@ class AnalyticsUtils:
         """Run chi-square tests."""
         if df.empty:
             return {'error': 'No data available for chi-square test'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Convert long format to wide format
+                pivoted = df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='response_value',
+                    aggfunc='first'
+                )
+                df = pivoted.reset_index()
+
             if variable1 not in df.columns:
                 return {'error': f'Variable {variable1} not found'}
             
@@ -2387,8 +2446,24 @@ class AnalyticsUtils:
         """Run general hypothesis testing."""
         if df.empty:
             return {'error': 'No data available for hypothesis test'}
-        
+
         try:
+            # Check if we have survey data in long format
+            if 'question_text' in df.columns and 'response_value' in df.columns:
+                # Convert long format to wide format
+                pivoted = df.pivot_table(
+                    index='respondent_id',
+                    columns='question_text',
+                    values='response_value',
+                    aggfunc='first'
+                )
+
+                # For numeric columns, convert to numeric
+                for col in pivoted.columns:
+                    pivoted[col] = pd.to_numeric(pivoted[col], errors='ignore')
+
+                df = pivoted.reset_index()
+
             # Validate variables exist
             for var in variables:
                 if var not in df.columns:
