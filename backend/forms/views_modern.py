@@ -14,6 +14,11 @@ from .serializers import (
     QuestionSerializer, QuestionBankSerializer, DynamicQuestionSessionSerializer,
     QuestionBankSearchSerializer, GenerateDynamicQuestionsSerializer
 )
+from .validators import (
+    validate_question_order,
+    validate_conditional_logic_integrity,
+    auto_fix_question_order
+)
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import QuestionFilter
 import logging
@@ -57,21 +62,42 @@ class ModernQuestionViewSet(BaseModelViewSet):
     def perform_create(self, serializer):
         """Enhanced question creation with validation and auto-ordering"""
         project = serializer.validated_data['project']
-        
+
         # Check user permissions
         if not project.can_user_edit(self.request.user):
             raise ValidationError("You don't have permission to add questions to this project")
-        
+
         # Auto-set order_index if not provided
         if 'order_index' not in serializer.validated_data:
             max_order = Question.objects.filter(project=project).aggregate(
                 max_order=Max('order_index')
             )['max_order']
             serializer.validated_data['order_index'] = (max_order or -1) + 1
-        
+
         # Validate response type specific data
         self._validate_response_type_data(serializer.validated_data)
-        
+
+        # Validate follow-up question conditional logic
+        if serializer.validated_data.get('is_follow_up') and serializer.validated_data.get('conditional_logic'):
+            is_valid, errors = validate_conditional_logic_integrity(serializer.validated_data['conditional_logic'])
+            if not is_valid:
+                raise ValidationError({'conditional_logic': errors})
+
+            # Verify parent question exists and comes before this question
+            parent_id = serializer.validated_data['conditional_logic'].get('parent_question_id')
+            if parent_id:
+                try:
+                    parent = Question.objects.get(id=parent_id, project=project)
+                    # Parent must have lower order_index
+                    if parent.order_index >= serializer.validated_data['order_index']:
+                        raise ValidationError(
+                            f"Follow-up question must appear AFTER its parent question. "
+                            f"Parent is at position {parent.order_index}, but this question is at {serializer.validated_data['order_index']}. "
+                            f"Please use a higher order_index."
+                        )
+                except Question.DoesNotExist:
+                    raise ValidationError(f"Parent question with ID {parent_id} not found in this project")
+
         # Save with transaction
         with transaction.atomic():
             question = serializer.save()
@@ -82,20 +108,42 @@ class ModernQuestionViewSet(BaseModelViewSet):
         """Enhanced question update with change tracking"""
         instance = self.get_object()
         old_order = instance.order_index
-        
+
         # Check permissions
         if not instance.project.can_user_edit(self.request.user):
             raise ValidationError("You don't have permission to edit this question")
-        
+
         # Validate response type specific data
         self._validate_response_type_data(serializer.validated_data)
-        
+
+        # Validate follow-up question conditional logic if being updated
+        if serializer.validated_data.get('is_follow_up') and serializer.validated_data.get('conditional_logic'):
+            is_valid, errors = validate_conditional_logic_integrity(serializer.validated_data['conditional_logic'])
+            if not is_valid:
+                raise ValidationError({'conditional_logic': errors})
+
+            # Verify parent question exists and ordering is correct
+            parent_id = serializer.validated_data['conditional_logic'].get('parent_question_id')
+            if parent_id:
+                try:
+                    parent = Question.objects.get(id=parent_id, project=instance.project)
+                    new_order = serializer.validated_data.get('order_index', old_order)
+                    # Parent must have lower order_index
+                    if parent.order_index >= new_order:
+                        raise ValidationError(
+                            f"Follow-up question must appear AFTER its parent question. "
+                            f"Parent is at position {parent.order_index}, but this question would be at {new_order}. "
+                            f"Please use a higher order_index."
+                        )
+                except Question.DoesNotExist:
+                    raise ValidationError(f"Parent question with ID {parent_id} not found in this project")
+
         with transaction.atomic():
             # Handle order changes
             new_order = serializer.validated_data.get('order_index', old_order)
             if new_order != old_order:
                 instance.move_to_position(new_order)
-            
+
             question = serializer.save()
             self._clear_project_cache(instance.project.id)
             logger.info(f"Question updated: {question.id}")
@@ -397,6 +445,25 @@ class ModernQuestionViewSet(BaseModelViewSet):
                         q.order_index = idx
                         q.save(update_fields=['order_index'])
 
+                # Validate question order for follow-up questions
+                questions_for_validation = []
+                for q in all_questions_in_project:
+                    questions_for_validation.append({
+                        'id': str(q.id),
+                        'question_text': q.question_text,
+                        'order_index': q.order_index,
+                        'is_follow_up': q.is_follow_up,
+                        'conditional_logic': q.conditional_logic
+                    })
+
+                is_valid, validation_errors = validate_question_order(questions_for_validation)
+                if not is_valid:
+                    # Rollback transaction and return errors
+                    raise ValidationError({
+                        'order_validation_errors': validation_errors,
+                        'message': 'The new question order violates follow-up question constraints. Parent questions must come before their follow-ups.'
+                    })
+
                 # Clear cache for the project
                 self._clear_project_cache(str(project.id))
 
@@ -694,7 +761,24 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     use_project_bank_only=use_project_bank_only,  # Control question bank scope
                     replace_existing=replace_existing  # Pass replace_existing flag
                 )
-                
+
+                # Validate generated questions order (only if new questions were created)
+                if generated_questions and replace_existing:
+                    questions_for_validation = []
+                    for q in generated_questions:
+                        questions_for_validation.append({
+                            'id': str(q.id),
+                            'question_text': q.question_text,
+                            'order_index': q.order_index,
+                            'is_follow_up': q.is_follow_up,
+                            'conditional_logic': q.conditional_logic
+                        })
+
+                    is_valid, validation_errors = validate_question_order(questions_for_validation)
+                    if not is_valid:
+                        logger.warning(f"Generated questions have invalid order: {validation_errors}")
+                        # Note: We log but don't fail, as generation should handle ordering correctly
+
                 # Determine if we returned existing questions or created new ones
                 returned_existing = (
                     not replace_existing and

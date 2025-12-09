@@ -128,7 +128,21 @@ export const useGeneratedQuestions = (projectId: string) => {
       Alert.alert('Success', 'Question order updated successfully for this generation bundle');
     } catch (error: any) {
       console.error('Error saving question order:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to save question order');
+
+      // Handle validation errors for follow-up questions
+      const errorData = error.response?.data;
+
+      if (errorData?.order_validation_errors) {
+        // Follow-up question validation errors
+        const errorMessage = `Cannot reorder: Follow-up questions must appear after their parent questions.\n\nIssues found:\n${errorData.order_validation_errors.join('\n')}`;
+        Alert.alert('Validation Error', errorMessage);
+      } else if (errorData?.message && errorData?.message.includes('follow-up')) {
+        // Generic follow-up error
+        Alert.alert('Validation Error', errorData.message);
+      } else {
+        // Generic error
+        Alert.alert('Error', errorData?.error || errorData?.message || 'Failed to save question order');
+      }
     }
   }, [projectId, reorderedQuestions, loadGeneratedQuestions]);
 
