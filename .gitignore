@@ -46,9 +46,11 @@ static_root/
 media_root/
 
 # Django migrations - ignore to prevent dev/prod conflicts
-*/migrations/*.py
-*/migrations/*.pyc
-!*/migrations/__init__.py
+**/migrations/*.py
+**/migrations/*.pyc
+backend/*/migrations/*.py
+backend/*/migrations/*.pyc
+!**/migrations/__init__.py
 
 # FastAPI
 .pytest_cache/
