@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
-import { offlineProjectCache, networkMonitor } from '../../services';
+import { offlineProjectCache, offlineQuestionCache, networkMonitor } from '../../services';
 
 interface UseQuestionsProps {
   projectId: string;
@@ -146,10 +146,31 @@ export const useQuestions = ({
     }
 
     try {
-      const allQuestions = await apiService.getQuestions(projectId);
-      const questionsList: Question[] = Array.isArray(allQuestions)
-        ? allQuestions
-        : allQuestions.results || [];
+      // Check network connection
+      const isOnline = await networkMonitor.checkConnection();
+
+      let questionsList: Question[] = [];
+
+      if (isOnline) {
+        // Online: Fetch from API
+        try {
+          const allQuestions = await apiService.getQuestions(projectId);
+          questionsList = Array.isArray(allQuestions)
+            ? allQuestions
+            : allQuestions.results || [];
+        } catch (error) {
+          console.error('Error fetching questions from API, falling back to cache:', error);
+          // Fall back to cache if API fails
+          const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+          questionsList = cachedQuestions as any as Question[];
+        }
+      } else {
+        // Offline: Load from cache
+        console.log('📴 Offline - loading existing questions from cache');
+        const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+        questionsList = cachedQuestions as any as Question[];
+        console.log(`📦 Loaded ${questionsList.length} questions from cache`);
+      }
 
       const commodityStr = selectedCommodities.join(',') || '';
       const countryStr = selectedCountry || '';
@@ -160,6 +181,12 @@ export const useQuestions = ({
         const matchesCountry = q.assigned_country === countryStr;
 
         return matchesRespondent && matchesCommodity && matchesCountry;
+      });
+
+      console.log(`✓ Found ${matchingQuestions.length} matching questions for criteria:`, {
+        respondentType: selectedRespondentType,
+        commodity: commodityStr,
+        country: countryStr,
       });
 
       return matchingQuestions.sort((a, b) => a.order_index - b.order_index);
