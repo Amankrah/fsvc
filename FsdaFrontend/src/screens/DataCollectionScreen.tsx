@@ -42,12 +42,17 @@ const DataCollectionScreen: React.FC = () => {
 
   const [showRespondentForm, setShowRespondentForm] = useState(true);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [showDraftsDialog, setShowDraftsDialog] = useState(false);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkDescription, setLinkDescription] = useState('');
   const [linkExpirationDays, setLinkExpirationDays] = useState('7');
   const [linkMaxResponses, setLinkMaxResponses] = useState('100');
   const [creatingLink, setCreatingLink] = useState(false);
   const [useProjectBankOnly, setUseProjectBankOnly] = useState(true);
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [resumedDraftDatabaseId, setResumedDraftDatabaseId] = useState<string | null>(null);
+  const [preExistingResponseQuestionIds, setPreExistingResponseQuestionIds] = useState<Set<string>>(new Set());
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -70,7 +75,9 @@ const DataCollectionScreen: React.FC = () => {
       respondentType: respondent.selectedRespondentType as string,
       commodities: respondent.selectedCommodities,
       country: respondent.selectedCountry,
-    }
+    },
+    resumedDraftDatabaseId,  // Pass the draft's database ID when resuming
+    preExistingResponseQuestionIds  // Pass the set of question IDs that already have responses
   );
 
   // Load available options on mount and when projectId changes
@@ -96,6 +103,170 @@ const DataCollectionScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
+  // Handle Load Drafts
+  const handleLoadDrafts = async () => {
+    try {
+      setLoadingDrafts(true);
+      console.log(`Loading drafts for project: ${projectId}`);
+      const result = await apiService.getDraftResponses(projectId);
+      console.log(`Received ${result.count || 0} drafts from backend:`, result);
+
+      // Log each draft's status
+      if (result.drafts && result.drafts.length > 0) {
+        result.drafts.forEach((draft: any, index: number) => {
+          console.log(`Draft ${index + 1}: ID=${draft.id}, Status=${draft.completion_status}, Respondent=${draft.respondent_id}`);
+        });
+      }
+
+      setDrafts(result.drafts || []);
+      setShowDraftsDialog(true);
+    } catch (error: any) {
+      console.error('Error loading drafts:', error);
+      Alert.alert('Error', 'Failed to load draft responses');
+    } finally {
+      setLoadingDrafts(false);
+    }
+  };
+
+  // Handle Resume Draft
+  const handleResumeDraft = async (draft: any) => {
+    try {
+      setShowDraftsDialog(false);
+
+      // Store the draft's database ID for submission
+      setResumedDraftDatabaseId(draft.id);
+
+      // Set respondent information first (using the draft's database ID as respondent_id)
+      respondent.setRespondentId(draft.respondent_id);
+      respondent.setSelectedRespondentType(draft.respondent_type || '');
+
+      const commodities = draft.commodity ? draft.commodity.split(',').map((c: string) => c.trim()) : [];
+      respondent.setSelectedCommodities(commodities);
+      respondent.setSelectedCountry(draft.country || '');
+
+      console.log('Resume criteria:', {
+        respondent_type: draft.respondent_type,
+        commodities: commodities,
+        commodity_string: draft.commodity,
+        country: draft.country,
+        database_id: draft.id
+      });
+
+      // Wait for state to update before generating questions
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Load questions directly using the API with draft criteria
+      const allQuestions = await apiService.getQuestions(projectId);
+      const questionsList = Array.isArray(allQuestions) ? allQuestions : allQuestions.results || [];
+
+      // Filter questions to match the draft's criteria
+      const commodityStr = draft.commodity || '';
+      const countryStr = draft.country || '';
+      const matchingQuestions = questionsList.filter((q: any) => {
+        const matchesRespondent = q.assigned_respondent_type === draft.respondent_type;
+        const matchesCommodity = q.assigned_commodity === commodityStr;
+        const matchesCountry = q.assigned_country === countryStr;
+        return matchesRespondent && matchesCommodity && matchesCountry;
+      });
+
+      const loadedQuestions = matchingQuestions.sort((a: any, b: any) => a.order_index - b.order_index);
+
+      // Verify questions loaded
+      if (!loadedQuestions || loadedQuestions.length === 0) {
+        console.error('No questions loaded after generation');
+        Alert.alert('Error', 'Failed to load questions for this respondent. Please check that questions were generated for this criteria.');
+        return;
+      }
+
+      console.log(`Loaded ${loadedQuestions.length} questions for resume`);
+
+      // Load the draft's responses
+      const draftResponses = await apiService.getRespondentResponses(draft.id);
+
+      // Build the responses object and track pre-existing response question IDs
+      const loadedResponses: any = {};
+      const existingQuestionIds = new Set<string>();
+
+      if (draftResponses.responses && draftResponses.responses.length > 0) {
+        draftResponses.responses.forEach((resp: any) => {
+          // Track this question ID as having a pre-existing response
+          existingQuestionIds.add(resp.question);
+
+          // Parse JSON arrays if needed
+          let value = resp.response_value;
+          try {
+            if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+              value = JSON.parse(value);
+            }
+          } catch (e) {
+            // Keep original value if parsing fails
+          }
+          loadedResponses[resp.question] = value;
+        });
+
+        // Load all responses at once
+        responses.loadResponses(loadedResponses);
+
+        // Store the pre-existing response question IDs
+        setPreExistingResponseQuestionIds(existingQuestionIds);
+        console.log(`Captured ${existingQuestionIds.size} pre-existing response question IDs`);
+      }
+
+      console.log(`Loaded ${Object.keys(loadedResponses).length} existing responses`);
+
+      // Calculate resume position using the loaded questions
+      const answeredQuestionIds = new Set(Object.keys(loadedResponses));
+
+      console.log('Total questions captured:', loadedQuestions.length);
+      console.log('Answered questions:', answeredQuestionIds.size);
+
+      // Find the last answered question index
+      let lastAnsweredIndex = -1;
+      for (let i = loadedQuestions.length - 1; i >= 0; i--) {
+        if (answeredQuestionIds.has(loadedQuestions[i].id)) {
+          lastAnsweredIndex = i;
+          break;
+        }
+      }
+
+      console.log('Last answered index:', lastAnsweredIndex);
+
+      // Move to the next unanswered question (or stay at last if all answered)
+      const resumeIndex = Math.min(
+        lastAnsweredIndex + 1,
+        loadedQuestions.length - 1
+      );
+
+      console.log('Resume index:', resumeIndex);
+
+      const totalQuestions = loadedQuestions.length;
+      const answeredCount = answeredQuestionIds.size;
+
+      // Start the survey
+      setShowRespondentForm(false);
+
+      // Wait for UI to render, then set question index and show alert
+      setTimeout(() => {
+        // Set the question index to resume from
+        if (resumeIndex > 0) {
+          responses.setQuestionIndex(resumeIndex);
+        }
+
+        Alert.alert(
+          'Draft Loaded',
+          `Resuming survey for ${draft.respondent_id}\n\n` +
+          `${answeredCount} of ${totalQuestions} questions already answered.\n` +
+          `Starting at question ${resumeIndex + 1}.`,
+          [{ text: 'Continue' }]
+        );
+      }, 200);
+
+    } catch (error: any) {
+      console.error('Error resuming draft:', error);
+      Alert.alert('Error', 'Failed to load draft. Please try again.');
+    }
+  };
+
   // Handle Generate Questions
   const handleGenerateQuestions = async () => {
     await questions.generateDynamicQuestions(false, false);
@@ -120,6 +291,8 @@ const DataCollectionScreen: React.FC = () => {
     respondent.resetForNextRespondent();
     responses.resetResponses();
     questions.resetQuestions();
+    setResumedDraftDatabaseId(null);  // Clear draft ID
+    setPreExistingResponseQuestionIds(new Set());  // Clear pre-existing response IDs
     setShowRespondentForm(true);
   };
 
@@ -244,12 +417,21 @@ const DataCollectionScreen: React.FC = () => {
                 {projectName}
               </Text>
             </View>
-            <IconButton
-              icon="share-variant"
-              iconColor="#ffffff"
-              size={24}
-              onPress={handleOpenLinkDialog}
-            />
+            <View style={{ flexDirection: 'row' }}>
+              <IconButton
+                icon="file-document-edit-outline"
+                iconColor="#FFA500"
+                size={24}
+                onPress={handleLoadDrafts}
+                disabled={loadingDrafts}
+              />
+              <IconButton
+                icon="share-variant"
+                iconColor="#ffffff"
+                size={24}
+                onPress={handleOpenLinkDialog}
+              />
+            </View>
           </View>
 
           {/* Question Bank Scope Configuration */}
@@ -350,6 +532,77 @@ const DataCollectionScreen: React.FC = () => {
               >
                 Create Link
               </Button>
+            </Dialog.Actions>
+          </Dialog>
+
+          {/* Drafts Dialog */}
+          <Dialog
+            visible={showDraftsDialog}
+            onDismiss={() => setShowDraftsDialog(false)}
+            style={{ maxHeight: '80%' }}
+          >
+            <Dialog.Title>Continue Draft Response</Dialog.Title>
+            <Dialog.Content>
+              {loadingDrafts ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#4b1e85" />
+                  <Text style={{ marginTop: 12, color: '#666' }}>Loading drafts...</Text>
+                </View>
+              ) : drafts.length === 0 ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text variant="bodyMedium" style={{ color: '#666', textAlign: 'center' }}>
+                    No draft responses found for this project.
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: '#999', textAlign: 'center', marginTop: 8 }}>
+                    Start a new survey and use "Save for Later" to create drafts.
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: 400 }}>
+                  {drafts.map((draft, index) => (
+                    <Card
+                      key={draft.id}
+                      style={{
+                        marginBottom: 12,
+                        backgroundColor: '#f5f5f5',
+                      }}
+                      onPress={() => handleResumeDraft(draft)}
+                    >
+                      <Card.Content>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text variant="titleMedium" style={{ fontWeight: 'bold', color: '#333' }}>
+                              {draft.respondent_id}
+                            </Text>
+                            <Text variant="bodySmall" style={{ color: '#666', marginTop: 4 }}>
+                              {draft.respondent_type && `Type: ${draft.respondent_type}`}
+                              {draft.commodity && ` • Commodity: ${draft.commodity}`}
+                              {draft.country && ` • Country: ${draft.country}`}
+                            </Text>
+                            <Text variant="bodySmall" style={{ color: '#999', marginTop: 4 }}>
+                              Last updated: {new Date(draft.last_response_at || draft.created_at).toLocaleString()}
+                            </Text>
+                            {draft.response_count !== undefined && (
+                              <Text variant="bodySmall" style={{ color: '#4b1e85', marginTop: 4, fontWeight: '600' }}>
+                                {draft.response_count} response(s) saved
+                              </Text>
+                            )}
+                          </View>
+                          <IconButton
+                            icon="arrow-right"
+                            iconColor="#4b1e85"
+                            size={24}
+                            onPress={() => handleResumeDraft(draft)}
+                          />
+                        </View>
+                      </Card.Content>
+                    </Card>
+                  ))}
+                </ScrollView>
+              )}
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowDraftsDialog(false)}>Close</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -480,6 +733,7 @@ const DataCollectionScreen: React.FC = () => {
             onPrevious={responses.handlePrevious}
             onNext={responses.handleNext}
             onSubmit={() => responses.handleSubmit(handleSubmitSuccess, handleFinishAndGoBack)}
+            onSaveDraft={() => responses.handleSaveDraft(() => navigation.goBack())}
             submitting={responses.submitting}
             canGoBack={responses.currentQuestionIndex > 0}
             isLastQuestion={

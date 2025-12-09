@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response as DRFResponse
 from django.db.models import Count, Avg, Max, Q
 from django.http import HttpResponse
+from django.utils import timezone
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import ResponseFilter
 from .models import Response, Respondent
@@ -552,4 +553,134 @@ class RespondentViewSet(BaseModelViewSet):
         except Exception as e:
             return DRFResponse({
                 'error': f'Failed to export JSON: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def save_draft(self, request):
+        """
+        Save draft responses for a respondent to continue later.
+        Creates/updates respondent with draft status and saves partial responses.
+        """
+        try:
+            # Extract data from request
+            project_id = request.data.get('project')
+            respondent_id = request.data.get('respondent_id')
+            respondent_data = request.data.get('respondent_data', {})
+            responses_data = request.data.get('responses', [])
+
+            if not project_id or not respondent_id:
+                return DRFResponse({
+                    'error': 'project and respondent_id are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get or create respondent with draft status
+            respondent, created = Respondent.objects.get_or_create(
+                respondent_id=respondent_id,
+                project_id=project_id,
+                defaults={
+                    'is_anonymous': respondent_data.get('is_anonymous', True),
+                    'consent_given': respondent_data.get('consent_given', True),
+                    'respondent_type': respondent_data.get('respondent_type'),
+                    'commodity': respondent_data.get('commodity'),
+                    'country': respondent_data.get('country'),
+                    'completion_status': 'draft',
+                    'created_by': request.user,
+                }
+            )
+
+            # Update existing respondent if not created
+            if not created:
+                respondent.completion_status = 'draft'
+                respondent.respondent_type = respondent_data.get('respondent_type') or respondent.respondent_type
+                respondent.commodity = respondent_data.get('commodity') or respondent.commodity
+                respondent.country = respondent_data.get('country') or respondent.country
+                respondent.save()
+
+            # Save or update responses
+            saved_count = 0
+            for response_item in responses_data:
+                question_id = response_item.get('question_id')
+                response_value = response_item.get('response_value')
+
+                if question_id and response_value:
+                    # Update or create response
+                    response, resp_created = Response.objects.update_or_create(
+                        project_id=project_id,
+                        question_id=question_id,
+                        respondent=respondent,
+                        defaults={
+                            'response_value': response_value,
+                            'collected_by': request.user,
+                            'device_info': response_item.get('device_info', {}),
+                        }
+                    )
+                    saved_count += 1
+
+            # Update last_response_at
+            respondent.last_response_at = timezone.now()
+
+            # Check if all questions are answered to determine completion status
+            # Get all generated questions for this respondent's criteria
+            from forms.models import Question
+            generated_questions = Question.objects.filter(
+                project_id=project_id,
+                assigned_respondent_type=respondent.respondent_type,
+                assigned_commodity=respondent.commodity or '',
+                assigned_country=respondent.country or ''
+            )
+
+            total_questions = generated_questions.count()
+            answered_questions = respondent.responses.count()
+
+            # Only mark as draft if not all questions are answered
+            if total_questions > 0 and answered_questions >= total_questions:
+                respondent.completion_status = 'completed'
+            else:
+                respondent.completion_status = 'draft'
+
+            respondent.save()
+
+            return DRFResponse({
+                'message': 'Draft saved successfully',
+                'respondent_id': str(respondent.id),
+                'respondent_identifier': respondent.respondent_id,
+                'responses_saved': saved_count,
+                'created': created,
+                'completion_status': respondent.completion_status,
+                'total_questions': total_questions,
+                'answered_questions': answered_questions,
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception(f"Error saving draft responses")
+            return DRFResponse({
+                'error': f'Failed to save draft: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def get_drafts(self, request):
+        """Get all draft respondents for a project"""
+        try:
+            project_id = request.query_params.get('project_id')
+            if not project_id:
+                return DRFResponse({
+                    'error': 'project_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            drafts = Respondent.objects.filter(
+                project_id=project_id,
+                completion_status='draft'
+            ).annotate(
+                response_count=Count('responses')
+            ).order_by('-last_response_at')
+
+            serializer = RespondentSerializer(drafts, many=True)
+            return DRFResponse({
+                'drafts': serializer.data,
+                'count': drafts.count()
+            })
+
+        except Exception as e:
+            return DRFResponse({
+                'error': f'Failed to get drafts: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

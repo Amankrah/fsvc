@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import apiService from '../../services/api';
+import { offlineQuestionCache, networkMonitor } from '../../services';
 import { Question, ResponseTypeInfo, RespondentType } from '../../types';
 import { DEFAULT_QUESTION_STATE } from '../../constants/formBuilder';
 
@@ -31,18 +32,72 @@ export const useQuestionBank = (projectId: string) => {
 
   const loadQuestions = useCallback(async () => {
     try {
-      // Fetch question bank items for this specific project
-      const questionBankData = await apiService.getQuestionBank({
-        project_id: projectId,
-        page_size: 1000,
-      });
-      const questionsList = Array.isArray(questionBankData)
-        ? questionBankData
-        : questionBankData.results || [];
-      setQuestions(questionsList);
-      return questionsList;
+      // Check if online
+      const isOnline = await networkMonitor.checkConnection();
+
+      if (isOnline) {
+        // Fetch question bank items from server
+        const questionBankData = await apiService.getQuestionBank({
+          project_id: projectId,
+          page_size: 1000,
+        });
+        const questionsList = Array.isArray(questionBankData)
+          ? questionBankData
+          : questionBankData.results || [];
+
+        // Cache for offline use
+        try {
+          await offlineQuestionCache.cacheQuestionBanks(projectId, questionsList);
+          console.log(`✓ Cached ${questionsList.length} question banks for offline use`);
+        } catch (cacheError) {
+          console.warn('Failed to cache question banks:', cacheError);
+          // Continue anyway - caching is optional
+        }
+
+        setQuestions(questionsList);
+        return questionsList;
+      } else {
+        // Load from cache when offline
+        console.log('📴 Offline - loading question banks from cache');
+        const cachedQuestions = await offlineQuestionCache.getQuestionBanks(projectId);
+
+        if (cachedQuestions.length > 0) {
+          // Convert cached questions to Question type
+          const questionsList = cachedQuestions as any as Question[];
+          setQuestions(questionsList);
+          Alert.alert(
+            'Offline Mode',
+            `Loaded ${cachedQuestions.length} questions from cache. You can view and edit questions, but changes will sync when you're back online.`,
+            [{ text: 'OK' }]
+          );
+          return questionsList;
+        } else {
+          Alert.alert(
+            'No Cached Data',
+            'No question banks cached for offline use. Please connect to the internet to load questions.'
+          );
+          return [];
+        }
+      }
     } catch (error: any) {
       console.error('Error loading questions:', error);
+
+      // Try to load from cache as fallback
+      try {
+        const cachedQuestions = await offlineQuestionCache.getQuestionBanks(projectId);
+        if (cachedQuestions.length > 0) {
+          const questionsList = cachedQuestions as any as Question[];
+          setQuestions(questionsList);
+          Alert.alert(
+            'Loaded from Cache',
+            `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
+          );
+          return questionsList;
+        }
+      } catch (cacheError) {
+        console.error('Failed to load from cache:', cacheError);
+      }
+
       Alert.alert('Error', 'Failed to load questions');
       return [];
     }

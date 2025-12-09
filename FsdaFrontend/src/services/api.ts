@@ -260,7 +260,7 @@ class ApiService {
   async generateDynamicQuestions(data: {
     project: string;
     respondent_type: string;
-    commodity?: string;
+    commodity?: string; // Single commodity or comma-separated list (e.g., "cocoa" or "cocoa,coffee")
     country?: string;
     categories?: string[];
     work_packages?: string[];
@@ -503,6 +503,20 @@ class ApiService {
 
   async getRespondentResponses(respondentId: string) {
     return await this.get(`/responses/respondents/${respondentId}/responses/`);
+  }
+
+  async saveDraftResponse(data: any) {
+    return await this.post('/responses/respondents/save_draft/', data);
+  }
+
+  async getDraftResponses(projectId: string) {
+    return await this.get(`/responses/respondents/get_drafts/?project_id=${projectId}`);
+  }
+
+  async updateRespondentStatus(respondentId: string, status: 'draft' | 'completed' | 'abandoned') {
+    return await this.patch(`/responses/respondents/${respondentId}/`, {
+      completion_status: status,
+    });
   }
 
   async exportResponses(projectId: string, format: 'csv' | 'json' = 'csv') {

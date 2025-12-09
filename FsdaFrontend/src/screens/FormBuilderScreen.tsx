@@ -29,6 +29,7 @@ import {
   SegmentedButtons,
   IconButton,
   Menu,
+  Chip,
 } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
 
@@ -40,6 +41,9 @@ import {
   useImportExport,
 } from '../hooks/formBuilder';
 import { useGeneratedQuestions } from '../hooks/formBuilder/useGeneratedQuestions';
+
+// Services
+import { networkMonitor, offlineQuestionCache } from '../services';
 
 // Components
 import { QuestionCard, SearchFilterBar, QuestionFormDialog } from '../components/formBuilder';
@@ -64,6 +68,18 @@ const FormBuilderScreen: React.FC = () => {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'bank' | 'generated'>('bank');
+
+  // Connection and Cache state
+  const [isOnline, setIsOnline] = useState(true);
+  const [cacheStats, setCacheStats] = useState<{
+    questionBanksCount: number;
+    generatedQuestionsCount: number;
+    lastUpdate: string | null;
+  }>({
+    questionBanksCount: 0,
+    generatedQuestionsCount: 0,
+    lastUpdate: null,
+  });
 
   // Generated Questions Filter State
   const [selectedGeneratedRespondentType, setSelectedGeneratedRespondentType] = useState<string>('');
@@ -168,6 +184,37 @@ const FormBuilderScreen: React.FC = () => {
     generatedQuestionsHook.loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Monitor network connection status
+  useEffect(() => {
+    // Check initial status
+    networkMonitor.checkConnection().then(setIsOnline);
+
+    // Listen for connection changes
+    const unsubscribe = networkMonitor.addListener((connected) => {
+      setIsOnline(connected);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Load cache statistics
+  useEffect(() => {
+    const loadCacheStats = async () => {
+      const stats = await offlineQuestionCache.getCacheStats();
+      setCacheStats({
+        questionBanksCount: stats.questionBanks[projectId] || 0,
+        generatedQuestionsCount: stats.generatedQuestions[projectId] || 0,
+        lastUpdate: stats.lastUpdate,
+      });
+    };
+
+    loadCacheStats();
+
+    // Refresh cache stats when questions load
+    const interval = setInterval(loadCacheStats, 10000); // Every 10 seconds
+    return () => clearInterval(interval);
+  }, [projectId]);
 
   // Handle Add Question
   const handleAddQuestion = async () => {
@@ -384,6 +431,31 @@ const FormBuilderScreen: React.FC = () => {
             <Text variant="bodyMedium" style={styles.subtitle}>
               Manage question templates and generated questions
             </Text>
+            {/* Connection and Cache Status */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <Chip
+                icon={isOnline ? 'wifi' : 'wifi-off'}
+                compact
+                style={{
+                  backgroundColor: isOnline ? '#4CAF50' : '#FF9800',
+                  height: 24,
+                }}>
+                <Text style={{ color: '#fff', fontSize: 11 }}>
+                  {isOnline ? 'Online' : 'Offline'}
+                </Text>
+              </Chip>
+              <Chip
+                icon="database"
+                compact
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  height: 24,
+                }}>
+                <Text style={{ color: '#fff', fontSize: 11 }}>
+                  {cacheStats.questionBanksCount + cacheStats.generatedQuestionsCount} cached
+                </Text>
+              </Chip>
+            </View>
           </View>
           <View style={styles.questionCountContainer}>
             <Text variant="titleMedium" style={styles.questionCount}>
@@ -636,42 +708,106 @@ const FormBuilderScreen: React.FC = () => {
             />
           </>
         ) : (
-          <FAB
-            icon={generatedQuestionsHook.isReorderMode ? 'check' : 'swap-vertical'}
-            label={generatedQuestionsHook.isReorderMode ? 'Done' : 'Reorder'}
-            style={styles.fab}
-            onPress={
-              generatedQuestionsHook.isReorderMode
-                ? generatedQuestionsHook.saveQuestionOrder
-                : () => {
-                    // Only allow reorder if questions are filtered to a specific bundle
-                    if (filteredGeneratedQuestions.length === 0) {
-                      Alert.alert('No Questions', 'There are no questions to reorder.');
-                      return;
-                    }
-
-                    // Check if all filtered questions belong to the same bundle
-                    const first = filteredGeneratedQuestions[0];
-                    const allSameBundle = filteredGeneratedQuestions.every(
-                      (q) =>
-                        q.assigned_respondent_type === first.assigned_respondent_type &&
-                        q.assigned_commodity === first.assigned_commodity &&
-                        q.assigned_country === first.assigned_country
+          <>
+            <FAB
+              icon="refresh"
+              label="Refresh Cache"
+              style={[styles.fab, styles.fabDelete]}
+              onPress={async () => {
+                Alert.alert(
+                  'Refresh Cache',
+                  'This will reload questions from the server and update the local cache.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Refresh',
+                      onPress: async () => {
+                        await loadProjectAndQuestions();
+                        await generatedQuestionsHook.loadData();
+                        Alert.alert('Success', 'Cache refreshed successfully!');
+                      },
+                    },
+                  ]
+                );
+              }}
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+            <FAB
+              icon="cloud-download-outline"
+              label="Generate Offline"
+              style={[styles.fab, styles.fabImport]}
+              onPress={async () => {
+                if (!isOnline) {
+                  // When offline, generate using cached data
+                  if (!selectedGeneratedRespondentType || !selectedGeneratedCommodity || !selectedGeneratedCountry) {
+                    Alert.alert(
+                      'Filter Required',
+                      'Please select Respondent Type, Commodity, and Country to generate questions offline.'
                     );
-
-                    if (!allSameBundle) {
-                      Alert.alert(
-                        'Filter Required',
-                        'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
-                      );
-                      return;
-                    }
-
-                    generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                    return;
                   }
-            }
-            theme={{ colors: { onPrimary: '#ffffff' } }}
-          />
+
+                  await generatedQuestionsHook.generateQuestionsOffline(
+                    selectedGeneratedRespondentType,
+                    selectedGeneratedCommodity,
+                    selectedGeneratedCountry
+                  );
+                } else {
+                  Alert.alert(
+                    'Generate Offline',
+                    'You are currently online. This feature is for generating questions from cached Question Bank when offline. Would you like to cache the Question Bank for offline use?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Cache Now',
+                        onPress: async () => {
+                          await loadProjectAndQuestions();
+                          Alert.alert('Success', 'Question Bank cached for offline use!');
+                        },
+                      },
+                    ]
+                  );
+                }
+              }}
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+            <FAB
+              icon={generatedQuestionsHook.isReorderMode ? 'check' : 'swap-vertical'}
+              label={generatedQuestionsHook.isReorderMode ? 'Done' : 'Reorder'}
+              style={styles.fab}
+              onPress={
+                generatedQuestionsHook.isReorderMode
+                  ? generatedQuestionsHook.saveQuestionOrder
+                  : () => {
+                      // Only allow reorder if questions are filtered to a specific bundle
+                      if (filteredGeneratedQuestions.length === 0) {
+                        Alert.alert('No Questions', 'There are no questions to reorder.');
+                        return;
+                      }
+
+                      // Check if all filtered questions belong to the same bundle
+                      const first = filteredGeneratedQuestions[0];
+                      const allSameBundle = filteredGeneratedQuestions.every(
+                        (q) =>
+                          q.assigned_respondent_type === first.assigned_respondent_type &&
+                          q.assigned_commodity === first.assigned_commodity &&
+                          q.assigned_country === first.assigned_country
+                      );
+
+                      if (!allSameBundle) {
+                        Alert.alert(
+                          'Filter Required',
+                          'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
+                        );
+                        return;
+                      }
+
+                      generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                    }
+              }
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+          </>
         )}
       </View>
 

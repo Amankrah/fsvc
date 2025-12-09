@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Text,
   Card,
@@ -14,6 +14,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
 import { Project } from '../types';
+import { offlineProjectCache, networkMonitor } from '../services';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -37,6 +38,7 @@ const ProjectDetailsScreen: React.FC = () => {
 
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -44,10 +46,53 @@ const ProjectDetailsScreen: React.FC = () => {
 
   const loadProject = async () => {
     try {
-      const data = await apiService.getProject(projectId);
-      setProject(data);
+      // Check network connection
+      const isOnline = await networkMonitor.checkConnection();
+
+      if (isOnline) {
+        // Online: Fetch from server
+        try {
+          const data = await apiService.getProject(projectId);
+          setProject(data);
+          setIsOfflineMode(false);
+
+          // Update cache with latest project data
+          await offlineProjectCache.updateProject(data);
+        } catch (error) {
+          // Network error - fall back to cache
+          console.log('Network error, falling back to cached project');
+          const cachedProject = await offlineProjectCache.getProject(projectId);
+
+          if (cachedProject) {
+            setProject(cachedProject);
+            setIsOfflineMode(true);
+          } else {
+            console.error('No cached project available');
+            Alert.alert(
+              'No Data Available',
+              'This project is not cached for offline use. Please sync while online first.'
+            );
+          }
+        }
+      } else {
+        // Offline: Load from cache
+        console.log('Offline mode - loading cached project');
+        const cachedProject = await offlineProjectCache.getProject(projectId);
+
+        if (cachedProject) {
+          setProject(cachedProject);
+          setIsOfflineMode(true);
+        } else {
+          console.warn('No cached project found. Need to sync first while online.');
+          Alert.alert(
+            'Offline Mode',
+            'This project is not available offline. Please connect to the internet to load it.'
+          );
+        }
+      }
     } catch (error) {
       console.error('Error loading project:', error);
+      Alert.alert('Error', 'Failed to load project details');
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +228,17 @@ const ProjectDetailsScreen: React.FC = () => {
         </Card.Content>
       </Card>
 
+      {isOfflineMode && (
+        <Card style={styles.offlineBanner}>
+          <Card.Content style={styles.offlineBannerContent}>
+            <IconButton icon="wifi-off" size={20} iconColor="#ff9800" />
+            <Text variant="bodyMedium" style={styles.offlineBannerText}>
+              Offline Mode - Showing cached data
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
       <View style={styles.menuSection}>
         <Text variant="titleLarge" style={styles.sectionTitle}>
           Project Tools
@@ -272,6 +328,23 @@ const styles = StyleSheet.create({
   divider: {
     height: 40,
     width: 1,
+  },
+  offlineBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#fff3e0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff9800',
+  },
+  offlineBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  offlineBannerText: {
+    flex: 1,
+    color: '#e65100',
+    marginLeft: 8,
   },
   menuSection: {
     padding: 16,

@@ -14,6 +14,7 @@ interface NavigationControlsProps {
   onPrevious: () => void;
   onNext: () => void;
   onSubmit: () => void;
+  onSaveDraft?: () => void;
   submitting: boolean;
   canGoBack: boolean;
   isLastQuestion: boolean;
@@ -26,6 +27,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   onPrevious,
   onNext,
   onSubmit,
+  onSaveDraft,
   submitting,
   canGoBack,
   isLastQuestion,
@@ -40,6 +42,20 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
         <ProgressBar progress={progress} color="#64c8ff" style={styles.progressBar} />
         <Text style={styles.progressPercentage}>{Math.round(progress * 100)}% Complete</Text>
       </View>
+
+      {/* Save for Later Button */}
+      {onSaveDraft && (
+        <Button
+          mode="text"
+          onPress={onSaveDraft}
+          disabled={submitting}
+          icon="content-save-outline"
+          style={styles.saveDraftButton}
+          textColor="#FFA500"
+          labelStyle={styles.saveDraftLabel}>
+          Save for Later
+        </Button>
+      )}
 
       {/* Navigation Buttons */}
       <View style={styles.buttonRow}>
@@ -106,6 +122,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 12,
     textAlign: 'center',
+  },
+  saveDraftButton: {
+    marginBottom: 12,
+    alignSelf: 'center',
+  },
+  saveDraftLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   buttonRow: {
     flexDirection: 'row',

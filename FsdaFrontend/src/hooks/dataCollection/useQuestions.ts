@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
+import { offlineProjectCache, networkMonitor } from '../../services';
 
 interface UseQuestionsProps {
   projectId: string;
@@ -34,13 +35,30 @@ export const useQuestions = ({
   const loadAvailableOptions = useCallback(async () => {
     try {
       setLoadingOptions(true);
-      const response = await apiService.getAvailableQuestionBankOptions(projectId);
 
-      setAvailableRespondentTypes(response.available_options.respondent_types || []);
-      setAvailableCommodities(response.available_options.commodities || []);
-      setAvailableCountries(response.available_options.countries || []);
+      // Check network connection
+      const isOnline = await networkMonitor.checkConnection();
 
-      console.log('Available options loaded:', response.summary);
+      if (isOnline) {
+        // Online: Load from API
+        try {
+          const response = await apiService.getAvailableQuestionBankOptions(projectId);
+
+          setAvailableRespondentTypes(response.available_options.respondent_types || []);
+          setAvailableCommodities(response.available_options.commodities || []);
+          setAvailableCountries(response.available_options.countries || []);
+
+          console.log('Available options loaded:', response.summary);
+        } catch (error: any) {
+          // Network error - fall back to cached project data
+          console.log('Network error loading options, falling back to cache');
+          await loadOptionsFromCache();
+        }
+      } else {
+        // Offline: Load from cached project data
+        console.log('Offline mode - loading options from cache');
+        await loadOptionsFromCache();
+      }
     } catch (error: any) {
       console.error('Error loading available options:', error);
       Alert.alert(
@@ -51,6 +69,76 @@ export const useQuestions = ({
       setLoadingOptions(false);
     }
   }, [projectId]);
+
+  const loadOptionsFromCache = async () => {
+    try {
+      // Load options from cached generated questions instead of project targeted fields
+      const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+
+      console.log('📦 Cached generated questions count:', cachedQuestions.length);
+
+      if (cachedQuestions.length > 0) {
+        // Extract unique respondent types, commodities, and countries from generated questions
+        const respondentTypesSet = new Set<string>();
+        const commoditiesSet = new Set<string>();
+        const countriesSet = new Set<string>();
+
+        cachedQuestions.forEach((question: any) => {
+          if (question.assigned_respondent_type) {
+            respondentTypesSet.add(question.assigned_respondent_type);
+          }
+          if (question.assigned_commodity) {
+            // Handle comma-separated commodities
+            const commodities = question.assigned_commodity.split(',').map((c: string) => c.trim());
+            commodities.forEach((c: string) => {
+              if (c) commoditiesSet.add(c);
+            });
+          }
+          if (question.assigned_country) {
+            countriesSet.add(question.assigned_country);
+          }
+        });
+
+        // Convert to UI format
+        const respondentTypes = Array.from(respondentTypesSet).map(type => ({
+          value: type,
+          display: type,
+        }));
+
+        const commodities = Array.from(commoditiesSet).map(commodity => ({
+          value: commodity,
+          display: commodity,
+        }));
+
+        const countries = Array.from(countriesSet);
+
+        console.log('🔄 Extracted options from generated questions:', {
+          respondentTypes,
+          commodities,
+          countries,
+        });
+
+        setAvailableRespondentTypes(respondentTypes);
+        setAvailableCommodities(commodities);
+        setAvailableCountries(countries);
+
+        console.log('✓ Loaded options from cache:', {
+          respondentTypes: respondentTypes.length,
+          commodities: commodities.length,
+          countries: countries.length,
+        });
+      } else {
+        console.warn('No cached generated questions found');
+        Alert.alert(
+          'Warning',
+          'No generated questions cached. Please generate questions while online first.'
+        );
+      }
+    } catch (error) {
+      console.error('Error loading options from cache:', error);
+      throw error;
+    }
+  };
 
   const loadExistingQuestions = useCallback(async () => {
     if (!selectedRespondentType) {
@@ -82,10 +170,10 @@ export const useQuestions = ({
   }, [projectId, selectedRespondentType, selectedCommodities, selectedCountry]);
 
   const generateDynamicQuestions = useCallback(
-    async (forceRegenerate: boolean = false, silent: boolean = false) => {
+    async (forceRegenerate: boolean = false, silent: boolean = false): Promise<Question[]> => {
       if (!selectedRespondentType) {
         Alert.alert('Required', 'Please select a respondent type');
-        return;
+        return [];
       }
 
       try {
@@ -116,7 +204,7 @@ export const useQuestions = ({
                 ]
               );
             }
-            return;
+            return existingQuestions;
           }
         }
 
@@ -157,12 +245,14 @@ export const useQuestions = ({
               } existing question${allContextQuestions.length !== 1 ? 's' : ''}.`;
 
         Alert.alert('Questions Ready!', message, [{ text: 'OK' }]);
+        return allContextQuestions;
       } catch (error: any) {
         console.error('Error generating dynamic questions:', error);
         Alert.alert(
           'Generation Failed',
           error.response?.data?.error || 'Failed to generate questions. Please try again.'
         );
+        return [];
       } finally {
         setGeneratingQuestions(false);
       }

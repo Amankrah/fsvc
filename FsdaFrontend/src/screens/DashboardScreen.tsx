@@ -31,6 +31,7 @@ import ProjectCard from '../components/ProjectCard';
 import NotificationBell from '../components/NotificationBell';
 import { Project, RespondentType, CommodityType, PartnerOrganization } from '../types';
 import { colors } from '../constants/theme';
+import { offlineProjectCache, networkMonitor } from '../services';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -56,6 +57,7 @@ const DashboardScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'synced' | 'pending' | 'error'>('all');
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   // Create Project Dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -92,28 +94,100 @@ const DashboardScreen: React.FC = () => {
 
   const loadProjects = useCallback(async () => {
     try {
-      const data = await apiService.getProjects();
-      const projectList = Array.isArray(data) ? data : data.results || [];
-      setProjects(projectList);
-      setFilteredProjects(projectList);
+      // Check network connection
+      const isOnline = await networkMonitor.checkConnection();
 
-      // Load QuestionBank count from dashboard stats endpoint (more efficient and accurate)
-      const dashboardStats = await apiService.getDashboardStats();
-      const questionBankCount = dashboardStats.questionbank_templates || 0;
-      
-      // Debug logging to verify we're getting the correct count
-      console.log('QuestionBank count from dashboard_stats:', questionBankCount);
+      if (isOnline) {
+        // Online: Fetch from server and cache
+        try {
+          const data = await apiService.getProjects();
+          const projectList = Array.isArray(data) ? data : data.results || [];
 
-      // Calculate stats
-      const totalResponses = projectList.reduce((sum: number, p: Project) => sum + (p.response_count || 0), 0); // response_count now returns respondents count
-      const totalMembers = projectList.reduce((sum: number, p: Project) => sum + (p.team_members_count || 1), 0);
+          // Log project count and first project structure
+          console.log('📋 Total projects to cache:', projectList.length);
+          if (projectList.length > 0) {
+            console.log('📋 First project keys:', Object.keys(projectList[0]));
+            console.log('📋 Sample project targeted fields:', {
+              targeted_respondents: projectList[0].targeted_respondents,
+              targeted_commodities: projectList[0].targeted_commodities,
+              targeted_countries: projectList[0].targeted_countries,
+            });
+          }
 
-      setStats({
-        totalProjects: projectList.length,
-        totalQuestions: questionBankCount, // User's own QuestionBank templates only
-        totalResponses,
-        totalMembers,
-      });
+          // Cache projects for offline use
+          await offlineProjectCache.cacheProjects(projectList);
+
+          setProjects(projectList);
+          setFilteredProjects(projectList);
+          setIsOfflineMode(false);
+
+          // Load QuestionBank count from dashboard stats endpoint (more efficient and accurate)
+          const dashboardStats = await apiService.getDashboardStats();
+          const questionBankCount = dashboardStats.questionbank_templates || 0;
+
+          // Debug logging to verify we're getting the correct count
+          console.log('QuestionBank count from dashboard_stats:', questionBankCount);
+
+          // Calculate stats
+          const totalResponses = projectList.reduce((sum: number, p: Project) => sum + (p.response_count || 0), 0);
+          const totalMembers = projectList.reduce((sum: number, p: Project) => sum + (p.team_members_count || 1), 0);
+
+          setStats({
+            totalProjects: projectList.length,
+            totalQuestions: questionBankCount,
+            totalResponses,
+            totalMembers,
+          });
+        } catch (error: any) {
+          // Network error - fall back to cache
+          console.log('Network error, falling back to cached projects');
+          const cachedProjects = await offlineProjectCache.getProjects();
+
+          if (cachedProjects.length > 0) {
+            setProjects(cachedProjects);
+            setFilteredProjects(cachedProjects);
+            setIsOfflineMode(true);
+
+            // Calculate stats from cached data
+            const totalResponses = cachedProjects.reduce((sum, p) => sum + (p.response_count || 0), 0);
+            const totalMembers = cachedProjects.reduce((sum, p) => sum + (p.team_members_count || 1), 0);
+            const totalQuestions = cachedProjects.reduce((sum, p) => sum + (p.question_count || 0), 0);
+
+            setStats({
+              totalProjects: cachedProjects.length,
+              totalQuestions,
+              totalResponses,
+              totalMembers,
+            });
+          } else {
+            console.error('No cached projects available');
+          }
+        }
+      } else {
+        // Offline: Load from cache
+        console.log('Offline mode - loading cached projects');
+        const cachedProjects = await offlineProjectCache.getProjects();
+
+        if (cachedProjects.length > 0) {
+          setProjects(cachedProjects);
+          setFilteredProjects(cachedProjects);
+          setIsOfflineMode(true);
+
+          // Calculate stats from cached data
+          const totalResponses = cachedProjects.reduce((sum, p) => sum + (p.response_count || 0), 0);
+          const totalMembers = cachedProjects.reduce((sum, p) => sum + (p.team_members_count || 1), 0);
+          const totalQuestions = cachedProjects.reduce((sum, p) => sum + (p.question_count || 0), 0);
+
+          setStats({
+            totalProjects: cachedProjects.length,
+            totalQuestions,
+            totalResponses,
+            totalMembers,
+          });
+        } else {
+          console.warn('No cached projects found. Need to sync first while online.');
+        }
+      }
     } catch (error: any) {
       console.error('Error loading projects:', error);
     } finally {
@@ -365,11 +439,20 @@ const DashboardScreen: React.FC = () => {
             Manage your research projects and collaborate with your team
           </Text>
         </View>
-        <NotificationBell 
+        <NotificationBell
           onNavigateToProject={handleNavigateToProject}
           onNavigateToInvitation={handleNavigateToInvitation}
         />
       </View>
+
+      {isOfflineMode && (
+        <Surface style={styles.offlineBanner}>
+          <IconButton icon="wifi-off" size={20} iconColor={colors.accent.orange} />
+          <Text variant="bodyMedium" style={styles.offlineBannerText}>
+            Offline Mode - Showing cached projects
+          </Text>
+        </Surface>
+      )}
 
       <View style={styles.statsGrid}>
         {renderStatCard('folder-outline', 'Projects', stats.totalProjects, colors.visualization.purple)}
@@ -786,6 +869,26 @@ const styles = StyleSheet.create({
   subtitleText: {
     color: colors.text.secondary,
     fontSize: 16,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.paper,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accent.orange,
+    padding: 12,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: colors.neutral.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  offlineBannerText: {
+    color: colors.text.primary,
+    flex: 1,
+    marginLeft: 8,
   },
   statsGrid: {
     flexDirection: 'row',

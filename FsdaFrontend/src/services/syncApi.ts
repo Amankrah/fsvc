@@ -35,7 +35,7 @@ class SyncApi {
   async syncItem(item: SyncQueueItem): Promise<ApiResponse<any>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -72,7 +72,7 @@ class SyncApi {
   }>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/process_pending/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/process_pending/`, {
         method: 'POST',
         headers,
       });
@@ -104,7 +104,7 @@ class SyncApi {
   }>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/stats/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/stats/`, {
         method: 'GET',
         headers,
       });
@@ -130,7 +130,7 @@ class SyncApi {
   async retryItem(itemId: string): Promise<ApiResponse<any>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/${itemId}/retry/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/${itemId}/retry/`, {
         method: 'POST',
         headers,
       });
@@ -155,7 +155,7 @@ class SyncApi {
   async retryAllFailed(): Promise<ApiResponse<{ retry_count: number }>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/retry_failed/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/retry_failed/`, {
         method: 'POST',
         headers,
       });
@@ -180,7 +180,7 @@ class SyncApi {
   async clearCompleted(): Promise<ApiResponse<{ cleared_count: number }>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/queue/clear_completed/`, {
+      const response = await fetch(`${this.baseUrl}/sync-queue/clear_completed/`, {
         method: 'POST',
         headers,
       });
@@ -205,7 +205,7 @@ class SyncApi {
   async getQueue(status?: 'pending' | 'failed' | 'completed'): Promise<ApiResponse<SyncQueueItem[]>> {
     try {
       const headers = await this.getAuthHeaders();
-      const url = status ? `${this.baseUrl}/queue/?status=${status}` : `${this.baseUrl}/queue/`;
+      const url = status ? `${this.baseUrl}/sync-queue/?status=${status}` : `${this.baseUrl}/sync-queue/`;
 
       const response = await fetch(url, {
         method: 'GET',

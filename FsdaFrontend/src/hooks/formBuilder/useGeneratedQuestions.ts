@@ -7,6 +7,7 @@
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import apiService from '../../services/api';
+import { offlineQuestionCache, networkMonitor } from '../../services';
 import { Question } from '../../types';
 
 export const useGeneratedQuestions = (projectId: string) => {
@@ -18,16 +19,69 @@ export const useGeneratedQuestions = (projectId: string) => {
 
   const loadGeneratedQuestions = useCallback(async () => {
     try {
-      const questionsData = await apiService.getQuestions(projectId);
-      const questionsList: Question[] = Array.isArray(questionsData)
-        ? questionsData
-        : questionsData.results || [];
+      // Check if online
+      const isOnline = await networkMonitor.checkConnection();
 
-      // Questions are already sorted by order_index from the backend
-      setGeneratedQuestions(questionsList);
-      return questionsList;
+      if (isOnline) {
+        // Fetch from server when online
+        const questionsData = await apiService.getQuestions(projectId);
+        const questionsList: Question[] = Array.isArray(questionsData)
+          ? questionsData
+          : questionsData.results || [];
+
+        // Cache for offline use
+        try {
+          await offlineQuestionCache.cacheGeneratedQuestions(projectId, questionsList as any);
+          console.log(`✓ Cached ${questionsList.length} generated questions for offline use`);
+        } catch (cacheError) {
+          console.warn('Failed to cache generated questions:', cacheError);
+          // Continue anyway - caching is optional
+        }
+
+        // Questions are already sorted by order_index from the backend
+        setGeneratedQuestions(questionsList);
+        return questionsList;
+      } else {
+        // Load from cache when offline
+        console.log('📴 Offline - loading generated questions from cache');
+        const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+
+        if (cachedQuestions.length > 0) {
+          const questionsList = cachedQuestions as any as Question[];
+          setGeneratedQuestions(questionsList);
+          Alert.alert(
+            'Offline Mode',
+            `Loaded ${cachedQuestions.length} generated questions from cache.`,
+            [{ text: 'OK' }]
+          );
+          return questionsList;
+        } else {
+          Alert.alert(
+            'No Cached Data',
+            'No generated questions cached for offline use. You can still generate questions from cached Question Bank.'
+          );
+          return [];
+        }
+      }
     } catch (error: any) {
       console.error('Error loading generated questions:', error);
+
+      // Try to load from cache as fallback
+      try {
+        const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+        if (cachedQuestions.length > 0) {
+          const questionsList = cachedQuestions as any as Question[];
+          setGeneratedQuestions(questionsList);
+          Alert.alert(
+            'Loaded from Cache',
+            `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
+          );
+          return questionsList;
+        }
+      } catch (cacheError) {
+        console.error('Failed to load from cache:', cacheError);
+      }
+
       Alert.alert('Error', 'Failed to load generated questions');
       return [];
     }
@@ -146,12 +200,56 @@ export const useGeneratedQuestions = (projectId: string) => {
     }
   }, [projectId, reorderedQuestions, loadGeneratedQuestions]);
 
+  // Generate questions offline using cached Question Bank
+  const generateQuestionsOffline = useCallback(async (
+    respondentType: string,
+    commodity: string,
+    country: string
+  ) => {
+    try {
+      console.log('Generating questions offline...');
+
+      const newQuestions = await offlineQuestionCache.generateQuestionsOffline(
+        projectId,
+        respondentType,
+        commodity,
+        country
+      );
+
+      if (newQuestions.length > 0) {
+        // Refresh the list to show newly generated questions
+        await loadGeneratedQuestions();
+
+        Alert.alert(
+          'Questions Generated Offline',
+          `Generated ${newQuestions.length} questions. They will sync to the server when you're back online.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'No New Questions',
+          'No matching questions found in the Question Bank, or all questions have already been generated for this combination.'
+        );
+      }
+
+      return newQuestions;
+    } catch (error) {
+      console.error('Error generating questions offline:', error);
+      Alert.alert(
+        'Error',
+        'Failed to generate questions offline. Make sure Question Bank is cached.'
+      );
+      return [];
+    }
+  }, [projectId, loadGeneratedQuestions]);
+
   return {
     generatedQuestions,
     loading,
     refreshing,
     loadData,
     handleRefresh,
+    generateQuestionsOffline, // NEW: Offline question generation
     // Reorder mode
     isReorderMode,
     reorderedQuestions,

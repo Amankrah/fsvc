@@ -328,6 +328,18 @@ class Respondent(models.Model):
     is_anonymous = models.BooleanField(default=True)
     consent_given = models.BooleanField(default=False)
 
+    # Completion tracking
+    completion_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('draft', 'Draft - In Progress'),
+            ('completed', 'Completed'),
+            ('abandoned', 'Abandoned'),
+        ],
+        default='draft',
+        help_text="Status of response collection for this respondent"
+    )
+
     # Sync and tracking
     sync_status = models.CharField(max_length=20, default='pending')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_respondents')
@@ -349,12 +361,21 @@ class Respondent(models.Model):
         return self.responses.count()
     
     def get_completion_rate(self):
-        """Get completion rate for this respondent across all project questions"""
-        total_questions = self.project.questions.count()
+        """Get completion rate for this respondent's specific generated questions"""
+        from forms.models import Question
+
+        # Get questions generated specifically for this respondent's criteria
+        total_questions = Question.objects.filter(
+            project=self.project,
+            assigned_respondent_type=self.respondent_type,
+            assigned_commodity=self.commodity or '',
+            assigned_country=self.country or ''
+        ).count()
+
         answered_questions = self.responses.filter(
             response_value__isnull=False
         ).exclude(response_value='').count()
-        
+
         return (answered_questions / total_questions * 100) if total_questions > 0 else 0
     
     def update_last_response(self):

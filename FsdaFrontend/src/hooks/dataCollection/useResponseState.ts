@@ -6,6 +6,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Alert, Platform } from 'react-native';
 import apiService from '../../services/api';
+import { syncManager } from '../../services/syncManager';
+import { networkMonitor } from '../../services/networkMonitor';
 import { filterQuestionsWithConditions } from '../../utils/conditionalLogic';
 import { Question } from '../../types';
 import { DEVICE_INFO } from '../../constants/dataCollection';
@@ -22,7 +24,9 @@ export const useResponseState = (
     respondentType: string;
     commodities: string[];
     country: string;
-  }
+  },
+  existingRespondentDatabaseId?: string | null,  // Optional: database ID when resuming draft
+  preExistingResponseQuestionIds?: Set<string>  // Optional: question IDs that already have responses in DB
 ) => {
   const [responses, setResponses] = useState<ResponseData>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -76,18 +80,35 @@ export const useResponseState = (
         setSubmitting(true);
 
         // Create or get the respondent
-        const respondent = await apiService.createRespondent({
-          respondent_id: respondentData.respondentId,
-          project: projectId,
-          is_anonymous: true,
-          consent_given: true,
-          respondent_type: respondentData.respondentType || null,
-          commodity: respondentData.commodities.length > 0 ? respondentData.commodities.join(',') : null,
-          country: respondentData.country || null,
-        });
+        let respondent;
+        if (existingRespondentDatabaseId) {
+          // Resuming from draft - use existing respondent
+          console.log(`Using existing respondent: ${existingRespondentDatabaseId}`);
+          respondent = { id: existingRespondentDatabaseId };
+        } else {
+          // New respondent - create it
+          respondent = await apiService.createRespondent({
+            respondent_id: respondentData.respondentId,
+            project: projectId,
+            is_anonymous: true,
+            consent_given: true,
+            respondent_type: respondentData.respondentType || null,
+            commodity: respondentData.commodities.length > 0 ? respondentData.commodities.join(',') : null,
+            country: respondentData.country || null,
+          });
+        }
 
-        // Submit all responses
-        const responsePromises = Object.entries(responses).map(async ([questionId, value]) => {
+        // Submit all responses (filter out pre-existing ones if resuming from draft)
+        const responseEntries = Object.entries(responses);
+        const newResponsesOnly = preExistingResponseQuestionIds
+          ? responseEntries.filter(([questionId]) => !preExistingResponseQuestionIds.has(questionId))
+          : responseEntries;
+
+        console.log(`Total responses: ${responseEntries.length}`);
+        console.log(`Pre-existing responses: ${preExistingResponseQuestionIds?.size || 0}`);
+        console.log(`New responses to submit: ${newResponsesOnly.length}`);
+
+        const responsePromises = newResponsesOnly.map(async ([questionId, value]) => {
           const responseValue = Array.isArray(value) ? JSON.stringify(value) : value;
           const question = questions.find(q => q.id === questionId);
 
@@ -114,6 +135,17 @@ export const useResponseState = (
 
         await Promise.all(responsePromises);
 
+        // Mark respondent as completed
+        try {
+          console.log(`Marking respondent ${respondent.id} as completed`);
+          await apiService.updateRespondentStatus(respondent.id, 'completed');
+          console.log(`✓ Respondent ${respondent.id} marked as completed`);
+        } catch (statusError) {
+          console.error('Failed to update respondent status:', statusError);
+          console.error('Status error details:', JSON.stringify(statusError));
+          // Don't fail the whole submission if status update fails
+        }
+
         Alert.alert('Success', 'Response submitted successfully! Ready for next respondent.', [
           {
             text: 'Continue Collecting',
@@ -131,12 +163,84 @@ export const useResponseState = (
         ]);
       } catch (error: any) {
         console.error('Error submitting responses:', error);
-        const errorMessage =
-          error.message ||
-          error.response?.data?.error ||
-          error.response?.data?.respondent_id?.[0] ||
-          'Failed to submit responses';
-        Alert.alert('Error', errorMessage);
+
+        // Check if it's a network error
+        const isNetworkError =
+          error.message?.includes('Network') ||
+          error.message?.includes('network') ||
+          error.code === 'ECONNABORTED' ||
+          error.code === 'ERR_NETWORK' ||
+          !error.response;
+
+        // If network error and device is offline, queue for later sync
+        const isOnline = await networkMonitor.checkConnection();
+
+        if (isNetworkError || !isOnline) {
+          // Queue the response submission for offline sync
+          try {
+            // Prepare response data for queueing
+            const responseData = {
+              projectId,
+              respondentData: {
+                respondentId: respondentData.respondentId,
+                respondentType: respondentData.respondentType,
+                commodities: respondentData.commodities,
+                country: respondentData.country,
+              },
+              responses: Object.entries(responses).map(([questionId, value]) => {
+                const question = questions.find(q => q.id === questionId);
+                return {
+                  questionId,
+                  questionText: question?.question_text || '',
+                  responseValue: Array.isArray(value) ? JSON.stringify(value) : value,
+                };
+              }),
+              timestamp: new Date().toISOString(),
+            };
+
+            await syncManager.queueOperation({
+              table_name: 'responses',
+              record_id: `temp_${Date.now()}`,
+              operation: 'create',
+              data: responseData,
+              priority: 9, // High priority for survey responses
+            });
+
+            Alert.alert(
+              'Queued for Sync',
+              'You are offline. Response has been saved and will be submitted when you reconnect to the internet.',
+              [
+                {
+                  text: 'Continue Collecting',
+                  onPress: onSuccess,
+                },
+                {
+                  text: 'Finish & Go Back',
+                  onPress: () => {
+                    if (onFinish) {
+                      onFinish();
+                    }
+                  },
+                  style: 'cancel',
+                },
+              ]
+            );
+          } catch (queueError) {
+            console.error('Failed to queue response:', queueError);
+            Alert.alert(
+              'Error',
+              'Failed to save response for offline sync. Please try again when you have internet connection.'
+            );
+          }
+        } else {
+          // Non-network error (validation, server error, etc.)
+          const errorMessage =
+            error.message ||
+            error.response?.data?.error ||
+            error.response?.data?.respondent_id?.[0] ||
+            'Failed to submit responses';
+          Alert.alert('Error', errorMessage);
+        }
       } finally {
         setSubmitting(false);
       }
@@ -144,9 +248,127 @@ export const useResponseState = (
     [visibleQuestions, responses, respondentData, projectId, questions]
   );
 
+  const handleSaveDraft = useCallback(
+    async (onSuccess?: () => void) => {
+      // Check if there are any responses to save
+      if (Object.keys(responses).length === 0) {
+        Alert.alert('No Responses', 'Please answer at least one question before saving.');
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+
+        // Prepare responses data
+        const responsesData = Object.entries(responses).map(([questionId, value]) => {
+          const question = questions.find(q => q.id === questionId);
+          return {
+            question_id: questionId,
+            response_value: Array.isArray(value) ? JSON.stringify(value) : value,
+          };
+        });
+
+        // Save draft
+        const result = await apiService.saveDraftResponse({
+          project: projectId,
+          respondent_id: respondentData.respondentId,
+          respondent_data: {
+            is_anonymous: true,
+            consent_given: true,
+            respondent_type: respondentData.respondentType || null,
+            commodity: respondentData.commodities.length > 0 ? respondentData.commodities.join(',') : null,
+            country: respondentData.country || null,
+          },
+          responses: responsesData,
+        });
+
+        Alert.alert(
+          'Draft Saved',
+          `Progress saved successfully! You can continue this survey later.\n\nResponses saved: ${result.responses_saved}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onSuccess) {
+                  onSuccess();
+                }
+              },
+            },
+          ]
+        );
+      } catch (error: any) {
+        console.error('Error saving draft:', error);
+
+        // Check if offline
+        const isOnline = await networkMonitor.checkConnection();
+
+        if (!isOnline) {
+          // Queue for offline sync
+          try {
+            const draftData = {
+              projectId,
+              respondentData,
+              responses: Object.entries(responses).map(([questionId, value]) => {
+                const question = questions.find(q => q.id === questionId);
+                return {
+                  questionId,
+                  questionText: question?.question_text || '',
+                  responseValue: Array.isArray(value) ? JSON.stringify(value) : value,
+                };
+              }),
+              isDraft: true,
+              timestamp: new Date().toISOString(),
+            };
+
+            await syncManager.queueOperation({
+              table_name: 'draft_responses',
+              record_id: `draft_${Date.now()}`,
+              operation: 'create',
+              data: draftData,
+              priority: 7, // Medium-high priority for drafts
+            });
+
+            Alert.alert(
+              'Queued for Sync',
+              'You are offline. Draft has been saved locally and will sync when you reconnect.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    if (onSuccess) {
+                      onSuccess();
+                    }
+                  },
+                },
+              ]
+            );
+          } catch (queueError) {
+            console.error('Failed to queue draft:', queueError);
+            Alert.alert('Error', 'Failed to save draft. Please try again.');
+          }
+        } else {
+          const errorMessage =
+            error.response?.data?.error || error.message || 'Failed to save draft';
+          Alert.alert('Error', errorMessage);
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [responses, respondentData, projectId, questions]
+  );
+
   const resetResponses = useCallback(() => {
     setResponses({});
     setCurrentQuestionIndex(0);
+  }, []);
+
+  const setQuestionIndex = useCallback((index: number) => {
+    setCurrentQuestionIndex(index);
+  }, []);
+
+  const loadResponses = useCallback((loadedResponses: ResponseData) => {
+    setResponses(loadedResponses);
   }, []);
 
   const progress = useMemo(
@@ -164,6 +386,9 @@ export const useResponseState = (
     handleNext,
     handlePrevious,
     handleSubmit,
+    handleSaveDraft,
     resetResponses,
+    setQuestionIndex,
+    loadResponses,
   };
 };
