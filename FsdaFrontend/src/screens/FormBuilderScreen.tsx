@@ -9,11 +9,11 @@
  * - Full Django backend compatibility
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Platform,
   RefreshControl,
   Alert,
@@ -212,18 +212,6 @@ const FormBuilderScreen: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
-          Loading form...
-        </Text>
-      </View>
-    );
-  }
-
   // Get unique filter options for Generated Questions
   const getUniqueGeneratedFilters = () => {
     const respondentTypes = new Set<string>();
@@ -261,9 +249,128 @@ const FormBuilderScreen: React.FC = () => {
 
   // Get active data based on tab
   const activeQuestions = activeTab === 'bank' ? questions : filteredGeneratedQuestions;
-  const activeLoading = activeTab === 'bank' ? loading : generatedQuestionsHook.loading;
   const activeRefreshing = activeTab === 'bank' ? refreshing : generatedQuestionsHook.refreshing;
   const activeHandleRefresh = activeTab === 'bank' ? handleRefresh : generatedQuestionsHook.handleRefresh;
+
+  // Get the questions to display (for reorder mode or normal mode)
+  const displayQuestions = activeTab === 'generated' && generatedQuestionsHook.isReorderMode
+    ? generatedQuestionsHook.reorderedQuestions
+    : activeTab === 'generated'
+    ? filteredGeneratedQuestions
+    : filteredQuestions;
+
+  // Render individual question item
+  const renderQuestionItem = useCallback(({ item: question, index }: { item: Question; index: number }) => (
+    <View style={styles.questionCardWrapper}>
+      {/* Reorder Controls for Generated Questions */}
+      {activeTab === 'generated' && generatedQuestionsHook.isReorderMode && (
+        <View style={styles.reorderControls}>
+          <IconButton
+            icon="arrow-up"
+            size={20}
+            iconColor="#64c8ff"
+            disabled={index === 0}
+            onPress={() => generatedQuestionsHook.moveQuestionUp(index)}
+            style={[
+              styles.reorderButton,
+              index === 0 && styles.reorderButtonDisabled,
+            ]}
+          />
+          <Text style={styles.orderIndex}>{index + 1}</Text>
+          <IconButton
+            icon="arrow-down"
+            size={20}
+            iconColor="#64c8ff"
+            disabled={index === generatedQuestionsHook.reorderedQuestions.length - 1}
+            onPress={() => generatedQuestionsHook.moveQuestionDown(index)}
+            style={[
+              styles.reorderButton,
+              index === generatedQuestionsHook.reorderedQuestions.length - 1 &&
+                styles.reorderButtonDisabled,
+            ]}
+          />
+        </View>
+      )}
+
+      <View style={styles.questionCardContent}>
+        <QuestionCard
+          question={question}
+          index={index}
+          responseTypes={responseTypes}
+          questionBankChoices={questionBankChoices}
+          onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => {}}
+          onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => {}}
+          onDelete={activeTab === 'bank' ? deleteQuestion : () => {}}
+        />
+      </View>
+    </View>
+  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.reorderedQuestions.length, responseTypes, questionBankChoices, handleOpenEditDialog, duplicateQuestion, deleteQuestion, generatedQuestionsHook.moveQuestionUp, generatedQuestionsHook.moveQuestionDown]);
+
+  // Key extractor for FlatList
+  const keyExtractor = useCallback((item: Question) => item.id, []);
+
+  // List header component (reorder banner)
+  const ListHeaderComponent = useCallback(() => (
+    activeTab === 'generated' && generatedQuestionsHook.isReorderMode ? (
+      <View style={styles.reorderBanner}>
+        <Text variant="bodyMedium" style={styles.reorderBannerText}>
+          Reorder Mode: Use up/down arrows to arrange questions
+        </Text>
+        <View style={styles.reorderActions}>
+          <Button
+            mode="outlined"
+            onPress={generatedQuestionsHook.cancelReorderMode}
+            textColor="#fff"
+            style={styles.reorderButton}>
+            Cancel
+          </Button>
+          <Button
+            mode="contained"
+            onPress={generatedQuestionsHook.saveQuestionOrder}
+            style={[styles.reorderButton, styles.saveButton]}>
+            Save Order
+          </Button>
+        </View>
+      </View>
+    ) : null
+  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.cancelReorderMode, generatedQuestionsHook.saveQuestionOrder]);
+
+  // Empty list component
+  const ListEmptyComponent = useCallback(() => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconContainer}>
+        <Text style={styles.emptyIcon}>
+          {activeQuestions.length === 0 ? '📝' : '🔍'}
+        </Text>
+      </View>
+      <Text variant="headlineSmall" style={styles.emptyTitle}>
+        {activeQuestions.length === 0
+          ? activeTab === 'bank'
+            ? 'No Questions in Your Bank'
+            : 'No Generated Questions'
+          : 'No Questions Match Filters'}
+      </Text>
+      <Text variant="bodyLarge" style={styles.emptySubtitle}>
+        {activeQuestions.length === 0
+          ? activeTab === 'bank'
+            ? 'Start building your question library by adding reusable templates'
+            : 'Generate questions from your Question Bank to start collecting data'
+          : 'Try adjusting your search or filter criteria'}
+      </Text>
+    </View>
+  ), [activeQuestions.length, activeTab]);
+
+  // Loading state - placed after all hooks to comply with Rules of Hooks
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" />
+        <Text variant="bodyLarge" style={styles.loadingText}>
+          Loading form...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -472,9 +579,14 @@ const FormBuilderScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Questions List */}
-      <ScrollView
-        style={styles.scrollView}
+      {/* Questions List with Virtualization */}
+      <FlatList
+        data={displayQuestions}
+        renderItem={renderQuestionItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeaderComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        contentContainerStyle={displayQuestions.length === 0 ? styles.emptyListContent : styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -483,108 +595,19 @@ const FormBuilderScreen: React.FC = () => {
             tintColor="#4b1e85"
             colors={['#4b1e85']}
           />
-        }>
-        {/* Reorder Mode Banner for Generated Questions */}
-        {activeTab === 'generated' && generatedQuestionsHook.isReorderMode && (
-          <View style={styles.reorderBanner}>
-            <Text variant="bodyMedium" style={styles.reorderBannerText}>
-              Reorder Mode: Use up/down arrows to arrange questions
-            </Text>
-            <View style={styles.reorderActions}>
-              <Button
-                mode="outlined"
-                onPress={generatedQuestionsHook.cancelReorderMode}
-                textColor="#fff"
-                style={styles.reorderButton}>
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={generatedQuestionsHook.saveQuestionOrder}
-                style={[styles.reorderButton, styles.saveButton]}>
-                Save Order
-              </Button>
-            </View>
-          </View>
-        )}
-
-        {filteredQuestions.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyIcon}>
-                {activeQuestions.length === 0 ? '📝' : '🔍'}
-              </Text>
-            </View>
-            <Text variant="headlineSmall" style={styles.emptyTitle}>
-              {activeQuestions.length === 0
-                ? activeTab === 'bank'
-                  ? 'No Questions in Your Bank'
-                  : 'No Generated Questions'
-                : 'No Questions Match Filters'}
-            </Text>
-            <Text variant="bodyLarge" style={styles.emptySubtitle}>
-              {activeQuestions.length === 0
-                ? activeTab === 'bank'
-                  ? 'Start building your question library by adding reusable templates'
-                  : 'Generate questions from your Question Bank to start collecting data'
-                : 'Try adjusting your search or filter criteria'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.questionsList}>
-            {(activeTab === 'generated' && generatedQuestionsHook.isReorderMode
-              ? generatedQuestionsHook.reorderedQuestions
-              : activeTab === 'generated'
-              ? filteredGeneratedQuestions
-              : filteredQuestions
-            ).map((question, index) => (
-              <View key={question.id} style={styles.questionCardWrapper}>
-                {/* Reorder Controls for Generated Questions */}
-                {activeTab === 'generated' && generatedQuestionsHook.isReorderMode && (
-                  <View style={styles.reorderControls}>
-                    <IconButton
-                      icon="arrow-up"
-                      size={20}
-                      iconColor="#64c8ff"
-                      disabled={index === 0}
-                      onPress={() => generatedQuestionsHook.moveQuestionUp(index)}
-                      style={[
-                        styles.reorderButton,
-                        index === 0 && styles.reorderButtonDisabled,
-                      ]}
-                    />
-                    <Text style={styles.orderIndex}>{index + 1}</Text>
-                    <IconButton
-                      icon="arrow-down"
-                      size={20}
-                      iconColor="#64c8ff"
-                      disabled={index === generatedQuestionsHook.reorderedQuestions.length - 1}
-                      onPress={() => generatedQuestionsHook.moveQuestionDown(index)}
-                      style={[
-                        styles.reorderButton,
-                        index === generatedQuestionsHook.reorderedQuestions.length - 1 &&
-                          styles.reorderButtonDisabled,
-                      ]}
-                    />
-                  </View>
-                )}
-
-                <View style={styles.questionCardContent}>
-                  <QuestionCard
-                    question={question}
-                    index={index}
-                    responseTypes={responseTypes}
-                    questionBankChoices={questionBankChoices}
-                    onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => {}}
-                    onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => {}}
-                    onDelete={activeTab === 'bank' ? deleteQuestion : () => {}}
-                  />
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        }
+        // Performance optimizations
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={15}
+        windowSize={21}
+        getItemLayout={(_, index) => ({
+          length: 200, // Approximate height of each item
+          offset: 200 * index,
+          index,
+        })}
+      />
 
       {/* FAB Actions */}
       <View style={styles.fabContainer}>
@@ -1022,6 +1045,15 @@ const styles = StyleSheet.create({
   },
   clearFiltersButton: {
     alignSelf: 'flex-end',
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100, // Space for FAB
   },
 });
 

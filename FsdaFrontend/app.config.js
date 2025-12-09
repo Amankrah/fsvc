@@ -2,6 +2,7 @@ module.exports = {
   expo: {
     name: "Food Systems Analytics",
     slug: "FsdaFrontend",
+    owner: "sasel-mcgill",
     version: "1.0.1",
     orientation: "landscape",
     icon: "./assets/icon.png",
@@ -10,7 +11,7 @@ module.exports = {
       enabled: true,
       checkAutomatically: "ON_LOAD",
       fallbackToCacheTimeout: 0,
-      url: "https://u.expo.dev/f79b991a-c33c-4fbe-9edd-c793dc0de781"
+      url: "https://u.expo.dev/416102d4-2852-4813-80c5-071bcee68212"
     },
     splash: {
       image: "./assets/splash-icon.png",
@@ -64,7 +65,7 @@ module.exports = {
     ],
     extra: {
       eas: {
-        projectId: "f79b991a-c33c-4fbe-9edd-c793dc0de781"
+        projectId: "416102d4-2852-4813-80c5-071bcee68212"
       },
       // Environment-specific API URLs
       apiUrl: process.env.EXPO_PUBLIC_API_URL || process.env.API_URL,
