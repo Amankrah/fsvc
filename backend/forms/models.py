@@ -643,10 +643,67 @@ class Question(models.Model):
 
     class Meta:
         ordering = ['order_index', 'created_at']
-        unique_together = ['project', 'order_index']
+        # Removed unique_together constraint to allow flexible reordering
+        # Questions are uniquely identified by their UUID primary key
 
     def __str__(self):
         return f"{self.question_text[:50]}..."
+
+    def move_to_position(self, new_order_index):
+        """
+        Move this question to a new position in the order, shifting other questions as needed.
+
+        Args:
+            new_order_index (int): The new position for this question
+
+        Returns:
+            bool: True if successful, raises exception otherwise
+        """
+        from django.db import transaction
+
+        if new_order_index < 0:
+            raise ValueError("order_index cannot be negative")
+
+        old_order_index = self.order_index
+
+        if old_order_index == new_order_index:
+            return True  # No change needed
+
+        with transaction.atomic():
+            # Get all questions in the same project ordered by order_index
+            questions_in_project = Question.objects.filter(
+                project=self.project
+            ).exclude(
+                id=self.id
+            ).order_by('order_index')
+
+            # Moving down (increasing order_index)
+            if new_order_index > old_order_index:
+                # Shift questions between old and new position up by 1
+                questions_to_shift = questions_in_project.filter(
+                    order_index__gt=old_order_index,
+                    order_index__lte=new_order_index
+                )
+                for q in questions_to_shift:
+                    q.order_index -= 1
+                    q.save(update_fields=['order_index'])
+
+            # Moving up (decreasing order_index)
+            else:
+                # Shift questions between new and old position down by 1
+                questions_to_shift = questions_in_project.filter(
+                    order_index__gte=new_order_index,
+                    order_index__lt=old_order_index
+                )
+                for q in questions_to_shift:
+                    q.order_index += 1
+                    q.save(update_fields=['order_index'])
+
+            # Update this question's order_index
+            self.order_index = new_order_index
+            self.save(update_fields=['order_index'])
+
+        return True
     
     def get_response_count(self):
         """Get the number of responses for this question"""
@@ -880,18 +937,37 @@ class Question(models.Model):
     def generate_dynamic_questions_for_project(cls, project, respondent_type,
                                              commodity=None, country=None,
                                              categories=None, work_packages=None, user=None,
-                                             use_project_bank_only=True):
+                                             use_project_bank_only=True, replace_existing=False):
         """Generate dynamic questions from QuestionBank for a specific project
 
         Args:
             use_project_bank_only: If True, only use questions from this project's bank.
                                    If False, use all accessible question banks. Default: True
+            replace_existing: If True, replace existing questions. If False, check if questions
+                            already exist for this combination and return them instead. Default: False
         """
         from django.db.models import Max
         import logging
         logger = logging.getLogger(__name__)
 
         questions = []
+
+        # Check if questions already exist for this combination (when not replacing)
+        if not replace_existing:
+            existing_questions = cls.objects.filter(
+                project=project,
+                assigned_respondent_type=respondent_type,
+                assigned_commodity=commodity or '',
+                assigned_country=country or ''
+            ).order_by('order_index')
+
+            if existing_questions.exists():
+                existing_count = existing_questions.count()
+                print(f"[QuestionGen] Found {existing_count} existing questions for this combination")
+                print(f"[QuestionGen] Returning existing questions instead of creating duplicates")
+                logger.info(f"[QuestionGen] Found {existing_count} existing questions for respondent_type='{respondent_type}', commodity='{commodity}', country='{country}'")
+                logger.info(f"[QuestionGen] Returning existing questions instead of creating duplicates")
+                return list(existing_questions)
 
         # Get question bank items based on scope preference
         if use_project_bank_only:

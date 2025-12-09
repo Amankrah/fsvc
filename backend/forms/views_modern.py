@@ -294,41 +294,131 @@ class ModernQuestionViewSet(BaseModelViewSet):
     
     @action(detail=False, methods=['post'])
     def bulk_update_order(self, request):
-        """Bulk update question order"""
+        """
+        Bulk update question order by providing a list of question IDs in the desired order.
+
+        Request body:
+        {
+            "question_ids": ["uuid1", "uuid2", "uuid3", ...],  // Ordered list
+            "project_id": "project_uuid"  // Optional, for validation
+        }
+
+        OR
+
+        {
+            "questions": [
+                {"id": "uuid1", "order_index": 0},
+                {"id": "uuid2", "order_index": 1},
+                ...
+            ],
+            "project_id": "project_uuid"  // Optional, for validation
+        }
+        """
         question_ids = request.data.get('question_ids', [])
-        
-        if not isinstance(question_ids, list):
+        questions_data = request.data.get('questions', [])
+        project_id = request.data.get('project_id')
+
+        # Support both formats
+        if question_ids and not questions_data:
+            # Convert question_ids list to questions format with sequential order_index
+            questions_data = [
+                {'id': qid, 'order_index': idx}
+                for idx, qid in enumerate(question_ids)
+            ]
+        elif not questions_data:
             return Response(
-                {'error': 'question_ids must be a list'},
+                {'error': 'Either question_ids or questions must be provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+        if not isinstance(questions_data, list) or len(questions_data) == 0:
+            return Response(
+                {'error': 'questions must be a non-empty list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             with transaction.atomic():
+                # Extract all question IDs
+                all_question_ids = [q['id'] for q in questions_data]
+
                 # Verify all questions exist and user has permission
-                questions = list(self.get_queryset().filter(id__in=question_ids))
-                
-                if len(questions) != len(question_ids):
+                questions = list(self.get_queryset().filter(id__in=all_question_ids))
+
+                if len(questions) != len(all_question_ids):
                     return Response(
                         {'error': 'Some questions not found or no permission'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                
-                # Update order
-                Question.bulk_update_order(question_ids)
-                
-                # Clear cache for affected projects
-                project_ids = set(q.project_id for q in questions)
-                for project_id in project_ids:
-                    self._clear_project_cache(project_id)
-                
-                logger.info(f"Bulk updated order for {len(question_ids)} questions")
-                return Response({'message': 'Order updated successfully'})
-                
+
+                # Verify all questions belong to the same project
+                project_ids = set(str(q.project_id) for q in questions)
+                if len(project_ids) > 1:
+                    return Response(
+                        {'error': 'All questions must belong to the same project'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Optional project_id validation
+                if project_id and str(list(project_ids)[0]) != str(project_id):
+                    return Response(
+                        {'error': 'Questions do not belong to the specified project'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Check user has edit permission for the project
+                project = questions[0].project
+                if not project.can_user_edit(request.user):
+                    raise ValidationError("You don't have permission to reorder questions in this project")
+
+                # Build a map of question_id -> new_order_index
+                order_map = {str(q['id']): q['order_index'] for q in questions_data}
+
+                # Sort questions by their new order_index to process in order
+                sorted_updates = sorted(questions_data, key=lambda x: x['order_index'])
+
+                # Update each question's order_index
+                # We do this in a specific order to avoid conflicts
+                for update_data in sorted_updates:
+                    question = next(q for q in questions if str(q.id) == str(update_data['id']))
+                    new_order = update_data['order_index']
+
+                    if question.order_index != new_order:
+                        question.order_index = new_order
+                        question.save(update_fields=['order_index'])
+
+                # Normalize order indices to ensure they're sequential and start from 0
+                all_questions_in_project = Question.objects.filter(
+                    project=project
+                ).order_by('order_index')
+
+                for idx, q in enumerate(all_questions_in_project):
+                    if q.order_index != idx:
+                        q.order_index = idx
+                        q.save(update_fields=['order_index'])
+
+                # Clear cache for the project
+                self._clear_project_cache(str(project.id))
+
+                # Return updated questions in new order
+                updated_questions = Question.objects.filter(
+                    project=project
+                ).order_by('order_index')
+
+                serializer = self.get_serializer(updated_questions, many=True)
+
+                logger.info(f"Bulk updated order for {len(all_question_ids)} questions in project {project.id}")
+                return Response({
+                    'message': f'Successfully reordered {len(all_question_ids)} questions',
+                    'questions': serializer.data
+                })
+
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error in bulk_update_order: {e}")
             return Response(
-                {'error': 'Failed to update order'},
+                {'error': f'Failed to update order: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -601,39 +691,47 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     categories=categories,
                     work_packages=work_packages,
                     user=request.user,  # Pass user for access control
-                    use_project_bank_only=use_project_bank_only  # Control question bank scope
+                    use_project_bank_only=use_project_bank_only,  # Control question bank scope
+                    replace_existing=replace_existing  # Pass replace_existing flag
                 )
                 
-                print(f"✅ Generated {len(generated_questions)} questions")
+                # Determine if we returned existing questions or created new ones
+                returned_existing = (
+                    not replace_existing and
+                    len(generated_questions) > 0 and
+                    all(q.question_bank_source is not None for q in generated_questions[:min(3, len(generated_questions))])
+                )
+
+                print(f"✅ {'Returned existing' if returned_existing else 'Generated'} {len(generated_questions)} questions")
                 print("="*60 + "\n")
-                logger.info(f"Generated {len(generated_questions)} questions")
+                logger.info(f"{'Returned existing' if returned_existing else 'Generated'} {len(generated_questions)} questions")
                 logger.info(f"======================================================")
-                
+
                 # Update session with results
                 session.questions_generated = len(generated_questions)
-                
+
                 # Count questions by research partner
                 partner_distribution = {}
                 for question in generated_questions:
                     if question.question_bank_source:
                         partner = question.question_bank_source.data_source
                         partner_distribution[partner] = partner_distribution.get(partner, 0) + 1
-                
+
                 session.questions_from_partners = partner_distribution
                 session.save()
-                
+
                 # Serialize the generated questions
                 question_serializer = QuestionSerializer(generated_questions, many=True)
                 session_serializer = DynamicQuestionSessionSerializer(session)
-                
+
                 # Clear cache
                 self._clear_project_cache(project.id)
-                
+
                 logger.info(
-                    f"Generated {len(generated_questions)} dynamic questions for project {project_id}, "
+                    f"{'Returned existing' if returned_existing else 'Generated'} {len(generated_questions)} dynamic questions for project {project_id}, "
                     f"respondent: {respondent_type}, commodity: {commodity}"
                 )
-                
+
                 return Response({
                     'questions': question_serializer.data,
                     'session': session_serializer.data,
@@ -644,7 +742,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
                         'commodity': commodity,
                         'categories': categories,
                         'work_packages': work_packages,
-                        'replaced_existing': replace_existing
+                        'replaced_existing': replace_existing,
+                        'returned_existing': returned_existing
                     }
                 }, status=status.HTTP_201_CREATED)
                 

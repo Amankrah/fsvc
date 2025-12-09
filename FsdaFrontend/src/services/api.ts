@@ -226,6 +226,13 @@ class ApiService {
     return await this.post('/forms/questions/bulk_delete/', data);
   }
 
+  async reorderQuestions(projectId: string, questionIds: string[]) {
+    return await this.post('/forms/questions/bulk_update_order/', {
+      question_ids: questionIds,
+      project_id: projectId,
+    });
+  }
+
   async deleteAllProjectQuestions(projectId: string) {
     return await this.bulkDeleteQuestions({ project_id: projectId });
   }

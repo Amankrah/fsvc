@@ -15,9 +15,8 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  Alert,
   RefreshControl,
-  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -27,6 +26,9 @@ import {
   Dialog,
   Button,
   ProgressBar,
+  SegmentedButtons,
+  IconButton,
+  Menu,
 } from 'react-native-paper';
 import { useRoute, RouteProp } from '@react-navigation/native';
 
@@ -37,6 +39,7 @@ import {
   useQuestionForm,
   useImportExport,
 } from '../hooks/formBuilder';
+import { useGeneratedQuestions } from '../hooks/formBuilder/useGeneratedQuestions';
 
 // Components
 import { QuestionCard, SearchFilterBar, QuestionFormDialog } from '../components/formBuilder';
@@ -58,6 +61,19 @@ type FormBuilderRouteProp = RouteProp<RootStackParamList, 'FormBuilder'>;
 const FormBuilderScreen: React.FC = () => {
   const route = useRoute<FormBuilderRouteProp>();
   const { projectId } = route.params;
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'bank' | 'generated'>('bank');
+
+  // Generated Questions Filter State
+  const [selectedGeneratedRespondentType, setSelectedGeneratedRespondentType] = useState<string>('');
+  const [selectedGeneratedCommodity, setSelectedGeneratedCommodity] = useState<string>('');
+  const [selectedGeneratedCountry, setSelectedGeneratedCountry] = useState<string>('');
+
+  // Menu visibility state
+  const [showRespondentMenu, setShowRespondentMenu] = useState(false);
+  const [showCommodityMenu, setShowCommodityMenu] = useState(false);
+  const [showCountryMenu, setShowCountryMenu] = useState(false);
 
   // Dialog state
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -82,6 +98,9 @@ const FormBuilderScreen: React.FC = () => {
     duplicateQuestion,
     deleteAllQuestionBank,
   } = useQuestionBank(projectId);
+
+  // Generated Questions Hook
+  const generatedQuestionsHook = useGeneratedQuestions(projectId);
 
   // Filters Hook
   const {
@@ -146,6 +165,7 @@ const FormBuilderScreen: React.FC = () => {
     loadProjectAndQuestions();
     loadResponseTypes();
     loadQuestionBankChoices();
+    generatedQuestionsHook.loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -204,6 +224,47 @@ const FormBuilderScreen: React.FC = () => {
     );
   }
 
+  // Get unique filter options for Generated Questions
+  const getUniqueGeneratedFilters = () => {
+    const respondentTypes = new Set<string>();
+    const commodities = new Set<string>();
+    const countries = new Set<string>();
+
+    generatedQuestionsHook.generatedQuestions.forEach((q) => {
+      if (q.assigned_respondent_type) respondentTypes.add(q.assigned_respondent_type);
+      if (q.assigned_commodity) commodities.add(q.assigned_commodity);
+      if (q.assigned_country) countries.add(q.assigned_country);
+    });
+
+    return {
+      respondentTypes: Array.from(respondentTypes).sort(),
+      commodities: Array.from(commodities).sort(),
+      countries: Array.from(countries).sort(),
+    };
+  };
+
+  const generatedFilters = getUniqueGeneratedFilters();
+
+  // Filter Generated Questions by selected bundle
+  const filteredGeneratedQuestions = generatedQuestionsHook.generatedQuestions.filter((q) => {
+    if (selectedGeneratedRespondentType && q.assigned_respondent_type !== selectedGeneratedRespondentType) {
+      return false;
+    }
+    if (selectedGeneratedCommodity && q.assigned_commodity !== selectedGeneratedCommodity) {
+      return false;
+    }
+    if (selectedGeneratedCountry && q.assigned_country !== selectedGeneratedCountry) {
+      return false;
+    }
+    return true;
+  });
+
+  // Get active data based on tab
+  const activeQuestions = activeTab === 'bank' ? questions : filteredGeneratedQuestions;
+  const activeLoading = activeTab === 'bank' ? loading : generatedQuestionsHook.loading;
+  const activeRefreshing = activeTab === 'bank' ? refreshing : generatedQuestionsHook.refreshing;
+  const activeHandleRefresh = activeTab === 'bank' ? handleRefresh : generatedQuestionsHook.handleRefresh;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -211,42 +272,205 @@ const FormBuilderScreen: React.FC = () => {
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
             <Text variant="headlineSmall" style={styles.title}>
-              Question Bank
+              Form Builder
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              Your reusable question templates
+              Manage question templates and generated questions
             </Text>
           </View>
           <View style={styles.questionCountContainer}>
             <Text variant="titleMedium" style={styles.questionCount}>
-              {questions.length}
+              {activeQuestions.length}
             </Text>
             <Text variant="bodySmall" style={styles.questionCountLabel}>
-              question{questions.length !== 1 ? 's' : ''}
+              question{activeQuestions.length !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
         <View style={styles.headerDecoration} />
       </View>
 
-      {/* Search and Filter Bar */}
-      <SearchFilterBar
-        isExpanded={isFilterExpanded}
-        onToggleExpanded={() => setIsFilterExpanded(!isFilterExpanded)}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedCategoryFilters={selectedCategoryFilters}
-        selectedRespondentFilters={selectedRespondentFilters}
-        onToggleCategoryFilter={toggleCategoryFilter}
-        onToggleRespondentFilter={toggleRespondentFilter}
-        onClearAllFilters={clearAllFilters}
-        hasActiveFilters={hasActiveFilters}
-        activeFiltersCount={activeFiltersCount}
-        filteredCount={filteredQuestions.length}
-        totalCount={questions.length}
-        categories={questionBankChoices.categories || []}
-        respondentTypes={questionBankChoices.respondent_types || []}
-      />
+      {/* Tab Switcher */}
+      <View style={styles.tabContainer}>
+        <SegmentedButtons
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as 'bank' | 'generated')}
+          buttons={[
+            {
+              value: 'bank',
+              label: 'Question Bank',
+              icon: 'database',
+              checkedColor: '#ffffff',
+              uncheckedColor: 'rgba(255, 255, 255, 0.6)',
+            },
+            {
+              value: 'generated',
+              label: 'Generated Questions',
+              icon: 'file-document-multiple',
+              checkedColor: '#ffffff',
+              uncheckedColor: 'rgba(255, 255, 255, 0.6)',
+            },
+          ]}
+          style={styles.segmentedButtons}
+          theme={{ colors: { secondaryContainer: '#4b1e85', onSecondaryContainer: '#ffffff' } }}
+        />
+      </View>
+
+      {/* Conditional Filter Bars */}
+      {activeTab === 'bank' ? (
+        <SearchFilterBar
+          isExpanded={isFilterExpanded}
+          onToggleExpanded={() => setIsFilterExpanded(!isFilterExpanded)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedCategoryFilters={selectedCategoryFilters}
+          selectedRespondentFilters={selectedRespondentFilters}
+          onToggleCategoryFilter={toggleCategoryFilter}
+          onToggleRespondentFilter={toggleRespondentFilter}
+          onClearAllFilters={clearAllFilters}
+          hasActiveFilters={hasActiveFilters}
+          activeFiltersCount={activeFiltersCount}
+          filteredCount={filteredQuestions.length}
+          totalCount={questions.length}
+          categories={questionBankChoices.categories || []}
+          respondentTypes={questionBankChoices.respondent_types || []}
+        />
+      ) : (
+        <View style={styles.generatedFiltersContainer}>
+          <Text variant="labelMedium" style={styles.filterLabel}>
+            Filter by Generation Bundle:
+          </Text>
+          <View style={styles.generatedFiltersRow}>
+            {/* Respondent Type Filter */}
+            <View style={styles.filterDropdown}>
+              <Text variant="labelSmall" style={styles.filterDropdownLabel}>
+                Respondent Type
+              </Text>
+              <Menu
+                visible={showRespondentMenu}
+                onDismiss={() => setShowRespondentMenu(false)}
+                anchor={
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowRespondentMenu(true)}
+                    style={styles.filterButton}
+                    textColor="#fff">
+                    {selectedGeneratedRespondentType || 'All'}
+                  </Button>
+                }>
+                <Menu.Item
+                  onPress={() => {
+                    setSelectedGeneratedRespondentType('');
+                    setShowRespondentMenu(false);
+                  }}
+                  title="All"
+                />
+                {generatedFilters.respondentTypes.map((type) => (
+                  <Menu.Item
+                    key={type}
+                    onPress={() => {
+                      setSelectedGeneratedRespondentType(type);
+                      setShowRespondentMenu(false);
+                    }}
+                    title={type}
+                  />
+                ))}
+              </Menu>
+            </View>
+
+            {/* Commodity Filter */}
+            <View style={styles.filterDropdown}>
+              <Text variant="labelSmall" style={styles.filterDropdownLabel}>
+                Commodity
+              </Text>
+              <Menu
+                visible={showCommodityMenu}
+                onDismiss={() => setShowCommodityMenu(false)}
+                anchor={
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowCommodityMenu(true)}
+                    style={styles.filterButton}
+                    textColor="#fff">
+                    {selectedGeneratedCommodity || 'All'}
+                  </Button>
+                }>
+                <Menu.Item
+                  onPress={() => {
+                    setSelectedGeneratedCommodity('');
+                    setShowCommodityMenu(false);
+                  }}
+                  title="All"
+                />
+                {generatedFilters.commodities.map((commodity) => (
+                  <Menu.Item
+                    key={commodity}
+                    onPress={() => {
+                      setSelectedGeneratedCommodity(commodity);
+                      setShowCommodityMenu(false);
+                    }}
+                    title={commodity}
+                  />
+                ))}
+              </Menu>
+            </View>
+
+            {/* Country Filter */}
+            <View style={styles.filterDropdown}>
+              <Text variant="labelSmall" style={styles.filterDropdownLabel}>
+                Country
+              </Text>
+              <Menu
+                visible={showCountryMenu}
+                onDismiss={() => setShowCountryMenu(false)}
+                anchor={
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowCountryMenu(true)}
+                    style={styles.filterButton}
+                    textColor="#fff">
+                    {selectedGeneratedCountry || 'All'}
+                  </Button>
+                }>
+                <Menu.Item
+                  onPress={() => {
+                    setSelectedGeneratedCountry('');
+                    setShowCountryMenu(false);
+                  }}
+                  title="All"
+                />
+                {generatedFilters.countries.map((country) => (
+                  <Menu.Item
+                    key={country}
+                    onPress={() => {
+                      setSelectedGeneratedCountry(country);
+                      setShowCountryMenu(false);
+                    }}
+                    title={country}
+                  />
+                ))}
+              </Menu>
+            </View>
+
+            {/* Clear Filters Button */}
+            {(selectedGeneratedRespondentType ||
+              selectedGeneratedCommodity ||
+              selectedGeneratedCountry) && (
+              <Button
+                mode="text"
+                onPress={() => {
+                  setSelectedGeneratedRespondentType('');
+                  setSelectedGeneratedCommodity('');
+                  setSelectedGeneratedCountry('');
+                }}
+                textColor="#64c8ff"
+                style={styles.clearFiltersButton}>
+                Clear Filters
+              </Button>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Questions List */}
       <ScrollView
@@ -254,39 +478,109 @@ const FormBuilderScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshing={activeRefreshing}
+            onRefresh={activeHandleRefresh}
             tintColor="#4b1e85"
             colors={['#4b1e85']}
           />
         }>
+        {/* Reorder Mode Banner for Generated Questions */}
+        {activeTab === 'generated' && generatedQuestionsHook.isReorderMode && (
+          <View style={styles.reorderBanner}>
+            <Text variant="bodyMedium" style={styles.reorderBannerText}>
+              Reorder Mode: Use up/down arrows to arrange questions
+            </Text>
+            <View style={styles.reorderActions}>
+              <Button
+                mode="outlined"
+                onPress={generatedQuestionsHook.cancelReorderMode}
+                textColor="#fff"
+                style={styles.reorderButton}>
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={generatedQuestionsHook.saveQuestionOrder}
+                style={[styles.reorderButton, styles.saveButton]}>
+                Save Order
+              </Button>
+            </View>
+          </View>
+        )}
+
         {filteredQuestions.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyIcon}>{questions.length === 0 ? '📝' : '🔍'}</Text>
+              <Text style={styles.emptyIcon}>
+                {activeQuestions.length === 0 ? '📝' : '🔍'}
+              </Text>
             </View>
             <Text variant="headlineSmall" style={styles.emptyTitle}>
-              {questions.length === 0 ? 'No Questions in Your Bank' : 'No Questions Match Filters'}
+              {activeQuestions.length === 0
+                ? activeTab === 'bank'
+                  ? 'No Questions in Your Bank'
+                  : 'No Generated Questions'
+                : 'No Questions Match Filters'}
             </Text>
             <Text variant="bodyLarge" style={styles.emptySubtitle}>
-              {questions.length === 0
-                ? 'Start building your question library by adding reusable templates'
+              {activeQuestions.length === 0
+                ? activeTab === 'bank'
+                  ? 'Start building your question library by adding reusable templates'
+                  : 'Generate questions from your Question Bank to start collecting data'
                 : 'Try adjusting your search or filter criteria'}
             </Text>
           </View>
         ) : (
           <View style={styles.questionsList}>
-            {filteredQuestions.map((question, index) => (
-              <QuestionCard
-                key={question.id}
-                question={question}
-                index={index}
-                responseTypes={responseTypes}
-                questionBankChoices={questionBankChoices}
-                onEdit={handleOpenEditDialog}
-                onDuplicate={duplicateQuestion}
-                onDelete={deleteQuestion}
-              />
+            {(activeTab === 'generated' && generatedQuestionsHook.isReorderMode
+              ? generatedQuestionsHook.reorderedQuestions
+              : activeTab === 'generated'
+              ? filteredGeneratedQuestions
+              : filteredQuestions
+            ).map((question, index) => (
+              <View key={question.id} style={styles.questionCardWrapper}>
+                {/* Reorder Controls for Generated Questions */}
+                {activeTab === 'generated' && generatedQuestionsHook.isReorderMode && (
+                  <View style={styles.reorderControls}>
+                    <IconButton
+                      icon="arrow-up"
+                      size={20}
+                      iconColor="#64c8ff"
+                      disabled={index === 0}
+                      onPress={() => generatedQuestionsHook.moveQuestionUp(index)}
+                      style={[
+                        styles.reorderButton,
+                        index === 0 && styles.reorderButtonDisabled,
+                      ]}
+                    />
+                    <Text style={styles.orderIndex}>{index + 1}</Text>
+                    <IconButton
+                      icon="arrow-down"
+                      size={20}
+                      iconColor="#64c8ff"
+                      disabled={index === generatedQuestionsHook.reorderedQuestions.length - 1}
+                      onPress={() => generatedQuestionsHook.moveQuestionDown(index)}
+                      style={[
+                        styles.reorderButton,
+                        index === generatedQuestionsHook.reorderedQuestions.length - 1 &&
+                          styles.reorderButtonDisabled,
+                      ]}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.questionCardContent}>
+                  <QuestionCard
+                    question={question}
+                    index={index}
+                    responseTypes={responseTypes}
+                    questionBankChoices={questionBankChoices}
+                    onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => {}}
+                    onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => {}}
+                    onDelete={activeTab === 'bank' ? deleteQuestion : () => {}}
+                  />
+                </View>
+              </View>
             ))}
           </View>
         )}
@@ -294,27 +588,68 @@ const FormBuilderScreen: React.FC = () => {
 
       {/* FAB Actions */}
       <View style={styles.fabContainer}>
-        <FAB
-          icon="delete-sweep"
-          label="Delete All"
-          style={[styles.fab, styles.fabDelete]}
-          onPress={deleteAllQuestionBank}
-          theme={{ colors: { onPrimary: '#ffffff' } }}
-        />
-        <FAB
-          icon="upload"
-          label="Import/Export"
-          style={[styles.fab, styles.fabImport]}
-          onPress={() => setShowImportExportDialog(true)}
-          theme={{ colors: { onPrimary: '#ffffff' } }}
-        />
-        <FAB
-          icon="plus"
-          label="Add Question"
-          style={styles.fab}
-          onPress={() => setShowAddDialog(true)}
-          theme={{ colors: { onPrimary: '#ffffff' } }}
-        />
+        {activeTab === 'bank' ? (
+          <>
+            <FAB
+              icon="delete-sweep"
+              label="Delete All"
+              style={[styles.fab, styles.fabDelete]}
+              onPress={deleteAllQuestionBank}
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+            <FAB
+              icon="upload"
+              label="Import/Export"
+              style={[styles.fab, styles.fabImport]}
+              onPress={() => setShowImportExportDialog(true)}
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+            <FAB
+              icon="plus"
+              label="Add Question"
+              style={styles.fab}
+              onPress={() => setShowAddDialog(true)}
+              theme={{ colors: { onPrimary: '#ffffff' } }}
+            />
+          </>
+        ) : (
+          <FAB
+            icon={generatedQuestionsHook.isReorderMode ? 'check' : 'swap-vertical'}
+            label={generatedQuestionsHook.isReorderMode ? 'Done' : 'Reorder'}
+            style={styles.fab}
+            onPress={
+              generatedQuestionsHook.isReorderMode
+                ? generatedQuestionsHook.saveQuestionOrder
+                : () => {
+                    // Only allow reorder if questions are filtered to a specific bundle
+                    if (filteredGeneratedQuestions.length === 0) {
+                      Alert.alert('No Questions', 'There are no questions to reorder.');
+                      return;
+                    }
+
+                    // Check if all filtered questions belong to the same bundle
+                    const first = filteredGeneratedQuestions[0];
+                    const allSameBundle = filteredGeneratedQuestions.every(
+                      (q) =>
+                        q.assigned_respondent_type === first.assigned_respondent_type &&
+                        q.assigned_commodity === first.assigned_commodity &&
+                        q.assigned_country === first.assigned_country
+                    );
+
+                    if (!allSameBundle) {
+                      Alert.alert(
+                        'Filter Required',
+                        'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
+                      );
+                      return;
+                    }
+
+                    generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                  }
+            }
+            theme={{ colors: { onPrimary: '#ffffff' } }}
+          />
+        )}
       </View>
 
       {/* Import/Export Dialog */}
@@ -589,6 +924,104 @@ const styles = StyleSheet.create({
   },
   importButton: {
     backgroundColor: '#1976d2',
+  },
+  tabContainer: {
+    backgroundColor: '#1a1a3a',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+  },
+  segmentedButtons: {
+    backgroundColor: '#0f0f23',
+  },
+  segmentedButtonText: {
+    color: '#ffffff',
+  },
+  reorderBanner: {
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#64c8ff',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+  },
+  reorderBannerText: {
+    color: '#64c8ff',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  reorderActions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  reorderButton: {
+    borderColor: '#64c8ff',
+  },
+  saveButton: {
+    backgroundColor: '#4b1e85',
+  },
+  questionCardWrapper: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  reorderControls: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.3)',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.3,
+  },
+  orderIndex: {
+    color: '#64c8ff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginVertical: 4,
+  },
+  questionCardContent: {
+    flex: 1,
+  },
+  generatedFiltersContainer: {
+    backgroundColor: '#1a1a3a',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+  },
+  filterLabel: {
+    color: '#64c8ff',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  generatedFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  filterDropdown: {
+    flex: 1,
+    minWidth: 120,
+  },
+  filterDropdownLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 4,
+  },
+  filterButton: {
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  clearFiltersButton: {
+    alignSelf: 'flex-end',
   },
 });
 
