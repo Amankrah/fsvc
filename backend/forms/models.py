@@ -643,8 +643,11 @@ class Question(models.Model):
         return [source for source in self.question_sources if source != 'owner']
 
     class Meta:
+        # Custom ordering: Sociodemographics first, then other categories alphabetically
+        # Note: For runtime ordering with Sociodemographics priority, use annotate + Case/When in views
         ordering = ['question_category', 'order_index', 'created_at']
         # Questions are grouped by category, then ordered by order_index
+        # Sociodemographics questions appear first (handled in ViewSet get_queryset)
         # Removed unique_together constraint to allow flexible reordering
         # Questions are uniquely identified by their UUID primary key
 

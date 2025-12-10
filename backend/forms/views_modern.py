@@ -42,21 +42,32 @@ class ModernQuestionViewSet(BaseModelViewSet):
     
     def get_queryset(self):
         """Optimized queryset with prefetching and user filtering"""
+        from django.db.models import Case, When, Value, IntegerField
+
         queryset = Question.objects.select_related('project').prefetch_related('project__members')
-        
+
         # Filter by user access
         user = self.request.user
         if not user.is_superuser:
             queryset = queryset.filter(
-                Q(project__created_by=user) | 
+                Q(project__created_by=user) |
                 Q(project__members__user=user)
             )
-        
+
         # Filter by project if specified
         project_id = self.request.query_params.get('project_id')
         if project_id:
             queryset = queryset.filter(project_id=project_id)
-        
+
+        # Custom ordering: Sociodemographics first, then by category, order_index, created_at
+        queryset = queryset.annotate(
+            category_priority=Case(
+                When(question_category__iexact='Sociodemographics', then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField()
+            )
+        ).order_by('category_priority', 'question_category', 'order_index', 'created_at')
+
         return queryset.distinct()
     
     def perform_create(self, serializer):
