@@ -324,24 +324,67 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
 
             <Divider style={styles.divider} />
 
-            {/* Auto Category Preview - Read-only display */}
-            {selectedTargetedRespondents.length > 0 && (
+            {/* Custom Question Category */}
+            <Text style={styles.sectionTitle}>Question Category (Optional)</Text>
+            <Text style={styles.helpText}>
+              Custom category for organizing questions (e.g., 'Production', 'Market Access', 'Sustainability'). Leave blank to auto-assign based on respondent type.
+            </Text>
+            <TextInput
+              label="Category"
+              value={newQuestion.question_category || ''}
+              onChangeText={(text) => setNewQuestion({ ...newQuestion, question_category: text })}
+              mode="outlined"
+              style={styles.input}
+              textColor="#ffffff"
+              placeholder={
+                selectedTargetedRespondents.length > 0
+                  ? `Auto: ${getAutoCategoryFromRespondents(selectedTargetedRespondents[0])}`
+                  : 'e.g., Production, Sustainability...'
+              }
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              theme={{
+                colors: {
+                  primary: '#64c8ff',
+                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                  outline: 'rgba(100, 200, 255, 0.5)',
+                },
+              }}
+            />
+
+            {/* Suggested Categories */}
+            {!newQuestion.question_category && (
               <>
-                <Text style={styles.sectionTitle}>
-                  Category (Auto-assigned) ✨
-                </Text>
-                <View style={styles.autoCategoryContainer}>
-                  <Chip
-                    icon="auto-fix"
-                    mode="outlined"
-                    style={styles.autoCategoryChip}
-                    textStyle={styles.autoCategoryText}>
-                    {getAutoCategoryFromRespondents(selectedTargetedRespondents[0])}
-                  </Chip>
-                  <Text style={styles.autoCategoryHint}>
-                    Based on first selected respondent
-                  </Text>
-                </View>
+                <Text style={styles.label}>Quick Select:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  {[
+                    'Production',
+                    'Processing',
+                    'Distribution',
+                    'Consumption',
+                    'Input Supply',
+                    'Market Access',
+                    'Sustainability',
+                    'Climate Impact',
+                    'Social Impact',
+                    'Economic Impact',
+                    'Quality Standards',
+                    'Certification',
+                    'Governance',
+                    'Policy',
+                    'Technology',
+                    'Finance',
+                    'Nutrition',
+                    'Food Safety',
+                  ].map((cat) => (
+                    <Chip
+                      key={cat}
+                      onPress={() => setNewQuestion({ ...newQuestion, question_category: cat })}
+                      style={styles.chip}
+                      textStyle={styles.chipText}>
+                      {cat}
+                    </Chip>
+                  ))}
+                </ScrollView>
               </>
             )}
 

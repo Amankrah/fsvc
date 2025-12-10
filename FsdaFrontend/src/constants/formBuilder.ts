@@ -79,12 +79,13 @@ export const PRIORITY_SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /**
  * DEFAULT_QUESTION_STATE - Simplified form state
- * Note: question_category is now auto-set based on targeted_respondents
+ * Note: question_category can be set by user or left empty for auto-assignment based on respondents
  * Note: research_partner_name, research_partner_contact, work_package, priority_score
  *       are now optional and have sensible backend defaults
  */
 export const DEFAULT_QUESTION_STATE = {
   question_text: '',
+  question_category: '', // User-specified custom category (empty = auto-assign based on respondent)
   response_type: 'text_short' as ResponseType,
   is_required: true,
   allow_multiple: false,
