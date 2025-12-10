@@ -6,6 +6,15 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getObjectSize,
+  formatBytes,
+  exceedsStorageLimit,
+  compressQuestionData,
+  chunkArray,
+  estimateChunkSize,
+  deduplicateGeneratedQuestions,
+} from '../utils/storageUtils';
 
 const CACHE_KEYS = {
   QUESTION_BANKS: '@fsda/question_banks',
@@ -66,14 +75,71 @@ class OfflineQuestionCacheService {
   async cacheQuestionBanks(projectId: string, questionBanks: CachedQuestionBank[]): Promise<void> {
     try {
       const cacheData = await this.getAllQuestionBanksCache();
-      cacheData[projectId] = questionBanks;
 
-      await AsyncStorage.setItem(CACHE_KEYS.QUESTION_BANKS, JSON.stringify(cacheData));
-      await this.updateLastCacheTime();
+      // Compress question data to reduce size
+      const compressedQuestions = compressQuestionData(questionBanks);
+      cacheData[projectId] = compressedQuestions as any;
 
-      console.log(`✓ Cached ${questionBanks.length} question banks for project ${projectId}`);
+      // Check size before saving
+      const dataSize = getObjectSize(cacheData);
+      console.log(`📊 Question banks cache size: ${formatBytes(dataSize)} (${questionBanks.length} questions)`);
+
+      // If data is too large, implement chunking strategy
+      if (exceedsStorageLimit(cacheData, 4)) {
+        console.warn(`⚠️ Cache size exceeds 4MB, using chunked storage for project ${projectId}`);
+        await this.cacheQuestionBanksChunked(projectId, compressedQuestions as any);
+      } else {
+        try {
+          await AsyncStorage.setItem(CACHE_KEYS.QUESTION_BANKS, JSON.stringify(cacheData));
+          await this.updateLastCacheTime();
+          console.log(`✓ Cached ${questionBanks.length} question banks for project ${projectId}`);
+        } catch (error: any) {
+          // Handle QuotaExceededError
+          if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
+            console.warn(`⚠️ Storage quota exceeded, switching to chunked storage`);
+            await this.cacheQuestionBanksChunked(projectId, compressedQuestions as any);
+          } else {
+            throw error;
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to cache question banks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cache question banks using chunked storage (for large datasets)
+   */
+  private async cacheQuestionBanksChunked(projectId: string, questionBanks: CachedQuestionBank[]): Promise<void> {
+    try {
+      // Estimate chunk size based on sample item
+      const sampleItem = questionBanks[0] || {};
+      const chunkSize = estimateChunkSize(sampleItem, 2); // 2MB per chunk
+
+      const chunks = chunkArray(questionBanks, chunkSize);
+      console.log(`📦 Splitting ${questionBanks.length} question banks into ${chunks.length} chunks`);
+
+      // Save each chunk separately
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkKey = `${CACHE_KEYS.QUESTION_BANKS}_${projectId}_chunk_${i}`;
+        await AsyncStorage.setItem(chunkKey, JSON.stringify(chunks[i]));
+      }
+
+      // Save chunk metadata
+      const metadata = {
+        projectId,
+        totalChunks: chunks.length,
+        totalItems: questionBanks.length,
+        chunkSize,
+      };
+      await AsyncStorage.setItem(`${CACHE_KEYS.QUESTION_BANKS}_${projectId}_meta`, JSON.stringify(metadata));
+
+      await this.updateLastCacheTime();
+      console.log(`✓ Cached ${questionBanks.length} question banks in ${chunks.length} chunks for project ${projectId}`);
+    } catch (error) {
+      console.error('Failed to cache question banks in chunks:', error);
       throw error;
     }
   }
@@ -83,6 +149,29 @@ class OfflineQuestionCacheService {
    */
   async getQuestionBanks(projectId: string): Promise<CachedQuestionBank[]> {
     try {
+      // First check if chunked storage exists
+      const metadataKey = `${CACHE_KEYS.QUESTION_BANKS}_${projectId}_meta`;
+      const metadataStr = await AsyncStorage.getItem(metadataKey);
+
+      if (metadataStr) {
+        // Load from chunked storage
+        const metadata = JSON.parse(metadataStr);
+        const allQuestions: CachedQuestionBank[] = [];
+
+        for (let i = 0; i < metadata.totalChunks; i++) {
+          const chunkKey = `${CACHE_KEYS.QUESTION_BANKS}_${projectId}_chunk_${i}`;
+          const chunkStr = await AsyncStorage.getItem(chunkKey);
+          if (chunkStr) {
+            const chunk = JSON.parse(chunkStr);
+            allQuestions.push(...chunk);
+          }
+        }
+
+        console.log(`📦 Loaded ${allQuestions.length} question banks from ${metadata.totalChunks} chunks`);
+        return allQuestions;
+      }
+
+      // Fall back to regular cache
       const cacheData = await this.getAllQuestionBanksCache();
       return cacheData[projectId] || [];
     } catch (error) {
@@ -97,14 +186,74 @@ class OfflineQuestionCacheService {
   async cacheGeneratedQuestions(projectId: string, questions: CachedGeneratedQuestion[]): Promise<void> {
     try {
       const cacheData = await this.getAllGeneratedQuestionsCache();
-      cacheData[projectId] = questions;
 
-      await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(cacheData));
-      await this.updateLastCacheTime();
+      // Deduplicate questions before caching to prevent duplicates
+      const deduplicated = deduplicateGeneratedQuestions(questions);
 
-      console.log(`✓ Cached ${questions.length} generated questions for project ${projectId}`);
+      // Compress question data to reduce size
+      const compressedQuestions = compressQuestionData(deduplicated);
+      cacheData[projectId] = compressedQuestions as any;
+
+      // Check size before saving
+      const dataSize = getObjectSize(cacheData);
+      console.log(`📊 Generated questions cache size: ${formatBytes(dataSize)} (${deduplicated.length} questions after deduplication)`);
+
+      // If data is too large, implement chunking strategy
+      if (exceedsStorageLimit(cacheData, 4)) {
+        console.warn(`⚠️ Cache size exceeds 4MB, using chunked storage for project ${projectId}`);
+        await this.cacheGeneratedQuestionsChunked(projectId, compressedQuestions as any);
+      } else {
+        try {
+          await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(cacheData));
+          await this.updateLastCacheTime();
+          console.log(`✓ Cached ${deduplicated.length} generated questions for project ${projectId}`);
+        } catch (error: any) {
+          // Handle QuotaExceededError
+          if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
+            console.warn(`⚠️ Storage quota exceeded, switching to chunked storage`);
+            await this.cacheGeneratedQuestionsChunked(projectId, compressedQuestions as any);
+          } else {
+            throw error;
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to cache generated questions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cache generated questions using chunked storage (for large datasets)
+   */
+  private async cacheGeneratedQuestionsChunked(projectId: string, questions: CachedGeneratedQuestion[]): Promise<void> {
+    try {
+      // Estimate chunk size based on sample item
+      const sampleItem = questions[0] || {};
+      const chunkSize = estimateChunkSize(sampleItem, 2); // 2MB per chunk
+
+      const chunks = chunkArray(questions, chunkSize);
+      console.log(`📦 Splitting ${questions.length} generated questions into ${chunks.length} chunks`);
+
+      // Save each chunk separately
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_chunk_${i}`;
+        await AsyncStorage.setItem(chunkKey, JSON.stringify(chunks[i]));
+      }
+
+      // Save chunk metadata
+      const metadata = {
+        projectId,
+        totalChunks: chunks.length,
+        totalItems: questions.length,
+        chunkSize,
+      };
+      await AsyncStorage.setItem(`${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`, JSON.stringify(metadata));
+
+      await this.updateLastCacheTime();
+      console.log(`✓ Cached ${questions.length} generated questions in ${chunks.length} chunks for project ${projectId}`);
+    } catch (error) {
+      console.error('Failed to cache generated questions in chunks:', error);
       throw error;
     }
   }
@@ -114,6 +263,29 @@ class OfflineQuestionCacheService {
    */
   async getGeneratedQuestions(projectId: string): Promise<CachedGeneratedQuestion[]> {
     try {
+      // First check if chunked storage exists
+      const metadataKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`;
+      const metadataStr = await AsyncStorage.getItem(metadataKey);
+
+      if (metadataStr) {
+        // Load from chunked storage
+        const metadata = JSON.parse(metadataStr);
+        const allQuestions: CachedGeneratedQuestion[] = [];
+
+        for (let i = 0; i < metadata.totalChunks; i++) {
+          const chunkKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_chunk_${i}`;
+          const chunkStr = await AsyncStorage.getItem(chunkKey);
+          if (chunkStr) {
+            const chunk = JSON.parse(chunkStr);
+            allQuestions.push(...chunk);
+          }
+        }
+
+        console.log(`📦 Loaded ${allQuestions.length} generated questions from ${metadata.totalChunks} chunks`);
+        return allQuestions;
+      }
+
+      // Fall back to regular cache
       const cacheData = await this.getAllGeneratedQuestionsCache();
       return cacheData[projectId] || [];
     } catch (error) {
@@ -316,15 +488,39 @@ class OfflineQuestionCacheService {
    */
   async clearProjectCache(projectId: string): Promise<void> {
     try {
-      // Clear question banks
+      // Clear question banks (regular cache)
       const qbCache = await this.getAllQuestionBanksCache();
       delete qbCache[projectId];
       await AsyncStorage.setItem(CACHE_KEYS.QUESTION_BANKS, JSON.stringify(qbCache));
 
-      // Clear generated questions
+      // Clear question banks (chunked cache)
+      const qbMetaKey = `${CACHE_KEYS.QUESTION_BANKS}_${projectId}_meta`;
+      const qbMetaStr = await AsyncStorage.getItem(qbMetaKey);
+      if (qbMetaStr) {
+        const qbMeta = JSON.parse(qbMetaStr);
+        const keysToRemove = [qbMetaKey];
+        for (let i = 0; i < qbMeta.totalChunks; i++) {
+          keysToRemove.push(`${CACHE_KEYS.QUESTION_BANKS}_${projectId}_chunk_${i}`);
+        }
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
+
+      // Clear generated questions (regular cache)
       const gqCache = await this.getAllGeneratedQuestionsCache();
       delete gqCache[projectId];
       await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(gqCache));
+
+      // Clear generated questions (chunked cache)
+      const gqMetaKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`;
+      const gqMetaStr = await AsyncStorage.getItem(gqMetaKey);
+      if (gqMetaStr) {
+        const gqMeta = JSON.parse(gqMetaStr);
+        const keysToRemove = [gqMetaKey];
+        for (let i = 0; i < gqMeta.totalChunks; i++) {
+          keysToRemove.push(`${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_chunk_${i}`);
+        }
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
 
       // Clear project data
       const projectCache = await this.getAllProjectsCache();
