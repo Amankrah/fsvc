@@ -384,7 +384,28 @@ class RespondentViewSet(BaseModelViewSet):
 
             # Get all questions for the project
             from forms.models import Question
-            questions = Question.objects.filter(project_id=project_id).order_by('order_index')
+            questions = list(Question.objects.filter(project_id=project_id))
+
+            # Sort by category order first, then by order_index
+            CATEGORY_ORDER = [
+                'Sociodemographics',
+                'Environmental LCA',
+                'Social LCA',
+                'Vulnerability',
+                'Fairness',
+                'Solutions',
+                'Informations',
+                'Proximity and Value',
+            ]
+
+            def get_category_sort_key(question):
+                category = question.question_category or ''
+                try:
+                    return (CATEGORY_ORDER.index(category), question.order_index)
+                except ValueError:
+                    return (9999, question.order_index)
+
+            questions.sort(key=get_category_sort_key)
 
             # Create CSV
             output = StringIO()
@@ -460,7 +481,28 @@ class RespondentViewSet(BaseModelViewSet):
 
             # Get all questions for the project
             from forms.models import Question
-            questions = Question.objects.filter(project_id=project_id).order_by('order_index')
+            questions = list(Question.objects.filter(project_id=project_id))
+
+            # Sort by category order first, then by order_index
+            CATEGORY_ORDER = [
+                'Sociodemographics',
+                'Environmental LCA',
+                'Social LCA',
+                'Vulnerability',
+                'Fairness',
+                'Solutions',
+                'Informations',
+                'Proximity and Value',
+            ]
+
+            def get_category_sort_key(question):
+                category = question.question_category or ''
+                try:
+                    return (CATEGORY_ORDER.index(category), question.order_index)
+                except ValueError:
+                    return (9999, question.order_index)
+
+            questions.sort(key=get_category_sort_key)
 
             # Build export data
             export_data = {
@@ -472,6 +514,7 @@ class RespondentViewSet(BaseModelViewSet):
                         'id': q.id,
                         'text': q.question_text,
                         'response_type': q.response_type,
+                        'category': q.question_category,
                         'order': q.order_index
                     } for q in questions
                 ],
