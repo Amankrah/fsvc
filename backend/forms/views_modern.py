@@ -164,21 +164,54 @@ class ModernQuestionViewSet(BaseModelViewSet):
     def perform_destroy(self, instance):
         """Enhanced question deletion with cleanup"""
         project_id = instance.project.id
-        
+        question_id = instance.id
+
         # Check permissions
         if not instance.project.can_user_edit(self.request.user):
             raise ValidationError("You don't have permission to delete this question")
-        
-        with transaction.atomic():
-            # Reorder remaining questions
-            Question.objects.filter(
-                project=instance.project,
-                order_index__gt=instance.order_index
-            ).update(order_index=F('order_index') - 1)
-            
-            instance.delete()
-            self._clear_project_cache(project_id)
-            logger.info(f"Question deleted: {instance.id} from project {project_id}")
+
+        try:
+            with transaction.atomic():
+                # Clear conditional logic references in follow-up questions
+                # Find all questions that have this question as their parent
+                # Use select_for_update to prevent race conditions in bulk deletes
+                follow_up_questions = Question.objects.select_for_update().filter(
+                    project=instance.project,
+                    is_follow_up=True,
+                    conditional_logic__isnull=False
+                ).exclude(id=question_id)  # Don't try to update the question being deleted
+
+                for follow_up in follow_up_questions:
+                    try:
+                        if follow_up.conditional_logic and follow_up.conditional_logic.get('parent_question_id') == str(question_id):
+                            # Clear the conditional logic for this follow-up question
+                            follow_up.conditional_logic = None
+                            follow_up.is_follow_up = False
+                            follow_up.save(update_fields=['conditional_logic', 'is_follow_up'])
+                            logger.info(f"Cleared conditional logic for follow-up question {follow_up.id}")
+                    except Exception as e:
+                        # Log but don't fail if we can't update a follow-up question
+                        logger.warning(f"Could not clear conditional logic for question {follow_up.id}: {str(e)}")
+
+                # Delete the question (this will cascade delete related responses)
+                instance.delete()
+
+                # Reorder remaining questions after deletion
+                # This is done after delete to avoid conflicts
+                Question.objects.filter(
+                    project_id=project_id,
+                    order_index__gt=instance.order_index
+                ).update(order_index=F('order_index') - 1)
+
+                self._clear_project_cache(project_id)
+                logger.info(f"Question deleted: {question_id} from project {project_id}")
+        except ValidationError:
+            # Re-raise ValidationError without modification
+            raise
+        except Exception as e:
+            # Log the full exception with traceback
+            logger.exception(f"Error deleting question {question_id}: {str(e)}")
+            raise
     
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
