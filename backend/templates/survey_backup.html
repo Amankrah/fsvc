@@ -98,12 +98,6 @@
         }
 
         .badge-required {
-        .badge-category {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4caf50;
-            border: 1px solid rgba(76, 175, 80, 0.4);
-        }
-
             background: rgba(244, 67, 54, 0.2);
             color: #f44336;
             border: 1px solid rgba(244, 67, 54, 0.4);
@@ -422,7 +416,6 @@
                     <div class="question-card">
                         <div class="question-header">
                             <span class="badge badge-question">Q${currentQuestionIndex + 1}</span>
-                            ${question.question_category ? `<span class="badge badge-category">${question.question_category}</span>` : ""}
                             <span class="badge badge-type">${formatResponseType(question.response_type)}</span>
                             ${question.is_required ? '<span class="badge badge-required">Required</span>' : ''}
                         </div>

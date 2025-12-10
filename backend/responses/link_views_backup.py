@@ -222,40 +222,13 @@ class PublicResponseLinkViewSet(viewsets.ViewSet):
             id__in=link.question_set
         ).order_by('order_index')
 
-        # Sort questions by category order, then by order_index
-        # Category order matches frontend: Sociodemographics, Environmental LCA, Social LCA, etc.
-        CATEGORY_ORDER = [
-            'Sociodemographics',
-            'Environmental LCA',
-            'Social LCA',
-            'Vulnerability',
-            'Fairness',
-            'Solutions',
-            'Informations',
-            'Proximity and Value',
-        ]
-
-        def get_category_sort_key(question):
-            """Get sort key for question based on category order"""
-            category = question.question_category or ''
-            try:
-                # Return category index if in predefined list
-                return (CATEGORY_ORDER.index(category), question.order_index)
-            except ValueError:
-                # Unknown categories sort to the end
-                return (9999, question.order_index)
-
-        # Sort questions in Python (after database fetch)
-        questions_list = list(questions)
-        questions_list.sort(key=get_category_sort_key)
-
         # Serialize questions
-        serializer = ResponseLinkQuestionSerializer(questions_list, many=True)
+        serializer = ResponseLinkQuestionSerializer(questions, many=True)
 
         return DRFResponse({
             'success': True,
             'questions': serializer.data,
-            'total_questions': len(questions_list)
+            'total_questions': questions.count()
         })
 
     @action(detail=True, methods=['post'])
