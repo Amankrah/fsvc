@@ -4,16 +4,13 @@ from projects.serializers import ProjectSerializer
 
 
 class QuestionBankSerializer(serializers.ModelSerializer):
-    """Serializer for QuestionBank model with comprehensive validation and auto-category support"""
+    """Serializer for QuestionBank model with custom category support"""
 
     project_details = ProjectSerializer(source='project', read_only=True)
     targeted_respondents_display = serializers.ReadOnlyField(source='get_targeted_respondents_display')
     targeted_commodities_display = serializers.ReadOnlyField(source='get_targeted_commodities_display')
     created_by_user_username = serializers.CharField(source='created_by_user.username', read_only=True)
     can_edit = serializers.SerializerMethodField()
-    auto_category_preview = serializers.SerializerMethodField(
-        help_text="Preview of category that will be auto-assigned based on targeted respondents"
-    )
 
     class Meta:
         model = QuestionBank
@@ -28,21 +25,17 @@ class QuestionBankSerializer(serializers.ModelSerializer):
             'section_header', 'section_preamble',
             'created_at', 'updated_at', 'created_by',
             'targeted_respondents_display', 'targeted_commodities_display',
-            'can_edit', 'auto_category_preview'
+            'can_edit'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_user', 'created_by',
-                           'created_by_user_username', 'can_edit', 'auto_category_preview', 'question_category']
-    
+                           'created_by_user_username', 'can_edit']
+
     def get_can_edit(self, obj):
         """Check if current user can edit this QuestionBank item"""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             return obj.can_user_edit(request.user)
         return False
-
-    def get_auto_category_preview(self, obj):
-        """Get the category that would be auto-assigned based on targeted respondents"""
-        return obj.auto_set_category_from_respondents()
 
     def create(self, validated_data):
         """Set created_by_user to current user when creating"""

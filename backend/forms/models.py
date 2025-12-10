@@ -81,9 +81,10 @@ class QuestionBank(models.Model):
     # Core question information
     question_text = models.TextField(help_text="The actual question text")
     question_category = models.CharField(
-        max_length=30, 
-        choices=CATEGORY_CHOICES,
-        help_text="Category based on food system value chain"
+        max_length=100,
+        blank=True,
+        default='general',
+        help_text="Custom category/label for organizing questions (e.g., 'Production', 'Market Access', etc.)"
     )
     
     # Targeting information
@@ -263,11 +264,11 @@ class QuestionBank(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override save to auto-set category if not provided and set default question_sources.
+        Override save to set default question_sources and category.
         """
-        # Auto-set category if it's empty or 'general' and we have targeted respondents
-        if (not self.question_category or self.question_category == 'general') and self.targeted_respondents:
-            self.question_category = self.auto_set_category_from_respondents()
+        # Set default category if not provided
+        if not self.question_category:
+            self.question_category = 'general'
 
         # Set default question_sources if empty
         if not self.question_sources:
@@ -481,10 +482,10 @@ class Question(models.Model):
 
     # Research partnership information (copied from QuestionBank for direct access, with sensible defaults)
     question_category = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
         default='general',
-        help_text="Category/type of question for organization (auto-set from respondents if not provided)"
+        help_text="Custom category/label for organizing questions"
     )
     data_source = models.CharField(
         max_length=30,
@@ -642,7 +643,8 @@ class Question(models.Model):
         return [source for source in self.question_sources if source != 'owner']
 
     class Meta:
-        ordering = ['order_index', 'created_at']
+        ordering = ['question_category', 'order_index', 'created_at']
+        # Questions are grouped by category, then ordered by order_index
         # Removed unique_together constraint to allow flexible reordering
         # Questions are uniquely identified by their UUID primary key
 
@@ -1083,6 +1085,7 @@ class Question(models.Model):
                 project=project,
                 question_bank_source=bank_question,
                 question_text=bank_question.question_text,
+                question_category=bank_question.question_category,  # Copy custom category
                 response_type=bank_question.response_type,
                 is_required=bank_question.is_required,
                 allow_multiple=bank_question.allow_multiple,

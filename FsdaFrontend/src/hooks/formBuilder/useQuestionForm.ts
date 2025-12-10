@@ -12,6 +12,7 @@ export const useQuestionForm = () => {
   const [newQuestion, setNewQuestion] = useState<any>(DEFAULT_QUESTION_STATE);
   const [optionInput, setOptionInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Text');
+  const [questionCategory, setQuestionCategory] = useState('general'); // Custom category for organizing questions
   const [selectedTargetedRespondents, setSelectedTargetedRespondents] = useState<RespondentType[]>([]);
   const [selectedCommodities, setSelectedCommodities] = useState<string[]>([]);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
@@ -25,6 +26,7 @@ export const useQuestionForm = () => {
   const resetForm = useCallback(() => {
     setNewQuestion(DEFAULT_QUESTION_STATE);
     setOptionInput('');
+    setQuestionCategory('general');
     setSelectedTargetedRespondents([]);
     setSelectedCommodities([]);
     setSelectedCountries([]);
@@ -53,6 +55,7 @@ export const useQuestionForm = () => {
       section_header: question.section_header || '',
       section_preamble: question.section_preamble || '',
     });
+    setQuestionCategory(question.question_category || 'general');
     setSelectedTargetedRespondents(question.targeted_respondents || []);
     setSelectedCommodities(question.targeted_commodities || []);
     setSelectedCountries(question.targeted_countries || []);
@@ -108,8 +111,7 @@ export const useQuestionForm = () => {
     // Build the question data aligned with QuestionBank model structure
     const questionData: any = {
       question_text: newQuestion.question_text,
-      // Note: question_category is auto-set by backend based on targeted_respondents[0]
-      // See models.py:auto_set_category_from_respondents()
+      question_category: questionCategory || 'general', // User-specified custom category
       targeted_respondents: selectedTargetedRespondents.length > 0 ? selectedTargetedRespondents : [],
       targeted_commodities: selectedCommodities || [],
       targeted_countries: selectedCountries || [],
@@ -179,6 +181,8 @@ export const useQuestionForm = () => {
     setOptionInput,
     selectedCategory,
     setSelectedCategory,
+    questionCategory,
+    setQuestionCategory,
     selectedTargetedRespondents,
     setSelectedTargetedRespondents,
     selectedCommodities,

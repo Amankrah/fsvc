@@ -456,28 +456,8 @@ export type RespondentType =
 
 export type CommodityType = 'cocoa' | 'maize' | 'palm_oil' | 'groundnut' | 'honey';
 
-export type QuestionCategory =
-  | 'general'
-  | 'production'
-  | 'processing'
-  | 'distribution'
-  | 'consumption'
-  | 'waste_management'
-  | 'input_supply'
-  | 'market_access'
-  | 'quality_standards'
-  | 'certification'
-  | 'sustainability'
-  | 'climate_impact'
-  | 'social_impact'
-  | 'economic_impact'
-  | 'governance'
-  | 'policy'
-  | 'technology'
-  | 'logistics'
-  | 'finance'
-  | 'nutrition'
-  | 'food_safety';
+// Changed from strict union type to string to allow custom categories
+export type QuestionCategory = string;
 
 export type DataSourceType =
   | 'internal'

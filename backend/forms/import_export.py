@@ -38,6 +38,7 @@ class QuestionImportExport:
     TEMPLATE_COLUMNS = [
         'question_text',
         'response_type',
+        'question_category',
         'targeted_respondents',
         'targeted_commodities',
         'targeted_countries',
@@ -56,6 +57,7 @@ class QuestionImportExport:
     COLUMN_DESCRIPTIONS = {
         'question_text': 'The actual question text (REQUIRED)',
         'response_type': 'Type: text_short, text_long, numeric_integer, choice_single, etc. (REQUIRED)',
+        'question_category': 'Custom category (e.g., Production, Processing, Finance) - any text (default: general)',
         'targeted_respondents': 'Comma-separated: farmers,processors,retailers_food_vendors (REQUIRED)',
         'targeted_commodities': 'Comma-separated: cocoa,maize,palm_oil (REQUIRED)',
         'targeted_countries': 'Comma-separated: Ghana,Nigeria,Kenya (REQUIRED)',
@@ -100,12 +102,15 @@ class QuestionImportExport:
         example_row = [
             'What is your primary source of income?',
             'choice_single',
+            'Production',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
             'internal',
             'true',
             'Farming|Trading|Processing|Other',
+            '',
+            '',
             'false',
             '',
             '',
@@ -117,6 +122,7 @@ class QuestionImportExport:
         followup_row = [
             'How many hectares of farmland do you own?',
             'numeric_decimal',
+            'Production',
             'farmers',
             'cocoa,maize',
             'Ghana,Nigeria',
@@ -136,6 +142,7 @@ class QuestionImportExport:
         section_example_1 = [
             'How effective do you think better knowledge sharing help solve current challenges in the value chain?',
             'choice_single',
+            'Knowledge Sharing',
             'farmers,processors,aggregators_lbcs',
             'cocoa,maize,palm_oil',
             'Ghana,Nigeria',
@@ -155,6 +162,7 @@ class QuestionImportExport:
         section_example_2 = [
             'How feasible would it be to implement this solution in your local context?',
             'choice_single',
+            'Knowledge Sharing',
             'farmers,processors,aggregators_lbcs',
             'cocoa,maize,palm_oil',
             'Ghana,Nigeria',
@@ -204,6 +212,7 @@ class QuestionImportExport:
         example_row = [
             'What is your primary source of income?',
             'choice_single',
+            'Production',
             'farmers,aggregators_lbcs',
             'cocoa,maize',
             'Ghana,Nigeria',
@@ -225,6 +234,7 @@ class QuestionImportExport:
         followup_row = [
             'How many hectares of farmland do you own?',
             'numeric_decimal',
+            'Production',
             'farmers',
             'cocoa,maize',
             'Ghana,Nigeria',
@@ -247,6 +257,7 @@ class QuestionImportExport:
         section_row_1 = [
             'How effective do you think better knowledge sharing help solve current challenges in the value chain?',
             'choice_single',
+            'Knowledge Sharing',
             'farmers,processors,aggregators_lbcs',
             'cocoa,maize,palm_oil',
             'Ghana,Nigeria',
@@ -268,6 +279,7 @@ class QuestionImportExport:
         section_row_2 = [
             'How feasible would it be to implement this solution in your local context?',
             'choice_single',
+            'Knowledge Sharing',
             'farmers,processors,aggregators_lbcs',
             'cocoa,maize,palm_oil',
             'Ghana,Nigeria',
@@ -286,7 +298,7 @@ class QuestionImportExport:
             cell.fill = section_fill
 
         # Adjust column widths (updated for new columns)
-        column_widths = [50, 20, 35, 30, 25, 25, 15, 40, 40, 50, 15, 40, 20, 30]
+        column_widths = [50, 20, 20, 35, 30, 25, 25, 15, 40, 40, 50, 15, 40, 20, 30]
         for col_idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
@@ -520,11 +532,10 @@ class QuestionImportExport:
             if respondent not in cls.VALID_RESPONDENTS:
                 errors.append(f"Invalid respondent '{respondent}'. Valid: {', '.join(cls.VALID_RESPONDENTS)}")
 
-        # Auto-determine question_category based on primary (first) targeted respondent
-        question_category = 'general'  # Default fallback
-        if targeted_respondents:
-            primary_respondent = targeted_respondents[0]
-            question_category = cls.RESPONDENT_TO_CATEGORY_MAPPING.get(primary_respondent, 'general')
+        # Parse question_category from the row (user-specified custom category)
+        question_category = str(row.get('question_category', 'general')).strip()
+        if not question_category:
+            question_category = 'general'
 
         targeted_commodities = cls._parse_list_field(row.get('targeted_commodities'))
         if not targeted_commodities:

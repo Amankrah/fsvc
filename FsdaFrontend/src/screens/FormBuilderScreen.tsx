@@ -280,6 +280,31 @@ const FormBuilderScreen: React.FC = () => {
 
   const generatedFilters = getUniqueGeneratedFilters();
 
+  // Get unique filter options from Question Bank (actual data, not predefined)
+  const getUniqueQuestionBankFilters = () => {
+    const categories = new Set<string>();
+    const respondentTypes = new Set<string>();
+
+    questions.forEach((q) => {
+      // Extract categories
+      if (q.question_category) {
+        categories.add(q.question_category);
+      }
+
+      // Extract respondent types from targeted_respondents array
+      if (q.targeted_respondents && Array.isArray(q.targeted_respondents)) {
+        q.targeted_respondents.forEach(type => respondentTypes.add(type));
+      }
+    });
+
+    return {
+      categories: Array.from(categories).sort().map(cat => ({ value: cat, label: cat })),
+      respondentTypes: Array.from(respondentTypes).sort().map(type => ({ value: type, label: type })),
+    };
+  };
+
+  const questionBankFilters = getUniqueQuestionBankFilters();
+
   // Filter Generated Questions by selected bundle
   const filteredGeneratedQuestions = generatedQuestionsHook.generatedQuestions.filter((q) => {
     if (selectedGeneratedRespondentType && q.assigned_respondent_type !== selectedGeneratedRespondentType) {
@@ -511,8 +536,8 @@ const FormBuilderScreen: React.FC = () => {
           activeFiltersCount={activeFiltersCount}
           filteredCount={filteredQuestions.length}
           totalCount={questions.length}
-          categories={questionBankChoices.categories || []}
-          respondentTypes={questionBankChoices.respondent_types || []}
+          categories={questionBankFilters.categories}
+          respondentTypes={questionBankFilters.respondentTypes}
         />
       ) : (
         <View style={styles.generatedFiltersContainer}>
