@@ -22,6 +22,10 @@ export const useQuestionBank = (projectId: string) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [responseTypes, setResponseTypes] = useState<ResponseTypeInfo[]>([]);
   const [questionBankChoices, setQuestionBankChoices] = useState<QuestionBankChoices>({
     categories: [],
@@ -30,48 +34,130 @@ export const useQuestionBank = (projectId: string) => {
     respondent_types: [],
   });
 
-  const loadQuestions = useCallback(async () => {
+  const loadQuestions = useCallback(async (page: number = 1, pageSize: number = 100, append: boolean = false) => {
     try {
+      if (append) {
+        setLoadingMore(true);
+      }
+
       // Check if online
       const isOnline = await networkMonitor.checkConnection();
 
       if (isOnline) {
-        // Fetch question bank items from server
+        // Fetch question bank items from server with pagination
+        console.log(`🌐 Loading question banks - page ${page}`);
         const questionBankData = await apiService.getQuestionBank({
           project_id: projectId,
-          page_size: 1000,
+          page,
+          page_size: pageSize,
         });
-        const questionsList = Array.isArray(questionBankData)
-          ? questionBankData
-          : questionBankData.results || [];
 
-        // Cache for offline use
-        try {
-          await offlineQuestionCache.cacheQuestionBanks(projectId, questionsList);
-          console.log(`✓ Cached ${questionsList.length} question banks for offline use`);
-        } catch (cacheError) {
-          console.warn('Failed to cache question banks:', cacheError);
-          // Continue anyway - caching is optional
+        // Check if response is paginated
+        if (questionBankData.results) {
+          // Paginated response
+          const questionsList = questionBankData.results;
+          // Backend returns { total, links: { next, previous }, results }
+          const hasMorePages = !!(questionBankData.links?.next || questionBankData.next);
+          const total = questionBankData.total || questionBankData.count || questionsList.length;
+
+          console.log('📊 Question Bank Pagination Info:', {
+            page,
+            total: questionBankData.total,
+            count: questionBankData.count,
+            resultsLength: questionsList.length,
+            hasNext: hasMorePages,
+            totalCount: total
+          });
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+          setTotalCount(total);
+
+          // Cache for offline use (only on first page)
+          if (page === 1) {
+            try {
+              await offlineQuestionCache.cacheQuestionBanks(projectId, questionsList);
+              console.log(`✓ Cached ${questionsList.length} question banks for offline use`);
+            } catch (cacheError) {
+              console.warn('Failed to cache question banks:', cacheError);
+            }
+          }
+
+          // Update state
+          if (append) {
+            setQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setQuestions(questionsList);
+          }
+
+          console.log(`✓ Loaded ${questionsList.length} question banks (page ${page}), hasMore: ${hasMorePages}`);
+          return questionsList;
+        } else {
+          // Non-paginated - simulate pagination
+          const allQuestions = Array.isArray(questionBankData)
+            ? questionBankData
+            : questionBankData.results || [];
+
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = allQuestions.slice(start, end);
+          const hasMorePages = end < allQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+          setTotalCount(allQuestions.length);
+
+          // Cache (only on first page)
+          if (page === 1) {
+            try {
+              await offlineQuestionCache.cacheQuestionBanks(projectId, allQuestions);
+              console.log(`✓ Cached ${allQuestions.length} question banks for offline use`);
+            } catch (cacheError) {
+              console.warn('Failed to cache question banks:', cacheError);
+            }
+          }
+
+          // Update state
+          if (append) {
+            setQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setQuestions(questionsList);
+          }
+
+          return questionsList;
         }
-
-        setQuestions(questionsList);
-        return questionsList;
       } else {
-        // Load from cache when offline
-        console.log('📴 Offline - loading question banks from cache');
+        // Load from cache when offline with pagination
+        console.log(`📴 Offline - loading question banks from cache (page ${page})`);
         const cachedQuestions = await offlineQuestionCache.getQuestionBanks(projectId);
 
         if (cachedQuestions.length > 0) {
-          // Convert cached questions to Question type
-          const questionsList = cachedQuestions as any as Question[];
-          setQuestions(questionsList);
-          showAlert(
-            'Offline Mode',
-            `Loaded ${cachedQuestions.length} questions from cache. You can view and edit questions, but changes will sync when you're back online.`,
-            [{ text: 'OK' }]
-          );
+          // Simulate pagination
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = cachedQuestions.slice(start, end) as any as Question[];
+          const hasMorePages = end < cachedQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+
+          // Update state
+          if (append) {
+            setQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setQuestions(questionsList);
+          }
+
+          if (page === 1) {
+            showAlert(
+              'Offline Mode',
+              `Loaded ${questionsList.length} of ${cachedQuestions.length} questions from cache. You can view and edit questions, but changes will sync when you're back online.`,
+              [{ text: 'OK' }]
+            );
+          }
           return questionsList;
         } else {
+          setHasMore(false);
           showAlert(
             'No Cached Data',
             'No question banks cached for offline use. Please connect to the internet to load questions.'
@@ -86,11 +172,23 @@ export const useQuestionBank = (projectId: string) => {
       try {
         const cachedQuestions = await offlineQuestionCache.getQuestionBanks(projectId);
         if (cachedQuestions.length > 0) {
-          const questionsList = cachedQuestions as any as Question[];
-          setQuestions(questionsList);
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = cachedQuestions.slice(start, end) as any as Question[];
+          const hasMorePages = end < cachedQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+
+          if (append) {
+            setQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setQuestions(questionsList);
+          }
+
           showAlert(
             'Loaded from Cache',
-            `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
+            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache.`
           );
           return questionsList;
         }
@@ -98,8 +196,13 @@ export const useQuestionBank = (projectId: string) => {
         console.error('Failed to load from cache:', cacheError);
       }
 
+      setHasMore(false);
       showAlert('Error', 'Failed to load questions');
       return [];
+    } finally {
+      if (append) {
+        setLoadingMore(false);
+      }
     }
   }, [projectId]);
 
@@ -272,17 +375,31 @@ export const useQuestionBank = (projectId: string) => {
     });
   }, [projectId, loadQuestions]);
 
+  // Load more questions for pagination
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) {
+      return;
+    }
+
+    const nextPage = currentPage + 1;
+    await loadQuestions(nextPage, 100, true); // append=true
+  }, [hasMore, loadingMore, currentPage, loadQuestions]);
+
   return {
     questions,
     loading,
     refreshing,
     saving,
+    loadingMore,
+    hasMore,
+    totalCount,
     responseTypes,
     questionBankChoices,
     loadProjectAndQuestions,
     loadResponseTypes,
     loadQuestionBankChoices,
     handleRefresh,
+    loadMore,
     createQuestion,
     updateQuestion,
     deleteQuestion,

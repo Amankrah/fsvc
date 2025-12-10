@@ -107,12 +107,16 @@ const FormBuilderScreen: React.FC = () => {
     loading,
     refreshing,
     saving,
+    loadingMore,
+    hasMore,
+    totalCount,
     responseTypes,
     questionBankChoices,
     loadProjectAndQuestions,
     loadResponseTypes,
     loadQuestionBankChoices,
     handleRefresh,
+    loadMore,
     createQuestion,
     updateQuestion,
     deleteQuestion,
@@ -508,10 +512,10 @@ const FormBuilderScreen: React.FC = () => {
           </View>
           <View style={styles.questionCountContainer}>
             <Text variant="titleMedium" style={styles.questionCount}>
-              {activeQuestions.length}
+              {activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
             </Text>
             <Text variant="bodySmall" style={styles.questionCountLabel}>
-              question{activeQuestions.length !== 1 ? 's' : ''}
+              question{(activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount) !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
@@ -559,7 +563,7 @@ const FormBuilderScreen: React.FC = () => {
           hasActiveFilters={hasActiveFilters}
           activeFiltersCount={activeFiltersCount}
           filteredCount={filteredQuestions.length}
-          totalCount={questions.length}
+          totalCount={activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
           categories={questionBankFilters.categories}
           respondentTypes={questionBankFilters.respondentTypes}
         />
@@ -717,6 +721,50 @@ const FormBuilderScreen: React.FC = () => {
             colors={['#4b1e85']}
           />
         }
+        // Pagination - Infinite Scroll
+        onEndReached={() => {
+          if (activeTab === 'bank' && hasMore && !loadingMore) {
+            loadMore();
+          } else if (activeTab === 'generated' && generatedQuestionsHook.hasMore && !generatedQuestionsHook.loadingMore) {
+            generatedQuestionsHook.loadMore();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={() => {
+          const isLoadingMore = activeTab === 'bank' ? loadingMore : generatedQuestionsHook.loadingMore;
+          const canLoadMore = activeTab === 'bank' ? hasMore : generatedQuestionsHook.hasMore;
+          const handleLoadMore = activeTab === 'bank' ? loadMore : generatedQuestionsHook.loadMore;
+
+          if (isLoadingMore) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#4b1e85" />
+                <Text style={{ marginTop: 10, color: '#666' }}>Loading more questions...</Text>
+              </View>
+            );
+          }
+
+          if (canLoadMore && displayQuestions.length > 0) {
+            return (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Button
+                  mode="outlined"
+                  onPress={handleLoadMore}
+                  icon="chevron-down"
+                  style={{ borderColor: '#4b1e85', borderWidth: 2 }}
+                  labelStyle={{ color: '#4b1e85', fontWeight: 'bold' }}
+                >
+                  Load More Questions
+                </Button>
+                <Text style={{ marginTop: 10, color: '#888', fontSize: 12 }}>
+                  Showing {displayQuestions.length} of {activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
+                </Text>
+              </View>
+            );
+          }
+
+          return null;
+        }}
         // Performance optimizations
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}

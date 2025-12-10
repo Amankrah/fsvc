@@ -16,46 +16,132 @@ export const useGeneratedQuestions = (projectId: string) => {
   const [refreshing, setRefreshing] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderedQuestions, setReorderedQuestions] = useState<Question[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const loadGeneratedQuestions = useCallback(async () => {
+  const loadGeneratedQuestions = useCallback(async (page: number = 1, pageSize: number = 100, append: boolean = false) => {
     try {
+      if (append) {
+        setLoadingMore(true);
+      }
+
       // Check if online
       const isOnline = await networkMonitor.checkConnection();
 
       if (isOnline) {
-        // Fetch from server when online
+        // Fetch from server when online with pagination
+        console.log(`🌐 Loading generated questions - page ${page}`);
         const questionsData = await apiService.getQuestions(projectId);
-        const questionsList: Question[] = Array.isArray(questionsData)
-          ? questionsData
-          : questionsData.results || [];
 
-        // Cache for offline use
-        try {
-          await offlineQuestionCache.cacheGeneratedQuestions(projectId, questionsList as any);
-          console.log(`✓ Cached ${questionsList.length} generated questions for offline use`);
-        } catch (cacheError) {
-          console.warn('Failed to cache generated questions:', cacheError);
-          // Continue anyway - caching is optional
+        // Check if response is paginated
+        if (questionsData.results) {
+          // Paginated response from Django REST Framework
+          const questionsList: Question[] = questionsData.results;
+          // Backend returns { total, links: { next, previous }, results }
+          const hasMorePages = !!(questionsData.links?.next || questionsData.next);
+          const total = questionsData.total || questionsData.count || questionsList.length;
+
+          console.log('📊 Generated Questions Pagination Info:', {
+            page,
+            total: questionsData.total,
+            count: questionsData.count,
+            resultsLength: questionsList.length,
+            hasNext: hasMorePages,
+            totalCount: total
+          });
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+          setTotalCount(total);
+
+          // Cache for offline use (only cache full dataset on first page)
+          if (page === 1) {
+            try {
+              await offlineQuestionCache.cacheGeneratedQuestions(projectId, questionsList as any);
+              console.log(`✓ Cached ${questionsList.length} generated questions for offline use`);
+            } catch (cacheError) {
+              console.warn('Failed to cache generated questions:', cacheError);
+            }
+          }
+
+          // Update state - append or replace
+          if (append) {
+            setGeneratedQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setGeneratedQuestions(questionsList);
+          }
+
+          console.log(`✓ Loaded ${questionsList.length} generated questions (page ${page}), hasMore: ${hasMorePages}`);
+          return questionsList;
+        } else {
+          // Non-paginated response - simulate pagination
+          const allQuestions: Question[] = Array.isArray(questionsData)
+            ? questionsData
+            : questionsData.results || [];
+
+          // Simulate pagination client-side
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = allQuestions.slice(start, end);
+          const hasMorePages = end < allQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+          setTotalCount(allQuestions.length);
+
+          // Cache for offline use (only on first page)
+          if (page === 1) {
+            try {
+              await offlineQuestionCache.cacheGeneratedQuestions(projectId, allQuestions as any);
+              console.log(`✓ Cached ${allQuestions.length} generated questions for offline use`);
+            } catch (cacheError) {
+              console.warn('Failed to cache generated questions:', cacheError);
+            }
+          }
+
+          // Update state
+          if (append) {
+            setGeneratedQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setGeneratedQuestions(questionsList);
+          }
+
+          return questionsList;
         }
-
-        // Questions are already sorted by order_index from the backend
-        setGeneratedQuestions(questionsList);
-        return questionsList;
       } else {
-        // Load from cache when offline
-        console.log('📴 Offline - loading generated questions from cache');
+        // Load from cache when offline with client-side pagination
+        console.log(`📴 Offline - loading generated questions from cache (page ${page})`);
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
 
         if (cachedQuestions.length > 0) {
-          const questionsList = cachedQuestions as any as Question[];
-          setGeneratedQuestions(questionsList);
-          showAlert(
-            'Offline Mode',
-            `Loaded ${cachedQuestions.length} generated questions from cache.`,
-            [{ text: 'OK' }]
-          );
+          // Simulate pagination
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = cachedQuestions.slice(start, end) as any as Question[];
+          const hasMorePages = end < cachedQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+
+          // Update state
+          if (append) {
+            setGeneratedQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setGeneratedQuestions(questionsList);
+          }
+
+          if (page === 1) {
+            showAlert(
+              'Offline Mode',
+              `Loaded ${questionsList.length} of ${cachedQuestions.length} generated questions from cache.`,
+              [{ text: 'OK' }]
+            );
+          }
           return questionsList;
         } else {
+          setHasMore(false);
           showAlert(
             'No Cached Data',
             'No generated questions cached for offline use. You can still generate questions from cached Question Bank.'
@@ -70,11 +156,23 @@ export const useGeneratedQuestions = (projectId: string) => {
       try {
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
         if (cachedQuestions.length > 0) {
-          const questionsList = cachedQuestions as any as Question[];
-          setGeneratedQuestions(questionsList);
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          const questionsList = cachedQuestions.slice(start, end) as any as Question[];
+          const hasMorePages = end < cachedQuestions.length;
+
+          setHasMore(hasMorePages);
+          setCurrentPage(page);
+
+          if (append) {
+            setGeneratedQuestions(prev => [...prev, ...questionsList]);
+          } else {
+            setGeneratedQuestions(questionsList);
+          }
+
           showAlert(
             'Loaded from Cache',
-            `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
+            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache.`
           );
           return questionsList;
         }
@@ -82,8 +180,13 @@ export const useGeneratedQuestions = (projectId: string) => {
         console.error('Failed to load from cache:', cacheError);
       }
 
+      setHasMore(false);
       showAlert('Error', 'Failed to load generated questions');
       return [];
+    } finally {
+      if (append) {
+        setLoadingMore(false);
+      }
     }
   }, [projectId]);
 
@@ -295,12 +398,26 @@ export const useGeneratedQuestions = (projectId: string) => {
     }
   }, [generatedQuestions, loadGeneratedQuestions]);
 
+  // Load more questions for pagination
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) {
+      return;
+    }
+
+    const nextPage = currentPage + 1;
+    await loadGeneratedQuestions(nextPage, 100, true); // append=true
+  }, [hasMore, loadingMore, currentPage, loadGeneratedQuestions]);
+
   return {
     generatedQuestions,
     loading,
     refreshing,
+    loadingMore,
+    hasMore,
+    totalCount,
     loadData,
     handleRefresh,
+    loadMore,
     generateQuestionsOffline, // Offline question generation
     deleteGeneratedQuestion, // Single delete
     deleteAllGeneratedQuestions, // Bulk delete
