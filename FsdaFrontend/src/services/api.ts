@@ -196,6 +196,30 @@ class ApiService {
     return await this.get(`/forms/questions/?project_id=${projectId}&page_size=1000`);
   }
 
+  async getQuestionsForRespondent(
+    projectId: string,
+    filters: {
+      assigned_respondent_type?: string;
+      assigned_commodity?: string;
+      assigned_country?: string;
+    }
+  ) {
+    // Build query params
+    const params = new URLSearchParams({ project_id: projectId });
+
+    if (filters.assigned_respondent_type) {
+      params.append('assigned_respondent_type', filters.assigned_respondent_type);
+    }
+    if (filters.assigned_commodity) {
+      params.append('assigned_commodity', filters.assigned_commodity);
+    }
+    if (filters.assigned_country) {
+      params.append('assigned_country', filters.assigned_country);
+    }
+
+    return await this.get(`/forms/questions/get_for_respondent/?${params.toString()}`);
+  }
+
   async getQuestion(id: string) {
     return await this.get(`/forms/questions/${id}/`);
   }

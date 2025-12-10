@@ -151,48 +151,65 @@ export const useQuestions = ({
       // Check network connection
       const isOnline = await networkMonitor.checkConnection();
 
+      const commodityStr = selectedCommodities.join(',') || '';
+      const countryStr = selectedCountry || '';
+
       let questionsList: Question[] = [];
 
       if (isOnline) {
-        // Online: Fetch from API
+        // Online: Fetch from API using optimized filtered endpoint
         try {
-          const allQuestions = await apiService.getQuestions(projectId);
-          questionsList = Array.isArray(allQuestions)
-            ? allQuestions
-            : allQuestions.results || [];
+          console.log('🌐 Online - fetching filtered questions from API');
+          const response = await apiService.getQuestionsForRespondent(projectId, {
+            assigned_respondent_type: selectedRespondentType,
+            assigned_commodity: commodityStr,
+            assigned_country: countryStr,
+          });
+
+          questionsList = Array.isArray(response)
+            ? response
+            : response.questions || response.results || [];
+
+          console.log(`✓ Loaded ${questionsList.length} questions from filtered API endpoint`);
         } catch (error) {
           console.error('Error fetching questions from API, falling back to cache:', error);
           // Fall back to cache if API fails
           const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
-          questionsList = cachedQuestions as any as Question[];
+          const allQuestions = cachedQuestions as any as Question[];
+
+          // Filter cached questions client-side
+          questionsList = allQuestions.filter((q: Question) => {
+            const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
+            const matchesCommodity = q.assigned_commodity === commodityStr;
+            const matchesCountry = q.assigned_country === countryStr;
+            return matchesRespondent && matchesCommodity && matchesCountry;
+          });
         }
       } else {
-        // Offline: Load from cache
+        // Offline: Load from cache and filter client-side
         console.log('📴 Offline - loading existing questions from cache');
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
-        questionsList = cachedQuestions as any as Question[];
-        console.log(`📦 Loaded ${questionsList.length} questions from cache`);
+        const allQuestions = cachedQuestions as any as Question[];
+
+        questionsList = allQuestions.filter((q: Question) => {
+          const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
+          const matchesCommodity = q.assigned_commodity === commodityStr;
+          const matchesCountry = q.assigned_country === countryStr;
+          return matchesRespondent && matchesCommodity && matchesCountry;
+        });
+
+        console.log(`📦 Loaded ${questionsList.length} matching questions from cache`);
       }
 
-      const commodityStr = selectedCommodities.join(',') || '';
-      const countryStr = selectedCountry || '';
-
-      const matchingQuestions = questionsList.filter((q: Question) => {
-        const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
-        const matchesCommodity = q.assigned_commodity === commodityStr;
-        const matchesCountry = q.assigned_country === countryStr;
-
-        return matchesRespondent && matchesCommodity && matchesCountry;
-      });
-
-      console.log(`✓ Found ${matchingQuestions.length} matching questions for criteria:`, {
+      console.log(`✓ Found ${questionsList.length} matching questions for criteria:`, {
         respondentType: selectedRespondentType,
         commodity: commodityStr,
         country: countryStr,
       });
 
       // Sort by category order first, then by order_index within each category
-      return matchingQuestions.sort((a, b) => {
+      // Note: Backend already sorts by category, but we apply it here for cached/offline data
+      return questionsList.sort((a, b) => {
         const categoryA = a.question_category || '';
         const categoryB = b.question_category || '';
         const categoryIndexA = getCategorySortIndex(categoryA);

@@ -1042,21 +1042,21 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 {'error': 'project_id parameter is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             # Check project access
             from projects.models import Project
             project = Project.objects.get(id=project_id)
             if not project.can_user_access(request.user):
                 raise ValidationError("You don't have permission to access this project")
-            
+
             # Get partner distribution
             partner_groups = Question.get_questions_by_research_partner(project)
-            
+
             # Serialize the data
             response_data = {}
             total_questions = 0
-            
+
             for key, group in partner_groups.items():
                 questions_serializer = QuestionSerializer(group['questions'], many=True)
                 response_data[key] = {
@@ -1065,7 +1065,7 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     'question_count': len(group['questions'])
                 }
                 total_questions += len(group['questions'])
-            
+
             return Response({
                 'partner_distribution': response_data,
                 'summary': {
@@ -1074,7 +1074,7 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     'project_id': project_id
                 }
             })
-            
+
         except Project.DoesNotExist:
             return Response(
                 {'error': 'Project not found'},
@@ -1084,6 +1084,86 @@ class ModernQuestionViewSet(BaseModelViewSet):
             logger.error(f"Error getting partner distribution: {e}")
             return Response(
                 {'error': 'Failed to get partner distribution'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def get_for_respondent(self, request):
+        """
+        Get questions filtered by respondent criteria for optimized loading.
+
+        Query params:
+        - project_id (required): Project ID
+        - assigned_respondent_type (optional): Filter by respondent type (e.g., 'farmers')
+        - assigned_commodity (optional): Filter by commodity (e.g., 'cocoa')
+        - assigned_country (optional): Filter by country (e.g., 'Ghana')
+
+        Returns only questions matching the specified criteria, reducing payload size.
+        """
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Check project access
+            from projects.models import Project
+            project = Project.objects.get(id=project_id)
+            if not project.can_user_access(request.user):
+                raise ValidationError("You don't have permission to access this project")
+
+            # Get optional filters
+            assigned_respondent_type = request.query_params.get('assigned_respondent_type')
+            assigned_commodity = request.query_params.get('assigned_commodity')
+            assigned_country = request.query_params.get('assigned_country')
+
+            # Start with base queryset
+            queryset = self.get_queryset().filter(project=project)
+
+            # Apply filters
+            if assigned_respondent_type:
+                queryset = queryset.filter(assigned_respondent_type=assigned_respondent_type)
+
+            if assigned_commodity:
+                queryset = queryset.filter(assigned_commodity=assigned_commodity)
+
+            if assigned_country:
+                queryset = queryset.filter(assigned_country=assigned_country)
+
+            # Get questions with category sorting already applied by get_queryset()
+            questions = list(queryset)
+
+            # Serialize questions
+            serializer = QuestionSerializer(questions, many=True)
+
+            logger.info(
+                f"Filtered questions for project {project_id}: "
+                f"{len(questions)} questions (respondent: {assigned_respondent_type}, "
+                f"commodity: {assigned_commodity}, country: {assigned_country})"
+            )
+
+            return Response({
+                'questions': serializer.data,
+                'count': len(questions),
+                'filters': {
+                    'project_id': project_id,
+                    'assigned_respondent_type': assigned_respondent_type,
+                    'assigned_commodity': assigned_commodity,
+                    'assigned_country': assigned_country
+                }
+            })
+
+        except Project.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting filtered questions: {e}")
+            return Response(
+                {'error': 'Failed to get questions'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
