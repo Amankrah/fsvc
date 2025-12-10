@@ -5,8 +5,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert, showConfirm, showSuccess, showError } from '../../utils/alert';
 import apiService from '../../services/api';
 import { offlineQuestionCache, networkMonitor } from '../../services';
 import { Question } from '../../types';
@@ -244,13 +243,67 @@ export const useGeneratedQuestions = (projectId: string) => {
     }
   }, [projectId, loadGeneratedQuestions]);
 
+  // Delete single generated question
+  const deleteGeneratedQuestion = useCallback(
+    async (questionId: string) => {
+      const confirmed = await showConfirm(
+        'Delete Question',
+        'Are you sure you want to delete this generated question? This will not affect the Question Bank.',
+        'Delete',
+        'Cancel'
+      );
+
+      if (confirmed) {
+        try {
+          await apiService.deleteQuestion(questionId);
+          await loadGeneratedQuestions();
+          showSuccess('Question deleted successfully');
+        } catch (error) {
+          console.error('Error deleting question:', error);
+          showError('Failed to delete question');
+          throw error;
+        }
+      }
+    },
+    [loadGeneratedQuestions]
+  );
+
+  // Bulk delete generated questions
+  const deleteAllGeneratedQuestions = useCallback(async () => {
+    const confirmed = await showConfirm(
+      'Delete All Generated Questions',
+      `This will permanently delete ALL ${generatedQuestions.length} generated questions for this project. The Question Bank will not be affected.\n\nAre you sure?`,
+      'Delete All',
+      'Cancel'
+    );
+
+    if (confirmed) {
+      try {
+        // Delete all questions one by one (or use a bulk delete API if available)
+        const deletePromises = generatedQuestions.map(q =>
+          apiService.deleteQuestion(q.id)
+        );
+
+        await Promise.all(deletePromises);
+        await loadGeneratedQuestions();
+        showSuccess(`Successfully deleted ${generatedQuestions.length} generated questions`);
+      } catch (error: any) {
+        console.error('Error deleting questions:', error);
+        showError(error.response?.data?.error || 'Failed to delete all questions');
+        throw error;
+      }
+    }
+  }, [generatedQuestions, loadGeneratedQuestions]);
+
   return {
     generatedQuestions,
     loading,
     refreshing,
     loadData,
     handleRefresh,
-    generateQuestionsOffline, // NEW: Offline question generation
+    generateQuestionsOffline, // Offline question generation
+    deleteGeneratedQuestion, // Single delete
+    deleteAllGeneratedQuestions, // Bulk delete
     // Reorder mode
     isReorderMode,
     reorderedQuestions,

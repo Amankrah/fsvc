@@ -5,6 +5,30 @@
 
 import { ResponseType } from '../types';
 
+/**
+ * Question Category Display Order
+ * Defines the order in which question categories should be displayed in generated questions
+ */
+export const QUESTION_CATEGORY_ORDER = [
+  'Sociodemographics',
+  'Environmental LCA',
+  'Social LCA',
+  'Vulnerability',
+  'Fairness',
+  'Solutions',
+  'Informations',
+  'Proximity and Value',
+];
+
+/**
+ * Get the sort index for a category
+ * Returns the index in QUESTION_CATEGORY_ORDER, or a large number for unknown categories
+ */
+export const getCategorySortIndex = (category: string): number => {
+  const index = QUESTION_CATEGORY_ORDER.indexOf(category);
+  return index === -1 ? 9999 : index; // Unknown categories go to the end
+};
+
 export const RESPONSE_TYPE_CATEGORIES = [
   {
     label: 'Text',

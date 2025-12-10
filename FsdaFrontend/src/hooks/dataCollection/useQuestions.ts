@@ -5,10 +5,11 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
 import { offlineProjectCache, offlineQuestionCache, networkMonitor } from '../../services';
+import { getCategorySortIndex } from '../../constants/formBuilder';
 
 interface UseQuestionsProps {
   projectId: string;
@@ -190,7 +191,20 @@ export const useQuestions = ({
         country: countryStr,
       });
 
-      return matchingQuestions.sort((a, b) => a.order_index - b.order_index);
+      // Sort by category order first, then by order_index within each category
+      return matchingQuestions.sort((a, b) => {
+        const categoryA = a.question_category || '';
+        const categoryB = b.question_category || '';
+        const categoryIndexA = getCategorySortIndex(categoryA);
+        const categoryIndexB = getCategorySortIndex(categoryB);
+
+        if (categoryIndexA !== categoryIndexB) {
+          return categoryIndexA - categoryIndexB;
+        }
+
+        // Within same category, maintain original order
+        return a.order_index - b.order_index;
+      });
     } catch (error) {
       console.error('Error loading existing questions:', error);
       return [];

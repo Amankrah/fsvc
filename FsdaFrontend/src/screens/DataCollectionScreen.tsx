@@ -29,6 +29,9 @@ import {
 // Services
 import apiService from '../services/api';
 
+// Constants
+import { getCategorySortIndex } from '../constants/formBuilder';
+
 // Types
 type RootStackParamList = {
   DataCollection: { projectId: string; projectName: string };
@@ -170,7 +173,20 @@ const DataCollectionScreen: React.FC = () => {
         return matchesRespondent && matchesCommodity && matchesCountry;
       });
 
-      const loadedQuestions = matchingQuestions.sort((a: any, b: any) => a.order_index - b.order_index);
+      // Sort by category order first, then by order_index within each category
+      const loadedQuestions = matchingQuestions.sort((a: any, b: any) => {
+        const categoryA = a.question_category || '';
+        const categoryB = b.question_category || '';
+        const categoryIndexA = getCategorySortIndex(categoryA);
+        const categoryIndexB = getCategorySortIndex(categoryB);
+
+        if (categoryIndexA !== categoryIndexB) {
+          return categoryIndexA - categoryIndexB;
+        }
+
+        // Within same category, maintain original order
+        return a.order_index - b.order_index;
+      });
 
       // Verify questions loaded
       if (!loadedQuestions || loadedQuestions.length === 0) {
@@ -300,7 +316,7 @@ const DataCollectionScreen: React.FC = () => {
   // Handle Finish and Go Back
   const handleFinishAndGoBack = () => {
     // Navigate to Dashboard after finishing data collection session
-    navigation.navigate('Dashboard');
+    (navigation as any).navigate('Dashboard');
   };
 
   // Handle Back to Form
@@ -687,6 +703,13 @@ const DataCollectionScreen: React.FC = () => {
                       Q{responses.currentQuestionIndex + 1}
                     </Text>
                   </View>
+                  {currentQuestion.question_category && (
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>
+                        {currentQuestion.question_category}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.typeBadge}>
                     <Text style={styles.typeBadgeText}>
                       {currentQuestion.response_type.replace(/_/g, ' ')}
@@ -865,6 +888,19 @@ const styles = StyleSheet.create({
     color: '#64c8ff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  categoryBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.4)',
+  },
+  categoryBadgeText: {
+    color: '#81c784',
+    fontSize: 11,
+    fontWeight: '600',
   },
   typeBadge: {
     backgroundColor: 'rgba(156, 39, 176, 0.2)',

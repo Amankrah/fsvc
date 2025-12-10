@@ -5,6 +5,8 @@
  * based on user responses.
  */
 
+import { getCategorySortIndex } from '../constants/formBuilder';
+
 export interface ConditionalLogic {
   enabled: boolean;
   parent_question_id: string;
@@ -306,8 +308,20 @@ export function sortQuestionsWithFollowUps(questions: any[]): any[] {
   // Build the final ordered list
   const sortedQuestions: any[] = [];
 
-  // Sort root questions by order_index first
-  rootQuestions.sort((a, b) => a.order_index - b.order_index);
+  // Sort root questions by category first, then order_index
+  rootQuestions.sort((a, b) => {
+    const categoryA = a.question_category || '';
+    const categoryB = b.question_category || '';
+    const categoryIndexA = getCategorySortIndex(categoryA);
+    const categoryIndexB = getCategorySortIndex(categoryB);
+
+    if (categoryIndexA !== categoryIndexB) {
+      return categoryIndexA - categoryIndexB;
+    }
+
+    // Within same category, maintain original order
+    return a.order_index - b.order_index;
+  });
 
   // For each root question, add it and all its nested follow-ups
   rootQuestions.forEach((question) => {

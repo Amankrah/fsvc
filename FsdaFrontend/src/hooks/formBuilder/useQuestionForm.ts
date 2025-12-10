@@ -4,8 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import { Question, RespondentType, ResponseType } from '../../types';
 import { DEFAULT_QUESTION_STATE } from '../../constants/formBuilder';
 

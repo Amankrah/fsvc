@@ -16,7 +16,6 @@ import {
   FlatList,
   Platform,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import {
   Text,
@@ -44,6 +43,12 @@ import { useGeneratedQuestions } from '../hooks/formBuilder/useGeneratedQuestion
 
 // Services
 import { networkMonitor, offlineQuestionCache } from '../services';
+
+// Utils
+import { showAlert, showInfo } from '../utils/alert';
+
+// Constants
+import { getCategorySortIndex } from '../constants/formBuilder';
 
 // Components
 import { QuestionCard, SearchFilterBar, QuestionFormDialog } from '../components/formBuilder';
@@ -306,18 +311,33 @@ const FormBuilderScreen: React.FC = () => {
   const questionBankFilters = getUniqueQuestionBankFilters();
 
   // Filter Generated Questions by selected bundle
-  const filteredGeneratedQuestions = generatedQuestionsHook.generatedQuestions.filter((q) => {
-    if (selectedGeneratedRespondentType && q.assigned_respondent_type !== selectedGeneratedRespondentType) {
-      return false;
-    }
-    if (selectedGeneratedCommodity && q.assigned_commodity !== selectedGeneratedCommodity) {
-      return false;
-    }
-    if (selectedGeneratedCountry && q.assigned_country !== selectedGeneratedCountry) {
-      return false;
-    }
-    return true;
-  });
+  const filteredGeneratedQuestions = generatedQuestionsHook.generatedQuestions
+    .filter((q) => {
+      if (selectedGeneratedRespondentType && q.assigned_respondent_type !== selectedGeneratedRespondentType) {
+        return false;
+      }
+      if (selectedGeneratedCommodity && q.assigned_commodity !== selectedGeneratedCommodity) {
+        return false;
+      }
+      if (selectedGeneratedCountry && q.assigned_country !== selectedGeneratedCountry) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by category order first
+      const categoryA = a.question_category || '';
+      const categoryB = b.question_category || '';
+      const categoryIndexA = getCategorySortIndex(categoryA);
+      const categoryIndexB = getCategorySortIndex(categoryB);
+
+      if (categoryIndexA !== categoryIndexB) {
+        return categoryIndexA - categoryIndexB;
+      }
+
+      // Within same category, maintain original order (order_index)
+      return (a.order_index || 0) - (b.order_index || 0);
+    });
 
   // Get active data based on tab
   const activeQuestions = activeTab === 'bank' ? questions : filteredGeneratedQuestions;
@@ -372,11 +392,15 @@ const FormBuilderScreen: React.FC = () => {
           questionBankChoices={questionBankChoices}
           onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => {}}
           onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => {}}
-          onDelete={activeTab === 'bank' ? deleteQuestion : () => {}}
+          onDelete={
+            activeTab === 'bank'
+              ? deleteQuestion
+              : generatedQuestionsHook.deleteGeneratedQuestion
+          }
         />
       </View>
     </View>
-  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.reorderedQuestions.length, responseTypes, questionBankChoices, handleOpenEditDialog, duplicateQuestion, deleteQuestion, generatedQuestionsHook.moveQuestionUp, generatedQuestionsHook.moveQuestionDown]);
+  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.reorderedQuestions.length, generatedQuestionsHook.deleteGeneratedQuestion, responseTypes, questionBankChoices, handleOpenEditDialog, duplicateQuestion, deleteQuestion, generatedQuestionsHook.moveQuestionUp, generatedQuestionsHook.moveQuestionDown]);
 
   // Key extractor for FlatList
   const keyExtractor = useCallback((item: Question) => item.id, []);
@@ -735,26 +759,10 @@ const FormBuilderScreen: React.FC = () => {
         ) : (
           <>
             <FAB
-              icon="refresh"
-              label="Refresh Cache"
+              icon="delete-sweep"
+              label="Delete All"
               style={[styles.fab, styles.fabDelete]}
-              onPress={async () => {
-                Alert.alert(
-                  'Refresh Cache',
-                  'This will reload questions from the server and update the local cache.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Refresh',
-                      onPress: async () => {
-                        await loadProjectAndQuestions();
-                        await generatedQuestionsHook.loadData();
-                        Alert.alert('Success', 'Cache refreshed successfully!');
-                      },
-                    },
-                  ]
-                );
-              }}
+              onPress={generatedQuestionsHook.deleteAllGeneratedQuestions}
               theme={{ colors: { onPrimary: '#ffffff' } }}
             />
             <FAB
@@ -765,7 +773,7 @@ const FormBuilderScreen: React.FC = () => {
                 if (!isOnline) {
                   // When offline, generate using cached data
                   if (!selectedGeneratedRespondentType || !selectedGeneratedCommodity || !selectedGeneratedCountry) {
-                    Alert.alert(
+                    showAlert(
                       'Filter Required',
                       'Please select Respondent Type, Commodity, and Country to generate questions offline.'
                     );
@@ -778,7 +786,7 @@ const FormBuilderScreen: React.FC = () => {
                     selectedGeneratedCountry
                   );
                 } else {
-                  Alert.alert(
+                  showAlert(
                     'Generate Offline',
                     'You are currently online. This feature is for generating questions from cached Question Bank when offline. Would you like to cache the Question Bank for offline use?',
                     [
@@ -787,7 +795,7 @@ const FormBuilderScreen: React.FC = () => {
                         text: 'Cache Now',
                         onPress: async () => {
                           await loadProjectAndQuestions();
-                          Alert.alert('Success', 'Question Bank cached for offline use!');
+                          showAlert('Success', 'Question Bank cached for offline use!');
                         },
                       },
                     ]
@@ -806,7 +814,7 @@ const FormBuilderScreen: React.FC = () => {
                   : () => {
                       // Only allow reorder if questions are filtered to a specific bundle
                       if (filteredGeneratedQuestions.length === 0) {
-                        Alert.alert('No Questions', 'There are no questions to reorder.');
+                        showAlert('No Questions', 'There are no questions to reorder.');
                         return;
                       }
 
@@ -820,7 +828,7 @@ const FormBuilderScreen: React.FC = () => {
                       );
 
                       if (!allSameBundle) {
-                        Alert.alert(
+                        showAlert(
                           'Filter Required',
                           'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
                         );
