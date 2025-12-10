@@ -208,7 +208,7 @@ class ResponseLink(models.Model):
         ]
 
     def __str__(self):
-        status = "Active" if self.is_valid() else "Expired"
+        status = "Active" if self.is_valid else "Expired"
         tags = []
         if self.respondent_type:
             tags.append(self.respondent_type)
