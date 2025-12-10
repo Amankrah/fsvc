@@ -4,7 +4,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -35,7 +36,7 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        Alert.alert('Success', `${format.toUpperCase()} template downloaded successfully`);
+        showAlert('Success', `${format.toUpperCase()} template downloaded successfully`);
       } else {
         // Mobile: Save to device using expo-file-system and share
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
@@ -64,15 +65,15 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
               UTI:
                 format === 'csv' ? 'public.comma-separated-values-text' : 'org.openxmlformats.spreadsheetml.sheet',
             });
-            Alert.alert('Success', `${format.toUpperCase()} template ready. Choose where to save it.`);
+            showAlert('Success', `${format.toUpperCase()} template ready. Choose where to save it.`);
           } else {
-            Alert.alert('Success', `Template saved to: ${fileUri}`);
+            showAlert('Success', `Template saved to: ${fileUri}`);
           }
         };
       }
     } catch (error) {
       console.error(`Error downloading ${format} template:`, error);
-      Alert.alert('Error', `Failed to download ${format.toUpperCase()} template`);
+      showAlert('Error', `Failed to download ${format.toUpperCase()} template`);
     } finally {
       setShowImportExportDialog(false);
     }
@@ -97,7 +98,7 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
       const file = result.assets[0];
 
       if (!file.name.match(/\.(csv|xlsx|xls)$/i)) {
-        Alert.alert('Invalid File', 'Please select a CSV or Excel file (.csv, .xlsx, .xls)');
+        showAlert('Invalid File', 'Please select a CSV or Excel file (.csv, .xlsx, .xls)');
         return;
       }
 
@@ -136,7 +137,7 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
         await onImportSuccess();
 
         // Show success with details
-        Alert.alert(
+        showAlert(
           'Import Successful! 🎉',
           `✅ Created: ${importResultData.created} questions\n✅ Updated: ${importResultData.updated} questions${
             importResultData.errors && importResultData.errors.length > 0
@@ -176,7 +177,7 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
           error: true,
         });
 
-        Alert.alert('Import Failed', errorMessage + '\n\n' + details.join('\n'));
+        showAlert('Import Failed', errorMessage + '\n\n' + details.join('\n'));
       } finally {
         setImporting(false);
         setImportProgress(0);
@@ -184,7 +185,7 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
     } catch (error: any) {
       console.error('Error in import handler:', error);
       if (error.message !== 'User cancelled document picker') {
-        Alert.alert('Error', 'Failed to select file');
+        showAlert('Error', 'Failed to select file');
       }
     }
   }, [projectId, onImportSuccess]);

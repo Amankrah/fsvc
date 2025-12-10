@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import apiService from '../../services/api';
 
 export interface Respondent {
@@ -41,7 +42,7 @@ export const useRespondents = (projectId: string) => {
       await loadRespondents();
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load responses');
+      showAlert('Error', 'Failed to load responses');
     } finally {
       setLoading(false);
     }

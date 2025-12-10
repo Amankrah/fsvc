@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import apiService from '../../services/api';
 import { Respondent } from './useRespondents';
 
@@ -36,7 +37,7 @@ export const useRespondentDetails = () => {
       setRespondentResponses(data.responses || []);
     } catch (error) {
       console.error('Error loading respondent responses:', error);
-      Alert.alert('Error', 'Failed to load respondent responses');
+      showAlert('Error', 'Failed to load respondent responses');
     } finally {
       setLoading(false);
     }

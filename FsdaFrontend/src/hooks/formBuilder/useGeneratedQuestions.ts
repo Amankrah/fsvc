@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import apiService from '../../services/api';
 import { offlineQuestionCache, networkMonitor } from '../../services';
 import { Question } from '../../types';
@@ -49,14 +50,14 @@ export const useGeneratedQuestions = (projectId: string) => {
         if (cachedQuestions.length > 0) {
           const questionsList = cachedQuestions as any as Question[];
           setGeneratedQuestions(questionsList);
-          Alert.alert(
+          showAlert(
             'Offline Mode',
             `Loaded ${cachedQuestions.length} generated questions from cache.`,
             [{ text: 'OK' }]
           );
           return questionsList;
         } else {
-          Alert.alert(
+          showAlert(
             'No Cached Data',
             'No generated questions cached for offline use. You can still generate questions from cached Question Bank.'
           );
@@ -72,7 +73,7 @@ export const useGeneratedQuestions = (projectId: string) => {
         if (cachedQuestions.length > 0) {
           const questionsList = cachedQuestions as any as Question[];
           setGeneratedQuestions(questionsList);
-          Alert.alert(
+          showAlert(
             'Loaded from Cache',
             `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
           );
@@ -82,7 +83,7 @@ export const useGeneratedQuestions = (projectId: string) => {
         console.error('Failed to load from cache:', cacheError);
       }
 
-      Alert.alert('Error', 'Failed to load generated questions');
+      showAlert('Error', 'Failed to load generated questions');
       return [];
     }
   }, [projectId]);
@@ -93,7 +94,7 @@ export const useGeneratedQuestions = (projectId: string) => {
       await loadGeneratedQuestions();
     } catch (error: any) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data');
+      showAlert('Error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -146,7 +147,7 @@ export const useGeneratedQuestions = (projectId: string) => {
     try {
       // Get the generation bundle context (all questions should have same tags)
       if (reorderedQuestions.length === 0) {
-        Alert.alert('Error', 'No questions to reorder');
+        showAlert('Error', 'No questions to reorder');
         return;
       }
 
@@ -164,7 +165,7 @@ export const useGeneratedQuestions = (projectId: string) => {
       );
 
       if (!allSameBundle) {
-        Alert.alert(
+        showAlert(
           'Error',
           'Cannot reorder questions from different generation bundles. Please filter to a specific Respondent Type, Commodity, and Country combination first.'
         );
@@ -179,7 +180,7 @@ export const useGeneratedQuestions = (projectId: string) => {
       setIsReorderMode(false);
       setReorderedQuestions([]);
 
-      Alert.alert('Success', 'Question order updated successfully for this generation bundle');
+      showAlert('Success', 'Question order updated successfully for this generation bundle');
     } catch (error: any) {
       console.error('Error saving question order:', error);
 
@@ -189,13 +190,13 @@ export const useGeneratedQuestions = (projectId: string) => {
       if (errorData?.order_validation_errors) {
         // Follow-up question validation errors
         const errorMessage = `Cannot reorder: Follow-up questions must appear after their parent questions.\n\nIssues found:\n${errorData.order_validation_errors.join('\n')}`;
-        Alert.alert('Validation Error', errorMessage);
+        showAlert('Validation Error', errorMessage);
       } else if (errorData?.message && errorData?.message.includes('follow-up')) {
         // Generic follow-up error
-        Alert.alert('Validation Error', errorData.message);
+        showAlert('Validation Error', errorData.message);
       } else {
         // Generic error
-        Alert.alert('Error', errorData?.error || errorData?.message || 'Failed to save question order');
+        showAlert('Error', errorData?.error || errorData?.message || 'Failed to save question order');
       }
     }
   }, [projectId, reorderedQuestions, loadGeneratedQuestions]);
@@ -220,13 +221,13 @@ export const useGeneratedQuestions = (projectId: string) => {
         // Refresh the list to show newly generated questions
         await loadGeneratedQuestions();
 
-        Alert.alert(
+        showAlert(
           'Questions Generated Offline',
           `Generated ${newQuestions.length} questions. They will sync to the server when you're back online.`,
           [{ text: 'OK' }]
         );
       } else {
-        Alert.alert(
+        showAlert(
           'No New Questions',
           'No matching questions found in the Question Bank, or all questions have already been generated for this combination.'
         );
@@ -235,7 +236,7 @@ export const useGeneratedQuestions = (projectId: string) => {
       return newQuestions;
     } catch (error) {
       console.error('Error generating questions offline:', error);
-      Alert.alert(
+      showAlert(
         'Error',
         'Failed to generate questions offline. Make sure Question Bank is cached.'
       );

@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import { Question, RespondentType, ResponseType } from '../../types';
 import { DEFAULT_QUESTION_STATE } from '../../constants/formBuilder';
 
@@ -74,18 +75,18 @@ export const useQuestionForm = () => {
 
   const validateQuestion = useCallback(() => {
     if (!newQuestion.question_text.trim()) {
-      Alert.alert('Validation Error', 'Please enter a question text');
+      showAlert('Validation Error', 'Please enter a question text');
       return false;
     }
 
     if (!selectedTargetedRespondents || selectedTargetedRespondents.length === 0) {
-      Alert.alert('Validation Error', 'Please select at least one targeted respondent');
+      showAlert('Validation Error', 'Please select at least one targeted respondent');
       return false;
     }
 
     const requiresOptions = ['choice_single', 'choice_multiple'].includes(newQuestion.response_type);
     if (requiresOptions && (!newQuestion.options || newQuestion.options.length < 2)) {
-      Alert.alert('Validation Error', 'Please add at least 2 options for choice questions');
+      showAlert('Validation Error', 'Please add at least 2 options for choice questions');
       return false;
     }
 
@@ -122,6 +123,8 @@ export const useQuestionForm = () => {
       tags: newQuestion.tags || [],
       is_follow_up: isFollowUp,
       conditional_logic: conditionalLogic,
+      section_header: newQuestion.section_header?.trim() || '',
+      section_preamble: newQuestion.section_preamble?.trim() || '',
     };
 
     // Add optional fields only if they have values (otherwise backend will use defaults)

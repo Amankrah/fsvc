@@ -10,10 +10,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
+import { showAlert, showError, showInfo } from '../utils/alert';
 
 // Custom Hooks
 import { useRespondent, useQuestions, useResponseState } from '../hooks/dataCollection';
@@ -122,7 +123,7 @@ const DataCollectionScreen: React.FC = () => {
       setShowDraftsDialog(true);
     } catch (error: any) {
       console.error('Error loading drafts:', error);
-      Alert.alert('Error', 'Failed to load draft responses');
+      showAlert('Error', 'Failed to load draft responses');
     } finally {
       setLoadingDrafts(false);
     }
@@ -174,7 +175,7 @@ const DataCollectionScreen: React.FC = () => {
       // Verify questions loaded
       if (!loadedQuestions || loadedQuestions.length === 0) {
         console.error('No questions loaded after generation');
-        Alert.alert('Error', 'Failed to load questions for this respondent. Please check that questions were generated for this criteria.');
+        showAlert('Error', 'Failed to load questions for this respondent. Please check that questions were generated for this criteria.');
         return;
       }
 
@@ -252,7 +253,7 @@ const DataCollectionScreen: React.FC = () => {
           responses.setQuestionIndex(resumeIndex);
         }
 
-        Alert.alert(
+        showAlert(
           'Draft Loaded',
           `Resuming survey for ${draft.respondent_id}\n\n` +
           `${answeredCount} of ${totalQuestions} questions already answered.\n` +
@@ -263,7 +264,7 @@ const DataCollectionScreen: React.FC = () => {
 
     } catch (error: any) {
       console.error('Error resuming draft:', error);
-      Alert.alert('Error', 'Failed to load draft. Please try again.');
+      showAlert('Error', 'Failed to load draft. Please try again.');
     }
   };
 
@@ -310,7 +311,7 @@ const DataCollectionScreen: React.FC = () => {
   // Handle Create Link
   const handleOpenLinkDialog = () => {
     if (questions.questions.length === 0) {
-      Alert.alert('No Questions', 'Please generate questions first before creating a shareable link.');
+      showAlert('No Questions', 'Please generate questions first before creating a shareable link.');
       return;
     }
     setLinkTitle(projectName || 'Survey');
@@ -344,11 +345,11 @@ const DataCollectionScreen: React.FC = () => {
       const shareableUrl = response.share_url;
 
       if (!shareableUrl) {
-        Alert.alert('Error', 'Failed to generate shareable URL. Please try again.');
+        showAlert('Error', 'Failed to generate shareable URL. Please try again.');
         return;
       }
 
-      Alert.alert(
+      showAlert(
         'Link Created Successfully!',
         `Your shareable survey link:\n\n${shareableUrl}\n\nShare this link with respondents to complete the survey in their browser.`,
         [
@@ -358,10 +359,10 @@ const DataCollectionScreen: React.FC = () => {
               try {
                 // Copy to clipboard using Expo Clipboard
                 await Clipboard.setStringAsync(shareableUrl);
-                Alert.alert('Success', 'Link copied to clipboard!');
+                showAlert('Success', 'Link copied to clipboard!');
               } catch (error) {
                 console.error('Failed to copy to clipboard:', error);
-                Alert.alert('Error', 'Failed to copy link. Please copy it manually.');
+                showAlert('Error', 'Failed to copy link. Please copy it manually.');
               }
               setShowLinkDialog(false);
             }
@@ -387,7 +388,7 @@ const DataCollectionScreen: React.FC = () => {
 
     } catch (error: any) {
       console.error('Error creating link:', error);
-      Alert.alert('Error', error?.message || 'Failed to create shareable link');
+      showAlert('Error', error?.message || 'Failed to create shareable link');
     } finally {
       setCreatingLink(false);
     }

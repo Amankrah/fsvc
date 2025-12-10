@@ -4,11 +4,11 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
 import apiService from '../../services/api';
 import { offlineQuestionCache, networkMonitor } from '../../services';
 import { Question, ResponseTypeInfo, RespondentType } from '../../types';
 import { DEFAULT_QUESTION_STATE } from '../../constants/formBuilder';
+import { showAlert, showConfirm, showSuccess, showError } from '../../utils/alert';
 
 interface QuestionBankChoices {
   categories: Array<{ value: string; label: string }>;
@@ -65,14 +65,14 @@ export const useQuestionBank = (projectId: string) => {
           // Convert cached questions to Question type
           const questionsList = cachedQuestions as any as Question[];
           setQuestions(questionsList);
-          Alert.alert(
+          showAlert(
             'Offline Mode',
             `Loaded ${cachedQuestions.length} questions from cache. You can view and edit questions, but changes will sync when you're back online.`,
             [{ text: 'OK' }]
           );
           return questionsList;
         } else {
-          Alert.alert(
+          showAlert(
             'No Cached Data',
             'No question banks cached for offline use. Please connect to the internet to load questions.'
           );
@@ -88,7 +88,7 @@ export const useQuestionBank = (projectId: string) => {
         if (cachedQuestions.length > 0) {
           const questionsList = cachedQuestions as any as Question[];
           setQuestions(questionsList);
-          Alert.alert(
+          showAlert(
             'Loaded from Cache',
             `Failed to fetch from server, but loaded ${cachedQuestions.length} questions from cache.`
           );
@@ -98,7 +98,7 @@ export const useQuestionBank = (projectId: string) => {
         console.error('Failed to load from cache:', cacheError);
       }
 
-      Alert.alert('Error', 'Failed to load questions');
+      showAlert('Error', 'Failed to load questions');
       return [];
     }
   }, [projectId]);
@@ -109,7 +109,7 @@ export const useQuestionBank = (projectId: string) => {
       await loadQuestions();
     } catch (error: any) {
       console.error('Error loading project and questions:', error);
-      Alert.alert('Error', 'Failed to load project data');
+      showAlert('Error', 'Failed to load project data');
     } finally {
       setLoading(false);
     }
@@ -149,11 +149,11 @@ export const useQuestionBank = (projectId: string) => {
         };
         await apiService.createQuestionBankItem(questionBankData);
         await loadQuestions();
-        Alert.alert('Success', 'Question added to your Question Bank');
+        showSuccess('Question added to your Question Bank');
         return true;
       } catch (error: any) {
         console.error('Error adding question:', error);
-        Alert.alert('Error', error.response?.data?.error || 'Failed to add question');
+        showError(error.response?.data?.error || 'Failed to add question');
         return false;
       } finally {
         setSaving(false);
@@ -168,11 +168,11 @@ export const useQuestionBank = (projectId: string) => {
         setSaving(true);
         await apiService.updateQuestionBankItem(questionId, questionData);
         await loadQuestions();
-        Alert.alert('Success', 'Question updated successfully');
+        showSuccess('Question updated successfully');
         return true;
       } catch (error: any) {
         console.error('Error updating question:', error);
-        Alert.alert('Error', error.response?.data?.error || 'Failed to update question');
+        showError(error.response?.data?.error || 'Failed to update question');
         return false;
       } finally {
         setSaving(false);
@@ -183,31 +183,24 @@ export const useQuestionBank = (projectId: string) => {
 
   const deleteQuestion = useCallback(
     async (questionId: string) => {
-      return new Promise<void>((resolve, reject) => {
-        Alert.alert(
-          'Confirm Delete',
-          'Are you sure you want to delete this question from your Question Bank?',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => reject() },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: async () => {
-                try {
-                  await apiService.deleteQuestionBankItem(questionId);
-                  await loadQuestions();
-                  Alert.alert('Success', 'Question deleted from Question Bank');
-                  resolve();
-                } catch (error) {
-                  console.error('Error deleting question:', error);
-                  Alert.alert('Error', 'Failed to delete question');
-                  reject(error);
-                }
-              },
-            },
-          ]
-        );
-      });
+      const confirmed = await showConfirm(
+        'Confirm Delete',
+        'Are you sure you want to delete this question from your Question Bank?',
+        'Delete',
+        'Cancel'
+      );
+
+      if (confirmed) {
+        try {
+          await apiService.deleteQuestionBankItem(questionId);
+          await loadQuestions();
+          showSuccess('Question deleted from Question Bank');
+        } catch (error) {
+          console.error('Error deleting question:', error);
+          showError('Failed to delete question');
+          throw error;
+        }
+      }
     },
     [loadQuestions]
   );
@@ -217,10 +210,10 @@ export const useQuestionBank = (projectId: string) => {
       try {
         await apiService.duplicateQuestionBankItem(questionId);
         await loadQuestions();
-        Alert.alert('Success', 'Question duplicated successfully');
+        showAlert('Success', 'Question duplicated successfully');
       } catch (error) {
         console.error('Error duplicating question:', error);
-        Alert.alert('Error', 'Failed to duplicate question');
+        showAlert('Error', 'Failed to duplicate question');
       }
     },
     [loadQuestions]
@@ -228,7 +221,7 @@ export const useQuestionBank = (projectId: string) => {
 
   const deleteAllQuestionBank = useCallback(async () => {
     return new Promise<void>((resolve, reject) => {
-      Alert.alert(
+      showAlert(
         'Delete All Question Bank Items',
         'This will permanently delete ALL questions from this project\'s Question Bank. Do you also want to delete questions generated from these items?',
         [
@@ -241,11 +234,11 @@ export const useQuestionBank = (projectId: string) => {
                 setSaving(true);
                 const result = await apiService.deleteAllQuestionBankItems(projectId, true, false);
                 await loadQuestions();
-                Alert.alert('Success', result.message || 'All Question Bank items deleted');
+                showAlert('Success', result.message || 'All Question Bank items deleted');
                 resolve();
               } catch (error: any) {
                 console.error('Error deleting Question Bank:', error);
-                Alert.alert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
+                showAlert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
                 reject(error);
               } finally {
                 setSaving(false);
@@ -260,14 +253,14 @@ export const useQuestionBank = (projectId: string) => {
                 setSaving(true);
                 const result = await apiService.deleteAllQuestionBankItems(projectId, true, true);
                 await loadQuestions();
-                Alert.alert(
+                showAlert(
                   'Success',
                   `${result.message || 'All Question Bank items deleted'}. Also deleted ${result.deleted_generated_questions || 0} generated questions.`
                 );
                 resolve();
               } catch (error: any) {
                 console.error('Error deleting Question Bank:', error);
-                Alert.alert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
+                showAlert('Error', error.response?.data?.error || 'Failed to delete Question Bank items');
                 reject(error);
               } finally {
                 setSaving(false);

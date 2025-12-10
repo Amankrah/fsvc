@@ -4,13 +4,14 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import apiService from '../../services/api';
 import { syncManager } from '../../services/syncManager';
 import { networkMonitor } from '../../services/networkMonitor';
 import { filterQuestionsWithConditions } from '../../utils/conditionalLogic';
 import { Question } from '../../types';
 import { DEVICE_INFO } from '../../constants/dataCollection';
+import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 
 interface ResponseData {
   [questionId: string]: string | string[];
@@ -47,7 +48,7 @@ export const useResponseState = (
   const handleNext = useCallback(() => {
     const currentQuestion = visibleQuestions[currentQuestionIndex];
     if (currentQuestion.is_required && !responses[currentQuestion.id]) {
-      Alert.alert('Required', 'This question is required');
+      showAlert('Required', 'This question is required');
       return;
     }
     if (currentQuestionIndex < visibleQuestions.length - 1) {
@@ -69,7 +70,7 @@ export const useResponseState = (
       );
 
       if (unansweredRequired.length > 0) {
-        Alert.alert(
+        showAlert(
           'Incomplete Form',
           `Please answer all required questions. ${unansweredRequired.length} required question(s) remaining.`
         );
@@ -146,7 +147,7 @@ export const useResponseState = (
           // Don't fail the whole submission if status update fails
         }
 
-        Alert.alert('Success', 'Response submitted successfully! Ready for next respondent.', [
+        showAlert('Success', 'Response submitted successfully! Ready for next respondent.', [
           {
             text: 'Continue Collecting',
             onPress: onSuccess,
@@ -206,7 +207,7 @@ export const useResponseState = (
               priority: 9, // High priority for survey responses
             });
 
-            Alert.alert(
+            showAlert(
               'Queued for Sync',
               'You are offline. Response has been saved and will be submitted when you reconnect to the internet.',
               [
@@ -227,7 +228,7 @@ export const useResponseState = (
             );
           } catch (queueError) {
             console.error('Failed to queue response:', queueError);
-            Alert.alert(
+            showAlert(
               'Error',
               'Failed to save response for offline sync. Please try again when you have internet connection.'
             );
@@ -239,7 +240,7 @@ export const useResponseState = (
             error.response?.data?.error ||
             error.response?.data?.respondent_id?.[0] ||
             'Failed to submit responses';
-          Alert.alert('Error', errorMessage);
+          showAlert('Error', errorMessage);
         }
       } finally {
         setSubmitting(false);
@@ -252,7 +253,7 @@ export const useResponseState = (
     async (onSuccess?: () => void) => {
       // Check if there are any responses to save
       if (Object.keys(responses).length === 0) {
-        Alert.alert('No Responses', 'Please answer at least one question before saving.');
+        showAlert('No Responses', 'Please answer at least one question before saving.');
         return;
       }
 
@@ -282,7 +283,7 @@ export const useResponseState = (
           responses: responsesData,
         });
 
-        Alert.alert(
+        showAlert(
           'Draft Saved',
           `Progress saved successfully! You can continue this survey later.\n\nResponses saved: ${result.responses_saved}`,
           [
@@ -328,7 +329,7 @@ export const useResponseState = (
               priority: 7, // Medium-high priority for drafts
             });
 
-            Alert.alert(
+            showAlert(
               'Queued for Sync',
               'You are offline. Draft has been saved locally and will sync when you reconnect.',
               [
@@ -344,12 +345,12 @@ export const useResponseState = (
             );
           } catch (queueError) {
             console.error('Failed to queue draft:', queueError);
-            Alert.alert('Error', 'Failed to save draft. Please try again.');
+            showAlert('Error', 'Failed to save draft. Please try again.');
           }
         } else {
           const errorMessage =
             error.response?.data?.error || error.message || 'Failed to save draft';
-          Alert.alert('Error', errorMessage);
+          showAlert('Error', errorMessage);
         }
       } finally {
         setSubmitting(false);

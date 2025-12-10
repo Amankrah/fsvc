@@ -342,6 +342,10 @@ class ApiService {
     priority_score?: number;
     is_active?: boolean;
     tags?: string[];
+    is_follow_up?: boolean;
+    conditional_logic?: any;
+    section_header?: string;
+    section_preamble?: string;
   }) {
     return await this.post('/forms/question-bank/', data);
   }

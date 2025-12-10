@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
+import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
 import { offlineProjectCache, offlineQuestionCache, networkMonitor } from '../../services';
@@ -61,7 +62,7 @@ export const useQuestions = ({
       }
     } catch (error: any) {
       console.error('Error loading available options:', error);
-      Alert.alert(
+      showAlert(
         'Warning',
         'Could not load available question options. Question generation may not work properly.'
       );
@@ -129,7 +130,7 @@ export const useQuestions = ({
         });
       } else {
         console.warn('No cached generated questions found');
-        Alert.alert(
+        showAlert(
           'Warning',
           'No generated questions cached. Please generate questions while online first.'
         );
@@ -199,7 +200,7 @@ export const useQuestions = ({
   const generateDynamicQuestions = useCallback(
     async (forceRegenerate: boolean = false, silent: boolean = false): Promise<Question[]> => {
       if (!selectedRespondentType) {
-        Alert.alert('Required', 'Please select a respondent type');
+        showAlert('Required', 'Please select a respondent type');
         return [];
       }
 
@@ -215,7 +216,7 @@ export const useQuestions = ({
             setQuestionsGenerated(true);
 
             if (!silent) {
-              Alert.alert(
+              showAlert(
                 'Questions Loaded!',
                 `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
                 [
@@ -271,11 +272,11 @@ export const useQuestions = ({
                 allContextQuestions.length
               } existing question${allContextQuestions.length !== 1 ? 's' : ''}.`;
 
-        Alert.alert('Questions Ready!', message, [{ text: 'OK' }]);
+        showAlert('Questions Ready!', message, [{ text: 'OK' }]);
         return allContextQuestions;
       } catch (error: any) {
         console.error('Error generating dynamic questions:', error);
-        Alert.alert(
+        showAlert(
           'Generation Failed',
           error.response?.data?.error || 'Failed to generate questions. Please try again.'
         );
