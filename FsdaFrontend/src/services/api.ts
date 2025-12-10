@@ -202,6 +202,10 @@ class ApiService {
       assigned_respondent_type?: string;
       assigned_commodity?: string;
       assigned_country?: string;
+    },
+    pagination?: {
+      page?: number;
+      page_size?: number;
     }
   ) {
     // Build query params
@@ -215,6 +219,14 @@ class ApiService {
     }
     if (filters.assigned_country) {
       params.append('assigned_country', filters.assigned_country);
+    }
+
+    // Add pagination parameters if provided
+    if (pagination?.page) {
+      params.append('page', String(pagination.page));
+    }
+    if (pagination?.page_size) {
+      params.append('page_size', String(pagination.page_size));
     }
 
     return await this.get(`/forms/questions/get_for_respondent/?${params.toString()}`);

@@ -33,6 +33,9 @@ export const useQuestions = ({
   const [availableCommodities, setAvailableCommodities] = useState<Array<{ value: string; display: string }>>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadAvailableOptions = useCallback(async () => {
     try {
@@ -142,12 +145,14 @@ export const useQuestions = ({
     }
   };
 
-  const loadExistingQuestions = useCallback(async () => {
+  const loadExistingQuestions = useCallback(async (page: number = 1, pageSize: number = 100, append: boolean = false) => {
     if (!selectedRespondentType) {
       return [];
     }
 
     try {
+      setLoadingQuestions(true);
+
       // Check network connection
       const isOnline = await networkMonitor.checkConnection();
 
@@ -155,22 +160,38 @@ export const useQuestions = ({
       const countryStr = selectedCountry || '';
 
       let questionsList: Question[] = [];
+      let hasMore = false;
 
       if (isOnline) {
-        // Online: Fetch from API using optimized filtered endpoint
+        // Online: Fetch from API using optimized filtered endpoint with pagination
         try {
-          console.log('🌐 Online - fetching filtered questions from API');
-          const response = await apiService.getQuestionsForRespondent(projectId, {
-            assigned_respondent_type: selectedRespondentType,
-            assigned_commodity: commodityStr,
-            assigned_country: countryStr,
-          });
+          console.log(`🌐 Online - fetching page ${page} of filtered questions from API`);
+          const response = await apiService.getQuestionsForRespondent(
+            projectId,
+            {
+              assigned_respondent_type: selectedRespondentType,
+              assigned_commodity: commodityStr,
+              assigned_country: countryStr,
+            },
+            {
+              page,
+              page_size: pageSize,
+            }
+          );
 
-          questionsList = Array.isArray(response)
-            ? response
-            : response.questions || response.results || [];
-
-          console.log(`✓ Loaded ${questionsList.length} questions from filtered API endpoint`);
+          // Handle paginated response from Django REST Framework
+          if (response.results) {
+            questionsList = response.results;
+            hasMore = !!response.next; // Has next page if "next" URL exists
+            console.log(`✓ Loaded ${questionsList.length} questions (page ${page}/${Math.ceil(response.count / pageSize)}), hasMore: ${hasMore}`);
+          } else {
+            // Fallback for non-paginated response
+            questionsList = Array.isArray(response)
+              ? response
+              : response.questions || [];
+            hasMore = false;
+            console.log(`✓ Loaded ${questionsList.length} questions from filtered API endpoint`);
+          }
         } catch (error) {
           console.error('Error fetching questions from API, falling back to cache:', error);
           // Fall back to cache if API fails
@@ -178,38 +199,51 @@ export const useQuestions = ({
           const allQuestions = cachedQuestions as any as Question[];
 
           // Filter cached questions client-side
-          questionsList = allQuestions.filter((q: Question) => {
+          const filtered = allQuestions.filter((q: Question) => {
             const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
             const matchesCommodity = q.assigned_commodity === commodityStr;
             const matchesCountry = q.assigned_country === countryStr;
             return matchesRespondent && matchesCommodity && matchesCountry;
           });
+
+          // Simulate pagination for cached data
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          questionsList = filtered.slice(start, end);
+          hasMore = end < filtered.length;
         }
       } else {
-        // Offline: Load from cache and filter client-side
-        console.log('📴 Offline - loading existing questions from cache');
+        // Offline: Load from cache and filter client-side with pagination
+        console.log(`📴 Offline - loading page ${page} of questions from cache`);
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
         const allQuestions = cachedQuestions as any as Question[];
 
-        questionsList = allQuestions.filter((q: Question) => {
+        const filtered = allQuestions.filter((q: Question) => {
           const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
           const matchesCommodity = q.assigned_commodity === commodityStr;
           const matchesCountry = q.assigned_country === countryStr;
           return matchesRespondent && matchesCommodity && matchesCountry;
         });
 
-        console.log(`📦 Loaded ${questionsList.length} matching questions from cache`);
+        // Simulate pagination for cached data
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        questionsList = filtered.slice(start, end);
+        hasMore = end < filtered.length;
+
+        console.log(`📦 Loaded ${questionsList.length} matching questions from cache (page ${page})`);
       }
 
       console.log(`✓ Found ${questionsList.length} matching questions for criteria:`, {
         respondentType: selectedRespondentType,
         commodity: commodityStr,
         country: countryStr,
+        page,
       });
 
       // Sort by category order first, then by order_index within each category
       // Note: Backend already sorts by category, but we apply it here for cached/offline data
-      return questionsList.sort((a, b) => {
+      const sortedQuestions = questionsList.sort((a, b) => {
         const categoryA = a.question_category || '';
         const categoryB = b.question_category || '';
         const categoryIndexA = getCategorySortIndex(categoryA);
@@ -222,9 +256,21 @@ export const useQuestions = ({
         // Within same category, maintain original order
         return a.order_index - b.order_index;
       });
+
+      // Update state
+      setHasMoreQuestions(hasMore);
+      if (append) {
+        setQuestions(prev => [...prev, ...sortedQuestions]);
+      } else {
+        setQuestions(sortedQuestions);
+      }
+
+      return sortedQuestions;
     } catch (error) {
       console.error('Error loading existing questions:', error);
       return [];
+    } finally {
+      setLoadingQuestions(false);
     }
   }, [projectId, selectedRespondentType, selectedCommodities, selectedCountry]);
 
@@ -319,17 +365,27 @@ export const useQuestions = ({
     [selectedRespondentType, selectedCommodities, selectedCountry, projectId, loadExistingQuestions]
   );
 
+  // Load more questions for pagination/infinite scroll
+  const loadMoreQuestions = useCallback(async () => {
+    if (!hasMoreQuestions || loadingQuestions) {
+      return;
+    }
+
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    await loadExistingQuestions(nextPage, 100, true); // append=true
+  }, [hasMoreQuestions, loadingQuestions, currentPage, loadExistingQuestions]);
+
   // Auto-load questions when specifications change
   useEffect(() => {
     const autoLoadQuestions = async () => {
       if (selectedRespondentType && !generatingQuestions) {
-        const existingQuestions = await loadExistingQuestions();
+        setCurrentPage(1); // Reset to first page
+        const existingQuestions = await loadExistingQuestions(1, 100, false); // Load first page
         if (existingQuestions.length > 0) {
-          setQuestions(existingQuestions);
           setQuestionsGenerated(true);
           console.log(`Auto-loaded ${existingQuestions.length} existing questions for ${selectedRespondentType}`);
         } else {
-          setQuestions([]);
           setQuestionsGenerated(false);
         }
       }
@@ -341,6 +397,8 @@ export const useQuestions = ({
   const resetQuestions = useCallback(() => {
     setQuestions([]);
     setQuestionsGenerated(false);
+    setCurrentPage(1);
+    setHasMoreQuestions(false);
   }, []);
 
   return {
@@ -351,8 +409,11 @@ export const useQuestions = ({
     availableCommodities,
     availableCountries,
     loadingOptions,
+    loadingQuestions,
+    hasMoreQuestions,
     loadAvailableOptions,
     generateDynamicQuestions,
+    loadMoreQuestions,
     resetQuestions,
   };
 };
