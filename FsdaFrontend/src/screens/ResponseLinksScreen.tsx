@@ -240,7 +240,7 @@ const ResponseLinksScreen: React.FC = () => {
                   <View style={styles.statItem}>
                     <Text variant="bodySmall" style={styles.statLabel}>Responses</Text>
                     <Text variant="titleMedium" style={styles.statValue}>
-                      {link.response_count}/{link.max_responses || '∞'}
+                      {link.response_count}/{link.remaining_responses === null ? '∞' : link.max_responses}
                     </Text>
                   </View>
                   <View style={styles.statItem}>

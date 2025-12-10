@@ -34,7 +34,7 @@ export interface ResponseLink {
   share_url: string;
   is_valid: boolean;
   is_expired: boolean;
-  remaining_responses: number | 'unlimited';
+  remaining_responses: number | null;
   statistics: ResponseLinkStatistics;
 }
 
@@ -43,7 +43,7 @@ export interface ResponseLinkStatistics {
   is_expired: boolean;
   total_accesses: number;
   total_responses: number;
-  remaining_responses: number | 'unlimited';
+  remaining_responses: number | string;
   response_rate: number;
   first_accessed: string | null;
   last_accessed: string | null;

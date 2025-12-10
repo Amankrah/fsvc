@@ -14,7 +14,7 @@ class ResponseLinkSerializer(serializers.ModelSerializer):
     share_url = serializers.ReadOnlyField()
     is_valid = serializers.ReadOnlyField()
     is_expired = serializers.ReadOnlyField()
-    remaining_responses = serializers.ReadOnlyField()
+    remaining_responses = serializers.SerializerMethodField()
     statistics = serializers.SerializerMethodField()
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
@@ -95,6 +95,12 @@ class ResponseLinkSerializer(serializers.ModelSerializer):
             else:
                 display_names.append(commodity)
         return ', '.join(display_names)
+
+    def get_remaining_responses(self, obj):
+        """Get remaining responses in JSON-serializable format"""
+        if obj.is_unlimited:
+            return None  # Return None for unlimited instead of infinity
+        return max(0, obj.max_responses - obj.response_count)
 
     def get_statistics(self, obj):
         """Get link statistics"""
