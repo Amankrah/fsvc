@@ -23,6 +23,7 @@ type RootStackParamList = {
   DataCollection: { projectId: string; projectName: string };
   Responses: { projectId: string; projectName: string };
   ResponseLinks: { projectId: string; projectName: string };
+  BundleCompletion: { projectId: string; projectName: string };
   Analytics: { projectId: string };
   Members: { projectId: string };
   Sync: { projectId: string };
@@ -146,6 +147,14 @@ const ProjectDetailsScreen: React.FC = () => {
       icon: 'link-variant',
       route: 'ResponseLinks' as keyof RootStackParamList,
       color: '#9c27b0',
+      requiresName: true,
+    },
+    {
+      title: 'Bundle Completion Stats',
+      description: 'Track completion rates for question bundles',
+      icon: 'checkbox-multiple-marked-outline',
+      route: 'BundleCompletion' as keyof RootStackParamList,
+      color: '#4CAF50',
       requiresName: true,
     },
     {

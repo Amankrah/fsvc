@@ -324,6 +324,65 @@ const DataCollectionScreen: React.FC = () => {
     setShowRespondentForm(true);
   };
 
+  // Handle Export JSON
+  const handleExportJSON = async () => {
+    if (questions.questions.length === 0) {
+      showAlert('No Questions', 'Please generate questions first before exporting.');
+      return;
+    }
+
+    try {
+      const filters = {
+        assigned_respondent_type: respondent.selectedRespondentType || undefined,
+        assigned_commodity: respondent.selectedCommodities.join(',') || undefined,
+        assigned_country: respondent.selectedCountry || undefined,
+      };
+
+      const blob = await apiService.exportGeneratedQuestionsJSON(projectId, filters);
+      const fileName = `generated_questions_${new Date().toISOString().split('T')[0]}.json`;
+
+      if (Platform.OS === 'web') {
+        // Web download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showAlert('Success', 'JSON export downloaded successfully');
+      } else {
+        // Mobile download using FileSystem and Sharing
+        const FileSystem = require('expo-file-system');
+        const Sharing = require('expo-sharing');
+
+        // Convert blob to text
+        const jsonText = await blob.text();
+
+        // Save to file system
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, jsonText, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        // Share the file
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/json',
+            dialogTitle: 'Export Generated Questions',
+          });
+          showAlert('Success', 'JSON export file shared successfully');
+        } else {
+          showAlert('Success', `File saved to: ${fileUri}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting JSON:', error);
+      showError('Failed to export questions as JSON');
+    }
+  };
+
   // Handle Create Link
   const handleOpenLinkDialog = () => {
     if (questions.questions.length === 0) {
@@ -441,6 +500,12 @@ const DataCollectionScreen: React.FC = () => {
                 size={24}
                 onPress={handleLoadDrafts}
                 disabled={loadingDrafts}
+              />
+              <IconButton
+                icon="download"
+                iconColor="#4CAF50"
+                size={24}
+                onPress={handleExportJSON}
               />
               <IconButton
                 icon="share-variant"

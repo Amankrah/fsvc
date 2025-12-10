@@ -16,6 +16,7 @@ interface QuestionCardProps {
   onEdit: (question: Question) => void;
   onDuplicate: (questionId: string) => void;
   onDelete: (questionId: string) => void;
+  responseCount?: number; // Number of respondents who answered this question
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -26,6 +27,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onEdit,
   onDuplicate,
   onDelete,
+  responseCount,
 }) => {
   const getResponseTypeDisplay = (type: ResponseType) => {
     const typeInfo = responseTypes.find((rt) => rt.value === type);
@@ -67,6 +69,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               {question.priority_score && question.priority_score >= 7 && (
                 <View style={styles.priorityChip}>
                   <Text style={styles.priorityChipText}>⭐ {question.priority_score}</Text>
+                </View>
+              )}
+              {responseCount !== undefined && responseCount > 0 && (
+                <View style={styles.responseCountChip}>
+                  <Text style={styles.responseCountChipText}>✓ {responseCount} responses</Text>
                 </View>
               )}
             </View>
@@ -264,6 +271,18 @@ const styles = StyleSheet.create({
   },
   priorityChipText: {
     color: '#ffd54f',
+    fontSize: 11,
+  },
+  responseCountChip: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.4)',
+  },
+  responseCountChipText: {
+    color: '#81c784',
     fontSize: 11,
     fontWeight: '600',
   },

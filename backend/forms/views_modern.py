@@ -6,8 +6,10 @@ from django.db import transaction, models
 from django.db.models import Prefetch, Q, Count, Max, F
 from django.utils import timezone
 from django.core.cache import cache
+from django.http import HttpResponse, JsonResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+import json
 
 from .models import Question, QuestionBank, DynamicQuestionSession
 from .serializers import (
@@ -1249,6 +1251,257 @@ class ModernQuestionViewSet(BaseModelViewSet):
         ]
         for key in cache_keys:
             cache.delete(key)
+
+    @action(detail=False, methods=['get'], url_path='export-json')
+    def export_json(self, request):
+        """
+        Export generated questions as JSON based on filter criteria.
+
+        Query Parameters:
+        - project_id: Filter by project (required)
+        - assigned_respondent_type: Filter by respondent type
+        - assigned_commodity: Filter by commodity
+        - assigned_country: Filter by country
+        """
+        # Get filter parameters
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        respondent_type = request.query_params.get('assigned_respondent_type')
+        commodity = request.query_params.get('assigned_commodity')
+        country = request.query_params.get('assigned_country')
+
+        # Get filtered queryset
+        queryset = self.get_queryset().filter(project_id=project_id)
+
+        # Apply additional filters
+        if respondent_type:
+            queryset = queryset.filter(assigned_respondent_type=respondent_type)
+        if commodity:
+            queryset = queryset.filter(assigned_commodity=commodity)
+        if country:
+            queryset = queryset.filter(assigned_country=country)
+
+        # Order by category and order_index
+        queryset = queryset.order_by('question_category', 'order_index', 'created_at')
+
+        # Build export data
+        questions_data = []
+        for idx, question in enumerate(queryset, start=1):
+            # Parse options if it's a choice question
+            options = []
+            if question.response_type in ['choice_single', 'choice_multiple'] and question.options:
+                try:
+                    options = json.loads(question.options) if isinstance(question.options, str) else question.options
+                except:
+                    options = []
+
+            # Get parent question text and conditional logic if it's a follow-up
+            parent_text = ''
+            condition_operator = ''
+            condition_value = None
+
+            if question.is_follow_up and question.conditional_logic:
+                # Parse conditional_logic JSON
+                conditional_logic = question.conditional_logic
+                if isinstance(conditional_logic, str):
+                    try:
+                        conditional_logic = json.loads(conditional_logic)
+                    except:
+                        conditional_logic = {}
+
+                # Get parent question
+                parent_question_id = conditional_logic.get('parent_question_id')
+                if parent_question_id:
+                    try:
+                        parent_question = Question.objects.get(id=parent_question_id)
+                        parent_text = parent_question.question_text
+                    except Question.DoesNotExist:
+                        pass
+
+                # Get condition operator and value
+                show_if = conditional_logic.get('show_if', {})
+                condition_operator = show_if.get('operator', '')
+                condition_value = show_if.get('value')
+
+            question_dict = {
+                'question_number': idx,
+                'id': str(question.id),
+                'question_text': question.question_text,
+                'response_type': question.response_type,
+                'question_category': question.question_category or '',
+                'assigned_respondent_type': question.assigned_respondent_type or '',
+                'assigned_commodity': question.assigned_commodity or '',
+                'assigned_country': question.assigned_country or '',
+                'is_required': question.is_required,
+                'options': options,
+                'section_header': question.section_header or '',
+                'section_preamble': question.section_preamble or '',
+                'order_index': question.order_index,
+                'is_follow_up': question.is_follow_up,
+                'parent_question_text': parent_text,
+                'condition_operator': condition_operator,
+                'condition_value': condition_value,
+                'conditional_logic': question.conditional_logic,
+                'created_at': question.created_at.isoformat() if question.created_at else None,
+            }
+            questions_data.append(question_dict)
+
+        # Create response with metadata
+        export_data = {
+            'metadata': {
+                'exported_at': timezone.now().isoformat(),
+                'project_id': project_id,
+                'filters': {
+                    'respondent_type': respondent_type or 'all',
+                    'commodity': commodity or 'all',
+                    'country': country or 'all',
+                },
+                'total_questions': len(questions_data),
+            },
+            'questions': questions_data,
+        }
+
+        # Create downloadable JSON response
+        response = HttpResponse(
+            json.dumps(export_data, indent=2),
+            content_type='application/json'
+        )
+        filename = f"generated_questions_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+    @action(detail=False, methods=['get'], url_path='response-counts')
+    def response_counts(self, request):
+        """
+        Get response counts for questions in a project.
+        Returns number of completed responses per question.
+        """
+        from responses.models import Response as ResponseModel
+        from django.db.models import Count, Q
+
+        project_id = request.query_params.get('project_id')
+
+        if not project_id:
+            return JsonResponse({'error': 'project_id is required'}, status=400)
+
+        # Get all questions for the project
+        questions = Question.objects.filter(project_id=project_id)
+
+        # Count responses per question where response_value is not null/empty
+        # This indicates the respondent actually answered the question
+        response_counts = ResponseModel.objects.filter(
+            question__project_id=project_id
+        ).exclude(
+            Q(response_value__isnull=True) | Q(response_value='')
+        ).values('question_id').annotate(
+            count=Count('respondent_id', distinct=True)  # Count unique respondents
+        )
+
+        # Create a dictionary for quick lookup
+        counts_dict = {item['question_id']: item['count'] for item in response_counts}
+
+        # Build response with question IDs and their counts
+        result = {}
+        for question in questions:
+            result[str(question.id)] = counts_dict.get(question.id, 0)
+
+        return JsonResponse({
+            'project_id': project_id,
+            'response_counts': result,
+            'total_questions': len(result),
+        })
+
+    @action(detail=False, methods=['get'], url_path='bundle-completion-stats')
+    def bundle_completion_stats(self, request):
+        """
+        Get completion statistics for question bundles (generation sets).
+        A bundle is defined by the combination of respondent_type, commodity, and country.
+        Returns the number of respondents who completed ALL questions in each bundle.
+        """
+        from responses.models import Response as ResponseModel, Respondent
+        from django.db.models import Count, Q, F
+
+        project_id = request.query_params.get('project_id')
+
+        if not project_id:
+            return JsonResponse({'error': 'project_id is required'}, status=400)
+
+        # Get all unique bundles (combinations) from generated questions
+        bundles = Question.objects.filter(
+            project_id=project_id
+        ).exclude(
+            Q(assigned_respondent_type='') | Q(assigned_respondent_type__isnull=True)
+        ).values(
+            'assigned_respondent_type',
+            'assigned_commodity',
+            'assigned_country'
+        ).annotate(
+            total_questions=Count('id')
+        ).order_by('assigned_respondent_type', 'assigned_commodity', 'assigned_country')
+
+        bundle_stats = []
+
+        for bundle in bundles:
+            respondent_type = bundle['assigned_respondent_type']
+            commodity = bundle['assigned_commodity'] or ''
+            country = bundle['assigned_country'] or ''
+            total_questions = bundle['total_questions']
+
+            # Get all question IDs in this bundle
+            question_ids = list(Question.objects.filter(
+                project_id=project_id,
+                assigned_respondent_type=respondent_type,
+                assigned_commodity=commodity,
+                assigned_country=country
+            ).values_list('id', flat=True))
+
+            # Find respondents who answered ALL questions in this bundle
+            # A respondent is considered complete if they have non-empty responses for ALL questions
+
+            # Get all respondents who have at least one response in this bundle
+            respondents_with_responses = Respondent.objects.filter(
+                responses__question_id__in=question_ids,
+                responses__project_id=project_id
+            ).distinct()
+
+            completed_respondents = []
+            total_respondents = respondents_with_responses.count()
+
+            for respondent in respondents_with_responses:
+                # Count how many questions from this bundle the respondent answered (non-empty)
+                answered_count = ResponseModel.objects.filter(
+                    respondent=respondent,
+                    question_id__in=question_ids,
+                    project_id=project_id
+                ).exclude(
+                    Q(response_value__isnull=True) | Q(response_value='')
+                ).values('question_id').distinct().count()
+
+                # If they answered all questions, they completed the bundle
+                if answered_count == total_questions:
+                    completed_respondents.append(respondent.id)
+
+            bundle_stats.append({
+                'respondent_type': respondent_type,
+                'commodity': commodity,
+                'country': country,
+                'total_questions': total_questions,
+                'total_respondents': total_respondents,
+                'completed_respondents_count': len(completed_respondents),
+                'completed_respondent_ids': completed_respondents,
+            })
+
+        return JsonResponse({
+            'project_id': project_id,
+            'bundles': bundle_stats,
+            'total_bundles': len(bundle_stats),
+        })
 
 
 class QuestionBankViewSet(BaseModelViewSet):

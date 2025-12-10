@@ -45,7 +45,7 @@ import { useGeneratedQuestions } from '../hooks/formBuilder/useGeneratedQuestion
 import { networkMonitor, offlineQuestionCache } from '../services';
 
 // Utils
-import { showAlert, showInfo } from '../utils/alert';
+import { showAlert } from '../utils/alert';
 
 // Constants
 import { getCategorySortIndex } from '../constants/formBuilder';
@@ -191,6 +191,7 @@ const FormBuilderScreen: React.FC = () => {
     loadResponseTypes();
     loadQuestionBankChoices();
     generatedQuestionsHook.loadData();
+    generatedQuestionsHook.loadResponseCounts(); // Load response counts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -401,10 +402,11 @@ const FormBuilderScreen: React.FC = () => {
               ? deleteQuestion
               : generatedQuestionsHook.deleteGeneratedQuestion
           }
+          responseCount={activeTab === 'generated' ? generatedQuestionsHook.responseCounts[question.id] : undefined}
         />
       </View>
     </View>
-  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.reorderedQuestions.length, generatedQuestionsHook.deleteGeneratedQuestion, responseTypes, questionBankChoices, handleOpenEditDialog, duplicateQuestion, deleteQuestion, generatedQuestionsHook.moveQuestionUp, generatedQuestionsHook.moveQuestionDown]);
+  ), [activeTab, generatedQuestionsHook.isReorderMode, generatedQuestionsHook.reorderedQuestions.length, generatedQuestionsHook.deleteGeneratedQuestion, generatedQuestionsHook.responseCounts, responseTypes, questionBankChoices, handleOpenEditDialog, duplicateQuestion, deleteQuestion, generatedQuestionsHook.moveQuestionUp, generatedQuestionsHook.moveQuestionDown]);
 
   // Key extractor for FlatList
   const keyExtractor = useCallback((item: Question) => item.id, []);

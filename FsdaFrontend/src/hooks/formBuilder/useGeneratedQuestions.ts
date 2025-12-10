@@ -5,6 +5,9 @@
  */
 
 import { useState, useCallback } from 'react';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { showAlert, showConfirm, showSuccess, showError } from '../../utils/alert';
 import apiService from '../../services/api';
 import { offlineQuestionCache, networkMonitor } from '../../services';
@@ -20,6 +23,7 @@ export const useGeneratedQuestions = (projectId: string) => {
   const [hasMore, setHasMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
 
   const loadGeneratedQuestions = useCallback(async (page: number = 1, pageSize: number = 100, append: boolean = false) => {
     try {
@@ -408,6 +412,46 @@ export const useGeneratedQuestions = (projectId: string) => {
     await loadGeneratedQuestions(nextPage, 100, true); // append=true
   }, [hasMore, loadingMore, currentPage, loadGeneratedQuestions]);
 
+  // Load response counts for questions
+  const loadResponseCounts = useCallback(async () => {
+    try {
+      const data = await apiService.getQuestionResponseCounts(projectId);
+      setResponseCounts(data.response_counts || {});
+      console.log(`✓ Loaded response counts for ${Object.keys(data.response_counts || {}).length} questions`);
+    } catch (error) {
+      console.error('Error loading response counts:', error);
+      // Don't show error to user - this is optional data
+    }
+  }, [projectId]);
+
+  // Export generated questions as JSON
+  const exportGeneratedQuestionsJSON = useCallback(async (
+    filters?: {
+      assigned_respondent_type?: string;
+      assigned_commodity?: string;
+      assigned_country?: string;
+    }
+  ) => {
+    try {
+      const blob = await apiService.exportGeneratedQuestionsJSON(projectId, filters);
+      const fileName = `generated_questions_${new Date().toISOString().split('T')[0]}.json`;
+
+      // Web download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showAlert('Success', 'JSON export downloaded successfully');
+    } catch (error) {
+      console.error('Error exporting JSON:', error);
+      showAlert('Error', 'Failed to export questions as JSON');
+    }
+  }, [projectId]);
+
   return {
     generatedQuestions,
     loading,
@@ -415,12 +459,15 @@ export const useGeneratedQuestions = (projectId: string) => {
     loadingMore,
     hasMore,
     totalCount,
+    responseCounts, // Response counts per question
     loadData,
     handleRefresh,
     loadMore,
+    loadResponseCounts, // Load response counts
     generateQuestionsOffline, // Offline question generation
     deleteGeneratedQuestion, // Single delete
     deleteAllGeneratedQuestions, // Bulk delete
+    exportGeneratedQuestionsJSON, // Export as JSON
     // Reorder mode
     isReorderMode,
     reorderedQuestions,

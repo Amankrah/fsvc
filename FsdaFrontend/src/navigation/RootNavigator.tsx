@@ -20,6 +20,7 @@ import DataCollectionScreen from '../screens/DataCollectionScreen';
 import ResponsesScreen from '../screens/ResponsesScreen.v2';
 import ResponseLinksScreen from '../screens/ResponseLinksScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
+import BundleCompletionScreen from '../screens/BundleCompletionScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -33,6 +34,7 @@ export type RootStackParamList = {
   DataCollection: { projectId: string; projectName: string };
   Responses: { projectId: string; projectName: string };
   ResponseLinks: { projectId: string; projectName: string };
+  BundleCompletion: { projectId: string; projectName: string };
   Analytics: { projectId: string; projectName?: string };
   Members: { projectId: string };
   Sync: { projectId: string };
@@ -211,6 +213,30 @@ const RootNavigator: React.FC = () => {
               name="ResponseLinks"
               component={ResponseLinksScreen}
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="BundleCompletion"
+              component={BundleCompletionScreen}
+              options={({ navigation, route }) => ({
+                title: 'Bundle Completion',
+                headerRight: () => (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ProjectSelector
+                      currentProjectId={route.params.projectId}
+                      currentProjectName={route.params.projectName}
+                      onProjectChange={(projectId, projectName) => {
+                        navigation.setParams({ projectId, projectName });
+                      }}
+                    />
+                    <IconButton
+                      icon="home"
+                      iconColor="#fff"
+                      size={20}
+                      onPress={() => navigation.navigate('Dashboard')}
+                    />
+                  </View>
+                ),
+              })}
             />
             <Stack.Screen
               name="Analytics"

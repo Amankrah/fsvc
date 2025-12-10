@@ -285,11 +285,55 @@ class ApiService {
     return await this.post('/forms/questions/bulk_update_order/', { question_ids: questionIds });
   }
 
+  async exportGeneratedQuestionsJSON(
+    projectId: string,
+    filters?: {
+      assigned_respondent_type?: string;
+      assigned_commodity?: string;
+      assigned_country?: string;
+    }
+  ) {
+    const token = await secureStorage.getItem('auth_token');
+    const params = new URLSearchParams({ project_id: projectId });
+
+    if (filters?.assigned_respondent_type) {
+      params.append('assigned_respondent_type', filters.assigned_respondent_type);
+    }
+    if (filters?.assigned_commodity) {
+      params.append('assigned_commodity', filters.assigned_commodity);
+    }
+    if (filters?.assigned_country) {
+      params.append('assigned_country', filters.assigned_country);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/forms/questions/export-json/?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Export failed');
+    }
+
+    return await response.blob();
+  }
+
   async duplicateQuestion(id: string, targetProjectId?: string, orderIndex?: number) {
     return await this.post(`/forms/questions/${id}/duplicate/`, {
       target_project: targetProjectId,
       order_index: orderIndex,
     });
+  }
+
+  async getQuestionResponseCounts(projectId: string) {
+    return await this.get(`/forms/questions/response-counts/?project_id=${projectId}`);
+  }
+
+  async getBundleCompletionStats(projectId: string) {
+    return await this.get(`/forms/questions/bundle-completion-stats/?project_id=${projectId}`);
   }
 
   // Dynamic Question Generation endpoints
