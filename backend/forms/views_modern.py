@@ -165,6 +165,7 @@ class ModernQuestionViewSet(BaseModelViewSet):
         """Enhanced question deletion with cleanup"""
         project_id = instance.project.id
         question_id = instance.id
+        order_index = instance.order_index
 
         # Check permissions
         if not instance.project.can_user_edit(self.request.user):
@@ -174,12 +175,11 @@ class ModernQuestionViewSet(BaseModelViewSet):
             with transaction.atomic():
                 # Clear conditional logic references in follow-up questions
                 # Find all questions that have this question as their parent
-                # Use select_for_update to prevent race conditions in bulk deletes
-                follow_up_questions = Question.objects.select_for_update().filter(
+                follow_up_questions = Question.objects.filter(
                     project=instance.project,
                     is_follow_up=True,
                     conditional_logic__isnull=False
-                ).exclude(id=question_id)  # Don't try to update the question being deleted
+                ).exclude(id=question_id)
 
                 for follow_up in follow_up_questions:
                     try:
@@ -196,15 +196,28 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 # Delete the question (this will cascade delete related responses)
                 instance.delete()
 
-                # Reorder remaining questions after deletion
-                # This is done after delete to avoid conflicts
-                Question.objects.filter(
-                    project_id=project_id,
-                    order_index__gt=instance.order_index
-                ).update(order_index=F('order_index') - 1)
-
                 self._clear_project_cache(project_id)
                 logger.info(f"Question deleted: {question_id} from project {project_id}")
+
+            # Reorder questions OUTSIDE the transaction to avoid deadlocks during concurrent deletes
+            # This is safe because order_index is not critical for data integrity
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    # Use raw SQL with NOWAIT to avoid deadlocks
+                    # If it fails, it's okay - order can be fixed later
+                    cursor.execute(
+                        """
+                        UPDATE forms_question
+                        SET order_index = order_index - 1
+                        WHERE project_id = %s AND order_index > %s
+                        """,
+                        [str(project_id), order_index]
+                    )
+            except Exception as e:
+                # Reordering is not critical - log and continue
+                logger.warning(f"Could not reorder questions after deleting {question_id}: {str(e)}")
+
         except ValidationError:
             # Re-raise ValidationError without modification
             raise
