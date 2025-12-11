@@ -38,10 +38,13 @@ interface RespondentFormProps {
   loadingOptions: boolean;
   generatingQuestions: boolean;
   questionsGenerated: boolean;
+  cachingForOffline?: boolean;
+  cachedOfflineCount?: number;
 
   // Actions
   onGenerateQuestions: () => void;
   onStartSurvey: () => void;
+  onCacheForOffline?: () => void;
 }
 
 export const RespondentForm: React.FC<RespondentFormProps> = ({
@@ -62,8 +65,11 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
   loadingOptions,
   generatingQuestions,
   questionsGenerated,
+  cachingForOffline = false,
+  cachedOfflineCount = 0,
   onGenerateQuestions,
   onStartSurvey,
+  onCacheForOffline,
 }) => {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -187,6 +193,19 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
               {questionsGenerated ? 'Regenerate Questions' : 'Generate Questions'}
             </Button>
 
+            {questionsGenerated && onCacheForOffline && (
+              <Button
+                mode="outlined"
+                onPress={onCacheForOffline}
+                loading={cachingForOffline}
+                disabled={!selectedRespondentType || cachingForOffline || generatingQuestions}
+                style={styles.cacheButton}
+                icon="download-circle"
+                textColor="#64c8ff">
+                {cachedOfflineCount > 0 ? 'Update Offline Cache' : 'Cache for Offline'}
+              </Button>
+            )}
+
             {questionsGenerated && (
               <Button
                 mode="contained"
@@ -198,6 +217,18 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
               </Button>
             )}
           </View>
+
+          {/* Offline Cache Status */}
+          {cachedOfflineCount > 0 && (
+            <View style={styles.offlineBanner}>
+              <Text style={styles.offlineText}>📴 {cachedOfflineCount} questions cached offline</Text>
+              <Text style={styles.offlineSubtext}>
+                Available for: {selectedRespondentType}
+                {selectedCommodities.length > 0 && ` - ${selectedCommodities.join(', ')}`}
+                {selectedCountry && ` - ${selectedCountry}`}
+              </Text>
+            </View>
+          )}
 
           {questionsGenerated && (
             <View style={styles.successBanner}>
@@ -296,8 +327,30 @@ const styles = StyleSheet.create({
   generateButton: {
     backgroundColor: '#4b1e85',
   },
+  cacheButton: {
+    borderColor: '#64c8ff',
+    borderWidth: 1,
+  },
   startButton: {
     backgroundColor: '#1976d2',
+  },
+  offlineBanner: {
+    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.4)',
+  },
+  offlineText: {
+    color: '#64c8ff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  offlineSubtext: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 13,
   },
   successBanner: {
     backgroundColor: 'rgba(76, 175, 80, 0.2)',

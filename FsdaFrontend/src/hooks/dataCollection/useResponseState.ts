@@ -199,13 +199,13 @@ export const useResponseState = (
               timestamp: new Date().toISOString(),
             };
 
-            await syncManager.queueOperation({
-              table_name: 'responses',
-              record_id: `temp_${Date.now()}`,
-              operation: 'create',
-              data: responseData,
-              priority: 9, // High priority for survey responses
-            });
+            await syncManager.queueOperation(
+              'responses',
+              `temp_${Date.now()}`,
+              'create',
+              responseData,
+              10 // High priority for survey responses
+            );
 
             showAlert(
               'Queued for Sync',
@@ -321,13 +321,13 @@ export const useResponseState = (
               timestamp: new Date().toISOString(),
             };
 
-            await syncManager.queueOperation({
-              table_name: 'draft_responses',
-              record_id: `draft_${Date.now()}`,
-              operation: 'create',
-              data: draftData,
-              priority: 7, // Medium-high priority for drafts
-            });
+            await syncManager.queueOperation(
+              'draft_responses',
+              `draft_${Date.now()}`,
+              'create',
+              draftData,
+              5 // Normal priority for drafts
+            );
 
             showAlert(
               'Queued for Sync',

@@ -13,17 +13,30 @@ import {
   Portal,
   Dialog,
   ProgressBar,
+  Menu,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { syncManager } from '../services/syncManager';
 import { networkMonitor } from '../services/networkMonitor';
 import { offlineStorage, SyncQueueItem } from '../services/offlineStorage';
+import { syncApi } from '../services/syncApi';
+import apiService from '../services/api';
+
+interface Project {
+  id: string;
+  name: string;
+}
 
 const SyncScreen: React.FC = () => {
   const navigation = useNavigation();
 
   // State
-  const [stats, setStats] = useState<any>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectName, setSelectedProjectName] = useState<string>('All Projects');
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
+  const [localStats, setLocalStats] = useState<any>(null);
+  const [backendStats, setBackendStats] = useState<any>(null);
   const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -33,32 +46,97 @@ const SyncScreen: React.FC = () => {
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
+  // Load projects
+  const loadProjects = useCallback(async () => {
+    try {
+      const projectsData = await apiService.getProjects();
+      const projectsList = Array.isArray(projectsData) ? projectsData : projectsData.results || [];
+      setProjects(projectsList);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    }
+  }, []);
+
+  // Filter queue items by project
+  const filterQueueByProject = useCallback((queue: SyncQueueItem[]) => {
+    if (!selectedProjectId) {
+      return queue; // Show all if "All Projects" selected
+    }
+
+    return queue.filter((item) => {
+      // Check if the item's data contains projectId
+      if (item.data && typeof item.data === 'object') {
+        return item.data.projectId === selectedProjectId;
+      }
+      return false;
+    });
+  }, [selectedProjectId]);
+
+  // Calculate stats for filtered queue
+  const calculateLocalStats = useCallback((queue: SyncQueueItem[]) => {
+    return {
+      pending: queue.filter(item => item.status === 'pending').length,
+      syncing: queue.filter(item => item.status === 'syncing').length,
+      completed: queue.filter(item => item.status === 'completed').length,
+      failed: queue.filter(item => item.status === 'failed').length,
+    };
+  }, []);
+
   // Load data
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Get stats
+      // Get all queue items
+      const allQueue = await offlineStorage.getQueue();
+
+      // Filter by selected project
+      const filteredQueue = filterQueueByProject(allQueue);
+      setQueueItems(filteredQueue);
+
+      // Calculate stats from filtered queue
+      const filteredStats = calculateLocalStats(filteredQueue);
+      setLocalStats(filteredStats);
+
+      // Get sync manager stats for other info
       const statsData = await syncManager.getStats();
-      setStats(statsData.local);
       setLastSync(statsData.lastSync);
       setIsOnline(statsData.isOnline);
       setAutoSync(statsData.autoSyncEnabled);
       setSyncing(statsData.isSyncing);
 
-      // Get queue items
-      const queue = await offlineStorage.getQueue();
-      setQueueItems(queue);
+      // Get backend stats if online
+      if (statsData.isOnline) {
+        try {
+          const backendStatsResult = await syncApi.getStats();
+          if (backendStatsResult.success) {
+            // Note: Backend doesn't support project filtering yet
+            // Showing all backend stats for now
+            setBackendStats(backendStatsResult.data);
+          }
+        } catch (error) {
+          console.warn('Could not fetch backend stats:', error);
+        }
+      }
     } catch (error) {
       console.error('Error loading sync data:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedProjectId, filterQueueByProject, calculateLocalStats]);
 
+  // Load projects on mount
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  // Reload data when project selection changes
   useEffect(() => {
     loadData();
+  }, [selectedProjectId]);
 
+  // Setup listeners
+  useEffect(() => {
     // Listen for network changes
     const unsubscribe = networkMonitor.addListener((connected) => {
       setIsOnline(connected);
@@ -113,6 +191,12 @@ const SyncScreen: React.FC = () => {
   const handleToggleAutoSync = (value: boolean) => {
     setAutoSync(value);
     syncManager.setAutoSync(value);
+  };
+
+  const handleProjectSelect = (projectId: string | null, projectName: string) => {
+    setSelectedProjectId(projectId);
+    setSelectedProjectName(projectName);
+    setShowProjectMenu(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -172,7 +256,7 @@ const SyncScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text variant="headlineMedium" style={styles.title}>
             Sync & Offline
           </Text>
@@ -181,6 +265,52 @@ const SyncScreen: React.FC = () => {
           </Text>
         </View>
         <IconButton icon="close" onPress={() => navigation.goBack()} />
+      </View>
+
+      {/* Project Selector */}
+      <View style={styles.projectSelectorContainer}>
+        <Text variant="bodyMedium" style={styles.projectLabel}>
+          Filter by Project:
+        </Text>
+        <Menu
+          visible={showProjectMenu}
+          onDismiss={() => setShowProjectMenu(false)}
+          anchor={
+            <Button
+              mode="outlined"
+              onPress={() => setShowProjectMenu(true)}
+              style={styles.projectButton}
+              contentStyle={styles.projectButtonContent}
+              icon="chevron-down"
+            >
+              {selectedProjectName}
+            </Button>
+          }
+          contentStyle={styles.menuContent}
+        >
+          <Menu.Item
+            onPress={() => handleProjectSelect(null, 'All Projects')}
+            title="All Projects"
+            titleStyle={[
+              styles.menuItemText,
+              !selectedProjectId && styles.selectedMenuItemText,
+            ]}
+            leadingIcon={!selectedProjectId ? 'check' : undefined}
+          />
+          <Divider />
+          {projects.map((project) => (
+            <Menu.Item
+              key={project.id}
+              onPress={() => handleProjectSelect(project.id, project.name)}
+              title={project.name}
+              titleStyle={[
+                styles.menuItemText,
+                selectedProjectId === project.id && styles.selectedMenuItemText,
+              ]}
+              leadingIcon={selectedProjectId === project.id ? 'check' : undefined}
+            />
+          ))}
+        </Menu>
       </View>
 
       <ScrollView
@@ -210,40 +340,94 @@ const SyncScreen: React.FC = () => {
                 </Text>
               </View>
             )}
+
+            {isOnline && autoSync && (
+              <View style={[styles.offlineNotice, { backgroundColor: '#e8f5e9' }]}>
+                <Text variant="bodyMedium" style={{ color: '#2e7d32' }}>
+                  ✓ Auto-sync enabled. Offline data syncs and processes automatically when online.
+                </Text>
+              </View>
+            )}
           </Card.Content>
         </Card>
 
-        {/* Statistics */}
-        {stats && (
+        {/* Local Queue Statistics */}
+        {localStats && (
           <Card style={styles.card}>
-            <Card.Title title="Sync Queue Status" titleVariant="titleMedium" />
+            <Card.Title
+              title={`Local Queue (Device)${selectedProjectId ? ` - ${selectedProjectName}` : ''}`}
+              titleVariant="titleMedium"
+            />
             <Card.Content>
               <View style={styles.statsGrid}>
                 <View style={styles.statItem}>
                   <Text variant="headlineSmall" style={{ color: '#ff9800' }}>
-                    {stats.pending}
+                    {localStats.pending}
                   </Text>
                   <Text variant="bodySmall">Pending</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text variant="headlineSmall" style={{ color: '#2196f3' }}>
-                    {stats.syncing}
+                    {localStats.syncing}
                   </Text>
                   <Text variant="bodySmall">Syncing</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text variant="headlineSmall" style={{ color: '#f44336' }}>
-                    {stats.failed}
+                    {localStats.failed}
                   </Text>
                   <Text variant="bodySmall">Failed</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text variant="headlineSmall" style={{ color: '#4caf50' }}>
-                    {stats.completed}
+                    {localStats.completed}
+                  </Text>
+                  <Text variant="bodySmall">Local Done</Text>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* Backend Queue Statistics */}
+        {isOnline && backendStats && (
+          <Card style={styles.card}>
+            <Card.Title title="Backend Queue (Server)" titleVariant="titleMedium" />
+            <Card.Content>
+              {selectedProjectId && (
+                <Text variant="bodySmall" style={{ marginBottom: 12, color: '#ff9800', fontStyle: 'italic' }}>
+                  Note: Backend stats show all projects (project filtering not yet supported on server)
+                </Text>
+              )}
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <Text variant="headlineSmall" style={{ color: '#ff9800' }}>
+                    {backendStats.pending || 0}
+                  </Text>
+                  <Text variant="bodySmall">Pending</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text variant="headlineSmall" style={{ color: '#2196f3' }}>
+                    {backendStats.syncing || 0}
+                  </Text>
+                  <Text variant="bodySmall">Processing</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text variant="headlineSmall" style={{ color: '#f44336' }}>
+                    {backendStats.failed || 0}
+                  </Text>
+                  <Text variant="bodySmall">Failed</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text variant="headlineSmall" style={{ color: '#4caf50' }}>
+                    {backendStats.completed || 0}
                   </Text>
                   <Text variant="bodySmall">Completed</Text>
                 </View>
               </View>
+              <Text variant="bodySmall" style={{ marginTop: 12, color: '#666', textAlign: 'center' }}>
+                Total: {backendStats.total || 0} items processed on server
+              </Text>
             </Card.Content>
           </Card>
         )}
@@ -270,15 +454,15 @@ const SyncScreen: React.FC = () => {
               mode="contained"
               icon="sync"
               onPress={handleSyncNow}
-              disabled={syncing || !isOnline || stats?.pending === 0}
+              disabled={syncing || !isOnline || localStats?.pending === 0}
               loading={syncing}
               style={styles.actionButton}
             >
-              {syncing ? 'Syncing...' : `Sync Now (${stats?.pending || 0} items)`}
+              {syncing ? 'Syncing...' : `Sync Now (${localStats?.pending || 0} items)`}
             </Button>
 
             {/* Retry failed button */}
-            {stats?.failed > 0 && (
+            {localStats?.failed > 0 && (
               <Button
                 mode="outlined"
                 icon="refresh"
@@ -286,12 +470,12 @@ const SyncScreen: React.FC = () => {
                 disabled={syncing}
                 style={styles.actionButton}
               >
-                Retry Failed ({stats.failed})
+                Retry Failed ({localStats.failed})
               </Button>
             )}
 
             {/* Clear completed button */}
-            {stats?.completed > 0 && (
+            {localStats?.completed > 0 && (
               <Button
                 mode="text"
                 icon="delete-outline"
@@ -299,7 +483,7 @@ const SyncScreen: React.FC = () => {
                 disabled={syncing}
                 style={styles.actionButton}
               >
-                Clear Completed ({stats.completed})
+                Clear Completed ({localStats.completed})
               </Button>
             )}
           </Card.Content>
@@ -393,7 +577,7 @@ const SyncScreen: React.FC = () => {
           <Dialog.Title>Clear Completed Items?</Dialog.Title>
           <Dialog.Content>
             <Text variant="bodyMedium">
-              This will remove {stats?.completed || 0} completed items from the queue. This action cannot be undone.
+              This will remove {localStats?.completed || 0} completed items from the local queue. This action cannot be undone.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -425,12 +609,47 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     elevation: 2,
   },
+  headerLeft: {
+    flex: 1,
+  },
   title: {
     fontWeight: 'bold',
   },
   subtitle: {
     color: '#666',
     marginTop: 4,
+  },
+  projectSelectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  projectLabel: {
+    color: '#666',
+    fontWeight: '500',
+  },
+  projectButton: {
+    minWidth: 200,
+    borderColor: '#2196f3',
+  },
+  projectButtonContent: {
+    flexDirection: 'row-reverse',
+  },
+  menuContent: {
+    backgroundColor: '#fff',
+    maxHeight: 400,
+  },
+  menuItemText: {
+    fontSize: 14,
+  },
+  selectedMenuItemText: {
+    color: '#2196f3',
+    fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,

@@ -226,16 +226,123 @@ class SyncQueueViewSet(viewsets.ModelViewSet):
             'responses': ('responses', 'Response'),
             'analytics_results': ('analytics_results', 'AnalyticsResult')
         }
-        
+
         return table_mapping.get(table_name, (None, None))
+
+    def _handle_offline_responses(self, data: Dict) -> Dict[str, Any]:
+        """
+        Handle bulk response submission from offline sync
+
+        Data structure:
+        {
+            'projectId': str,
+            'respondentData': {
+                'respondentId': str,
+                'respondentType': str,
+                'commodities': list,
+                'country': str
+            },
+            'responses': [
+                {
+                    'questionId': str,
+                    'questionText': str,
+                    'responseValue': str
+                },
+                ...
+            ],
+            'timestamp': str
+        }
+        """
+        try:
+            from responses.models import Response, Respondent
+            from forms.models import Question
+
+            project_id = data.get('projectId')
+            respondent_data = data.get('respondentData', {})
+            responses_list = data.get('responses', [])
+
+            if not project_id or not respondent_data or not responses_list:
+                return {'success': False, 'error': 'Missing required data: projectId, respondentData, or responses'}
+
+            # Create or get respondent
+            respondent, created = Respondent.objects.get_or_create(
+                respondent_id=respondent_data.get('respondentId'),
+                project_id=project_id,
+                defaults={
+                    'is_anonymous': True,
+                    'consent_given': True,
+                    'respondent_type': respondent_data.get('respondentType'),
+                    'commodity': ','.join(respondent_data.get('commodities', [])) if respondent_data.get('commodities') else None,
+                    'country': respondent_data.get('country'),
+                    'completion_status': 'completed',
+                    'created_by': self.request.user
+                }
+            )
+
+            if not created:
+                # Update respondent status if it already exists
+                respondent.completion_status = 'completed'
+                respondent.save(update_fields=['completion_status'])
+
+            logger.info(f"{'Created' if created else 'Found'} respondent: {respondent.id}")
+
+            # Create all responses
+            created_responses = []
+            for resp_data in responses_list:
+                question_id = resp_data.get('questionId')
+                response_value = resp_data.get('responseValue')
+
+                if not question_id or response_value is None:
+                    logger.warning(f"Skipping response with missing questionId or responseValue")
+                    continue
+
+                try:
+                    # Check if response already exists (prevent duplicates)
+                    existing_response = Response.objects.filter(
+                        question_id=question_id,
+                        respondent=respondent
+                    ).first()
+
+                    if existing_response:
+                        logger.info(f"Response already exists for question {question_id}, skipping")
+                        continue
+
+                    # Create new response
+                    response = Response.objects.create(
+                        project_id=project_id,
+                        question_id=question_id,
+                        respondent=respondent,
+                        response_value=response_value,
+                        collected_by=self.request.user
+                    )
+                    created_responses.append(response)
+
+                except Exception as e:
+                    logger.error(f"Error creating response for question {question_id}: {str(e)}")
+                    continue
+
+            return {
+                'success': True,
+                'message': f'Created respondent and {len(created_responses)} responses',
+                'respondent_id': str(respondent.id),
+                'responses_created': len(created_responses)
+            }
+
+        except Exception as e:
+            logger.exception(f"Error handling offline responses: {str(e)}")
+            return {'success': False, 'error': str(e)}
 
     def _execute_model_operation(self, model_class, item: SyncQueue, data: Dict) -> Dict[str, Any]:
         """Execute the actual model operation"""
         try:
             if item.operation == 'create':
+                # Special handling for responses table (bulk submission from offline)
+                if item.table_name == 'responses' and 'responses' in data:
+                    return self._handle_offline_responses(data)
+
                 instance = model_class.objects.create(**data)
                 return {'success': True, 'message': f'Created {model_class.__name__} with id {instance.id}'}
-                
+
             elif item.operation == 'update':
                 try:
                     instance = model_class.objects.get(id=item.record_id)

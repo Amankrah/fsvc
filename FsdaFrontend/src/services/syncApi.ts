@@ -22,7 +22,13 @@ class SyncApi {
   }
 
   private async getAuthHeaders() {
-    const token = await secureStorage.getItem('userToken');
+    // Use 'auth_token' to match authStore (not 'userToken')
+    const token = await secureStorage.getItem('auth_token');
+
+    if (!token) {
+      throw new Error('No authentication token found. Please log in again.');
+    }
+
     return {
       'Content-Type': 'application/json',
       Authorization: `Token ${token}`,
@@ -48,6 +54,13 @@ class SyncApi {
       });
 
       if (!response.ok) {
+        // Handle authentication errors specifically
+        if (response.status === 401) {
+          const errorText = await response.text();
+          console.error('Authentication error during sync:', errorText);
+          throw new Error('Authentication failed. Your session may have expired. Please log in again to sync offline data.');
+        }
+
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
@@ -55,9 +68,19 @@ class SyncApi {
       return await response.json();
     } catch (error: any) {
       console.error('Error syncing item:', error);
+
+      // Provide user-friendly error messages
+      let errorMessage = error.message || 'Failed to sync item';
+
+      if (error.message?.includes('No authentication token')) {
+        errorMessage = 'Not logged in. Please log in to sync offline data.';
+      } else if (error.message?.includes('Authentication failed')) {
+        errorMessage = 'Session expired. Please log in again to sync offline data.';
+      }
+
       return {
         success: false,
-        error: error.message || 'Failed to sync item',
+        error: errorMessage,
       };
     }
   }
@@ -71,19 +94,28 @@ class SyncApi {
     errors?: string[];
   }>> {
     try {
+      console.log('[SyncApi] Starting processPending...');
       const headers = await this.getAuthHeaders();
+      console.log('[SyncApi] Got auth headers, calling backend...');
+
       const response = await fetch(`${this.baseUrl}/sync-queue/process_pending/`, {
         method: 'POST',
         headers,
       });
 
+      console.log('[SyncApi] Backend response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('[SyncApi] Backend error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('[SyncApi] processPending result:', result);
+      return result;
     } catch (error: any) {
-      console.error('Error processing pending items:', error);
+      console.error('[SyncApi] Error processing pending items:', error);
       return {
         success: false,
         error: error.message || 'Failed to process pending items',

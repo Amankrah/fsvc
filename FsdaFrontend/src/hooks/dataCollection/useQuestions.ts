@@ -36,6 +36,8 @@ export const useQuestions = ({
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [cachingForOffline, setCachingForOffline] = useState(false);
+  const [cachedOfflineCount, setCachedOfflineCount] = useState(0);
 
   const loadAvailableOptions = useCallback(async () => {
     try {
@@ -194,7 +196,7 @@ export const useQuestions = ({
           }
         } catch (error) {
           console.error('Error fetching questions from API, falling back to cache:', error);
-          // Fall back to cache if API fails
+          // Fall back to cache if API fails - load ALL questions (no pagination)
           const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
           const allQuestions = cachedQuestions as any as Question[];
 
@@ -206,15 +208,15 @@ export const useQuestions = ({
             return matchesRespondent && matchesCommodity && matchesCountry;
           });
 
-          // Simulate pagination for cached data
-          const start = (page - 1) * pageSize;
-          const end = start + pageSize;
-          questionsList = filtered.slice(start, end);
-          hasMore = end < filtered.length;
+          // Return ALL filtered questions from cache (no pagination when falling back)
+          questionsList = filtered;
+          hasMore = false; // No pagination for cached fallback
+
+          console.log(`📦 Loaded ${questionsList.length} questions from cache fallback (all questions)`);
         }
       } else {
-        // Offline: Load from cache and filter client-side with pagination
-        console.log(`📴 Offline - loading page ${page} of questions from cache`);
+        // Offline: Load ALL questions from cache (no pagination for offline)
+        console.log(`📴 Offline - loading ALL questions from cache`);
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
         const allQuestions = cachedQuestions as any as Question[];
 
@@ -225,13 +227,11 @@ export const useQuestions = ({
           return matchesRespondent && matchesCommodity && matchesCountry;
         });
 
-        // Simulate pagination for cached data
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        questionsList = filtered.slice(start, end);
-        hasMore = end < filtered.length;
+        // Return ALL filtered questions when offline (no pagination)
+        questionsList = filtered;
+        hasMore = false; // No more pages when offline - all questions loaded
 
-        console.log(`📦 Loaded ${questionsList.length} matching questions from cache (page ${page})`);
+        console.log(`📦 Loaded ${questionsList.length} matching questions from cache (all questions)`);
       }
 
       console.log(`✓ Found ${questionsList.length} matching questions for criteria:`, {
@@ -401,6 +401,128 @@ export const useQuestions = ({
     setHasMoreQuestions(false);
   }, []);
 
+  /**
+   * Cache generated questions for offline use
+   * This allows users to explicitly cache questions after generation
+   */
+  const cacheForOffline = useCallback(async (): Promise<void> => {
+    if (!selectedRespondentType) {
+      showAlert('Required', 'Please select a respondent type first');
+      return;
+    }
+
+    try {
+      setCachingForOffline(true);
+
+      // Check network connection
+      const isOnline = await networkMonitor.checkConnection();
+
+      if (!isOnline) {
+        showAlert('Offline', 'You need to be online to cache questions for offline use. Please connect to the internet and try again.');
+        return;
+      }
+
+      // Construct commodity string
+      const commodityStr = selectedCommodities.join(',') || '';
+
+      // Check if questions with this exact combination already exist in cache
+      const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+      const existingQuestions = cachedQuestions.filter(
+        (q: any) =>
+          q.assigned_respondent_type === selectedRespondentType &&
+          q.assigned_commodity === commodityStr &&
+          q.assigned_country === selectedCountry
+      );
+
+      if (existingQuestions.length > 0) {
+        showAlert(
+          'Already Cached',
+          `${existingQuestions.length} questions for this combination (${selectedRespondentType}${
+            commodityStr ? `, ${commodityStr}` : ''
+          }${selectedCountry ? `, ${selectedCountry}` : ''}) are already cached for offline use.\n\nYou can use these questions even without internet connection.`
+        );
+        setCachedOfflineCount(existingQuestions.length);
+        return;
+      }
+
+      // Fetch ALL questions for this combination from the API (not paginated)
+      const response = await apiService.getQuestionsForRespondent(
+        projectId,
+        {
+          assigned_respondent_type: selectedRespondentType,
+          assigned_commodity: commodityStr,
+          assigned_country: selectedCountry || '',
+        },
+        {
+          page: 1,
+          page_size: 10000, // Get all questions
+        }
+      );
+
+      const questionsToCache = response.results || response.questions || [];
+
+      if (questionsToCache.length === 0) {
+        showAlert(
+          'No Questions',
+          'No questions found for this combination. Please generate questions first using the "Generate Questions" button.'
+        );
+        return;
+      }
+
+      // Cache the questions (offlineQuestionCache already handles deduplication)
+      await offlineQuestionCache.cacheGeneratedQuestions(projectId, [
+        ...cachedQuestions,
+        ...questionsToCache,
+      ]);
+
+      // Update cached count
+      setCachedOfflineCount(questionsToCache.length);
+
+      showAlert(
+        'Cached for Offline!',
+        `Successfully cached ${questionsToCache.length} questions for offline use.\n\nCombination: ${selectedRespondentType}${
+          commodityStr ? `, ${commodityStr}` : ''
+        }${selectedCountry ? `, ${selectedCountry}` : ''}\n\nYou can now collect data with these questions even without internet connection.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error caching questions for offline:', error);
+      showAlert(
+        'Caching Failed',
+        error.response?.data?.error || 'Failed to cache questions for offline use. Please try again.'
+      );
+    } finally {
+      setCachingForOffline(false);
+    }
+  }, [selectedRespondentType, selectedCommodities, selectedCountry, projectId]);
+
+  /**
+   * Load offline cache statistics
+   */
+  useEffect(() => {
+    const loadCacheStats = async () => {
+      try {
+        const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+        const commodityStr = selectedCommodities.join(',') || '';
+
+        const matchingCached = cachedQuestions.filter(
+          (q: any) =>
+            q.assigned_respondent_type === selectedRespondentType &&
+            q.assigned_commodity === commodityStr &&
+            q.assigned_country === selectedCountry
+        );
+
+        setCachedOfflineCount(matchingCached.length);
+      } catch (error) {
+        console.error('Error loading cache stats:', error);
+      }
+    };
+
+    if (selectedRespondentType) {
+      loadCacheStats();
+    }
+  }, [projectId, selectedRespondentType, selectedCommodities, selectedCountry]);
+
   return {
     questions,
     generatingQuestions,
@@ -411,9 +533,12 @@ export const useQuestions = ({
     loadingOptions,
     loadingQuestions,
     hasMoreQuestions,
+    cachingForOffline,
+    cachedOfflineCount,
     loadAvailableOptions,
     generateDynamicQuestions,
     loadMoreQuestions,
     resetQuestions,
+    cacheForOffline,
   };
 };

@@ -269,6 +269,46 @@ class OfflineStorage {
   }
 
   /**
+   * Migrate and fix malformed queue items
+   * Removes items with invalid structure (where table_name or record_id are objects)
+   */
+  async migrateQueue(): Promise<{ removed: number; kept: number }> {
+    try {
+      const queue = await this.getQueue();
+      const validQueue: SyncQueueItem[] = [];
+      let removedCount = 0;
+
+      for (const item of queue) {
+        // Check if item has valid structure
+        const isValid =
+          typeof item.table_name === 'string' &&
+          typeof item.record_id === 'string' &&
+          typeof item.operation === 'string' &&
+          item.data !== undefined;
+
+        if (isValid) {
+          validQueue.push(item);
+        } else {
+          console.warn(`Removing malformed queue item:`, {
+            id: item.id,
+            table_name: typeof item.table_name,
+            record_id: typeof item.record_id,
+          });
+          removedCount++;
+        }
+      }
+
+      await this.saveQueue(validQueue);
+      console.log(`Queue migration: removed ${removedCount}, kept ${validQueue.length}`);
+
+      return { removed: removedCount, kept: validQueue.length };
+    } catch (error) {
+      console.error('Error migrating queue:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Private: Save queue to storage
    */
   private async saveQueue(queue: SyncQueueItem[]): Promise<void> {

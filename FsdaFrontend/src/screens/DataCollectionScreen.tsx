@@ -551,8 +551,11 @@ const DataCollectionScreen: React.FC = () => {
             loadingOptions={questions.loadingOptions}
             generatingQuestions={questions.generatingQuestions}
             questionsGenerated={questions.questionsGenerated}
+            cachingForOffline={questions.cachingForOffline}
+            cachedOfflineCount={questions.cachedOfflineCount}
             onGenerateQuestions={handleGenerateQuestions}
             onStartSurvey={handleStartSurvey}
+            onCacheForOffline={questions.cacheForOffline}
           />
         </View>
 

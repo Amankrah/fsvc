@@ -21,7 +21,8 @@ class AnalyticsService {
   }
 
   private async getAuthHeaders() {
-    const token = await secureStorage.getItem('userToken');
+    // Use 'auth_token' to match authStore (not 'userToken')
+    const token = await secureStorage.getItem('auth_token');
     return {
       'Content-Type': 'application/json',
       Authorization: `Token ${token}`,

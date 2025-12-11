@@ -24,7 +24,17 @@ class SyncManager {
   /**
    * Initialize sync manager with network monitoring
    */
-  private initialize() {
+  private async initialize() {
+    // Migrate any malformed queue items from previous versions
+    try {
+      const migrationResult = await offlineStorage.migrateQueue();
+      if (migrationResult.removed > 0) {
+        console.log(`Cleaned up ${migrationResult.removed} malformed queue items`);
+      }
+    } catch (error) {
+      console.error('Error during queue migration:', error);
+    }
+
     // Listen for network changes
     this.networkUnsubscribe = networkMonitor.addListener((isConnected) => {
       console.log(`Sync Manager: Network ${isConnected ? 'ONLINE' : 'OFFLINE'}`);
@@ -134,6 +144,11 @@ class SyncManager {
           errors.push(`${item.table_name}:${item.record_id} - ${errorMsg}`);
           this.emitEvent('item_failed', { item, error: errorMsg });
           console.error(`✗ Failed: ${item.table_name}:${item.record_id} - ${errorMsg}`);
+
+          // If authentication error, emit special event to notify user
+          if (errorMsg.includes('Authentication') || errorMsg.includes('Session expired') || errorMsg.includes('Not logged in')) {
+            this.emitEvent('auth_error', { message: errorMsg });
+          }
         }
       } catch (error: any) {
         const errorMsg = error.message || 'Unknown error';
@@ -148,6 +163,26 @@ class SyncManager {
     // Update last sync timestamp
     if (synced > 0) {
       await offlineStorage.updateLastSync();
+
+      // Trigger backend processing of the synced items
+      try {
+        console.log(`[SyncManager] Successfully synced ${synced} items to backend queue`);
+        console.log('[SyncManager] Now triggering backend processing...');
+        const processResult = await syncApi.processPending();
+        console.log('[SyncManager] processPending returned:', processResult);
+
+        if (processResult.success) {
+          const processed = processResult.data?.total_processed || processResult.total_processed || 0;
+          console.log(`✓ Backend processed ${processed} items`);
+        } else {
+          console.warn('[SyncManager] Backend processing had issues:', processResult.error);
+        }
+      } catch (error) {
+        console.error('[SyncManager] Error triggering backend processing:', error);
+        // Don't fail the sync if backend processing fails
+      }
+    } else {
+      console.log('[SyncManager] No items were synced, skipping backend processing');
     }
 
     this.isSyncing = false;
