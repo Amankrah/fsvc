@@ -61,14 +61,22 @@ class ModernQuestionViewSet(BaseModelViewSet):
         if project_id:
             queryset = queryset.filter(project_id=project_id)
 
-        # Custom ordering: Sociodemographics first, then by category, order_index, created_at
+        # Custom ordering: Match frontend category order
+        # Order: Sociodemographics, Environmental LCA, Social LCA, Vulnerability, Fairness, Solutions, Informations, Proximity and Value
         queryset = queryset.annotate(
             category_priority=Case(
                 When(question_category__iexact='Sociodemographics', then=Value(0)),
-                default=Value(1),
+                When(question_category__iexact='Environmental LCA', then=Value(1)),
+                When(question_category__iexact='Social LCA', then=Value(2)),
+                When(question_category__iexact='Vulnerability', then=Value(3)),
+                When(question_category__iexact='Fairness', then=Value(4)),
+                When(question_category__iexact='Solutions', then=Value(5)),
+                When(question_category__iexact='Informations', then=Value(6)),
+                When(question_category__iexact='Proximity and Value', then=Value(7)),
+                default=Value(9999),  # Unknown categories go to the end
                 output_field=IntegerField()
             )
-        ).order_by('category_priority', 'question_category', 'order_index', 'created_at')
+        ).order_by('category_priority', 'order_index', 'created_at')
 
         return queryset.distinct()
     
@@ -1332,8 +1340,23 @@ class ModernQuestionViewSet(BaseModelViewSet):
         if country:
             queryset = queryset.filter(assigned_country=country)
 
-        # Order by category and order_index
-        queryset = queryset.order_by('question_category', 'order_index', 'created_at')
+        # Custom ordering: Match frontend category order
+        # Order: Sociodemographics, Environmental LCA, Social LCA, Vulnerability, Fairness, Solutions, Informations, Proximity and Value
+        from django.db.models import Case, When, Value, IntegerField
+        queryset = queryset.annotate(
+            export_category_priority=Case(
+                When(question_category__iexact='Sociodemographics', then=Value(0)),
+                When(question_category__iexact='Environmental LCA', then=Value(1)),
+                When(question_category__iexact='Social LCA', then=Value(2)),
+                When(question_category__iexact='Vulnerability', then=Value(3)),
+                When(question_category__iexact='Fairness', then=Value(4)),
+                When(question_category__iexact='Solutions', then=Value(5)),
+                When(question_category__iexact='Informations', then=Value(6)),
+                When(question_category__iexact='Proximity and Value', then=Value(7)),
+                default=Value(9999),  # Unknown categories go to the end
+                output_field=IntegerField()
+            )
+        ).order_by('export_category_priority', 'order_index', 'created_at')
 
         # Build export data
         questions_data = []
@@ -1414,8 +1437,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
 
         # Create downloadable JSON response
         response = HttpResponse(
-            json.dumps(export_data, indent=2),
-            content_type='application/json'
+            json.dumps(export_data, indent=2, ensure_ascii=False),
+            content_type='application/json; charset=utf-8'
         )
         filename = f"generated_questions_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
