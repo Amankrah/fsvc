@@ -31,7 +31,7 @@ import ProjectCard from '../components/ProjectCard';
 import NotificationBell from '../components/NotificationBell';
 import { Project, RespondentType, CommodityType, PartnerOrganization } from '../types';
 import { colors } from '../constants/theme';
-import { offlineProjectCache, networkMonitor } from '../services';
+import { offlineProjectCache, networkMonitor, syncManager } from '../services';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -365,14 +365,55 @@ const DashboardScreen: React.FC = () => {
 
     setIsUpdating(true);
     try {
-      const updatedProject = await apiService.updateProject(editingProject.id, {
+      const updateData = {
         name: newProjectName.trim(),
         description: newProjectDescription.trim() || undefined,
         has_partners: hasPartners,
         partner_organizations: partnerOrganizations.length > 0 ? partnerOrganizations : undefined,
-      });
+      };
 
-      setProjects((prev) => prev.map(p => p.id === editingProject.id ? updatedProject : p));
+      const isOnline = await networkMonitor.checkConnection();
+
+      if (isOnline) {
+        // Online: Update via API
+        const updatedProject = await apiService.updateProject(editingProject.id, updateData);
+
+        // Update local state
+        setProjects((prev) => prev.map(p => p.id === editingProject.id ? updatedProject : p));
+
+        // Update offline cache
+        await offlineProjectCache.updateProject(updatedProject);
+
+        console.log('✓ Project updated online and cache updated');
+      } else {
+        // Offline: Queue for sync and update local cache
+        console.log('📴 Offline - queuing project update for sync');
+
+        // Create optimistic update
+        const optimisticUpdate = {
+          ...editingProject,
+          ...updateData,
+        };
+
+        // Update local state immediately
+        setProjects((prev) => prev.map(p => p.id === editingProject.id ? optimisticUpdate : p));
+
+        // Update offline cache
+        await offlineProjectCache.updateProject(optimisticUpdate);
+
+        // Queue for sync when back online
+        await syncManager.queueOperation(
+          'projects',
+          editingProject.id,
+          'update',
+          updateData,
+          10 // High priority
+        );
+
+        console.log('✓ Project queued for sync and cache updated');
+      }
+
+      // Clear form
       setNewProjectName('');
       setNewProjectDescription('');
       setHasPartners(false);

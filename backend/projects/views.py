@@ -49,13 +49,14 @@ class ProjectViewSet(BaseModelViewSet):
         """Ensure only the project creator can update the project"""
         project = serializer.instance
         user = self.request.user
-        
+
         # Check if user can update this project
         if not project.can_user_access(user):
             raise permissions.PermissionDenied("You don't have permission to update this project.")
-        
-        # Update sync status to pending since data has changed
-        serializer.save(sync_status='pending')
+
+        # Update sync status to synced since update is happening directly on server
+        # (When client updates via API, the data is already synced to the server)
+        serializer.save(sync_status='synced')
 
     def perform_destroy(self, instance):
         """Ensure only the project creator can delete the project"""
