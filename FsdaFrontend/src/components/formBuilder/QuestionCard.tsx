@@ -128,42 +128,76 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             )}
           </View>
 
-          {/* Targeted Information */}
-          {((question.targeted_respondents?.length ?? 0) > 0 ||
-            (question.targeted_commodities?.length ?? 0) > 0 ||
-            (question.targeted_countries?.length ?? 0) > 0) && (
+          {/* Targeted/Assigned Information */}
+          {/* Show assigned fields for generated questions, targeted fields for question bank */}
+          {(question as any).assigned_respondent_type ||
+          (question as any).assigned_commodity ||
+          (question as any).assigned_country ? (
+            /* Generated Question - Show Assigned Fields */
             <View style={styles.targetedInfoSection}>
-              {question.targeted_respondents && question.targeted_respondents.length > 0 && (
+              {(question as any).assigned_respondent_type && (
                 <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>👥 Respondents:</Text>
+                  <Text style={styles.targetedLabel}>👥 Respondent:</Text>
                   <Text style={styles.targetedValue} numberOfLines={1}>
-                    {question.targeted_respondents.slice(0, 2).join(', ')}
-                    {question.targeted_respondents.length > 2 &&
-                      ` +${question.targeted_respondents.length - 2}`}
+                    {(question as any).assigned_respondent_type}
                   </Text>
                 </View>
               )}
-              {question.targeted_commodities && question.targeted_commodities.length > 0 && (
+              {(question as any).assigned_commodity && (
                 <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>🌾 Commodities:</Text>
+                  <Text style={styles.targetedLabel}>🌾 Commodity:</Text>
                   <Text style={styles.targetedValue} numberOfLines={1}>
-                    {question.targeted_commodities.slice(0, 3).join(', ')}
-                    {question.targeted_commodities.length > 3 &&
-                      ` +${question.targeted_commodities.length - 3}`}
+                    {(question as any).assigned_commodity}
                   </Text>
                 </View>
               )}
-              {question.targeted_countries && question.targeted_countries.length > 0 && (
+              {(question as any).assigned_country && (
                 <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>🌍 Countries:</Text>
+                  <Text style={styles.targetedLabel}>🌍 Country:</Text>
                   <Text style={styles.targetedValue} numberOfLines={1}>
-                    {question.targeted_countries.slice(0, 3).join(', ')}
-                    {question.targeted_countries.length > 3 &&
-                      ` +${question.targeted_countries.length - 3}`}
+                    {(question as any).assigned_country}
                   </Text>
                 </View>
               )}
             </View>
+          ) : (
+            /* Question Bank - Show Targeted Fields */
+            ((question.targeted_respondents?.length ?? 0) > 0 ||
+              (question.targeted_commodities?.length ?? 0) > 0 ||
+              (question.targeted_countries?.length ?? 0) > 0) && (
+              <View style={styles.targetedInfoSection}>
+                {question.targeted_respondents && question.targeted_respondents.length > 0 && (
+                  <View style={styles.targetedRow}>
+                    <Text style={styles.targetedLabel}>👥 Respondents:</Text>
+                    <Text style={styles.targetedValue} numberOfLines={1}>
+                      {question.targeted_respondents.slice(0, 2).join(', ')}
+                      {question.targeted_respondents.length > 2 &&
+                        ` +${question.targeted_respondents.length - 2}`}
+                    </Text>
+                  </View>
+                )}
+                {question.targeted_commodities && question.targeted_commodities.length > 0 && (
+                  <View style={styles.targetedRow}>
+                    <Text style={styles.targetedLabel}>🌾 Commodities:</Text>
+                    <Text style={styles.targetedValue} numberOfLines={1}>
+                      {question.targeted_commodities.slice(0, 3).join(', ')}
+                      {question.targeted_commodities.length > 3 &&
+                        ` +${question.targeted_commodities.length - 3}`}
+                    </Text>
+                  </View>
+                )}
+                {question.targeted_countries && question.targeted_countries.length > 0 && (
+                  <View style={styles.targetedRow}>
+                    <Text style={styles.targetedLabel}>🌍 Countries:</Text>
+                    <Text style={styles.targetedValue} numberOfLines={1}>
+                      {question.targeted_countries.slice(0, 3).join(', ')}
+                      {question.targeted_countries.length > 3 &&
+                        ` +${question.targeted_countries.length - 3}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )
           )}
 
           {question.options && question.options.length > 0 && (

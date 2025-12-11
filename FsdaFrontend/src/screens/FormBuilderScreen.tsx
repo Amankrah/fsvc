@@ -291,6 +291,8 @@ const FormBuilderScreen: React.FC = () => {
   const generatedFilters = getUniqueGeneratedFilters();
 
   // Get unique filter options from Question Bank (actual data, not predefined)
+  // Note: This extracts from currently loaded questions. To see ALL categories,
+  // user needs to load more questions or we need a separate API endpoint.
   const getUniqueQuestionBankFilters = () => {
     const categories = new Set<string>();
     const respondentTypes = new Set<string>();
@@ -514,10 +516,10 @@ const FormBuilderScreen: React.FC = () => {
           </View>
           <View style={styles.questionCountContainer}>
             <Text variant="titleMedium" style={styles.questionCount}>
-              {activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
+              {activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length}
             </Text>
             <Text variant="bodySmall" style={styles.questionCountLabel}>
-              question{(activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount) !== 1 ? 's' : ''}
+              question{(activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length) !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
@@ -759,7 +761,7 @@ const FormBuilderScreen: React.FC = () => {
                   Load More Questions
                 </Button>
                 <Text style={{ marginTop: 10, color: '#888', fontSize: 12 }}>
-                  Showing {displayQuestions.length} of {activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
+                  Showing {displayQuestions.length} of {activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length}
                 </Text>
               </View>
             );

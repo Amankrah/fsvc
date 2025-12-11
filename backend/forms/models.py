@@ -1066,21 +1066,22 @@ class Question(models.Model):
         skipped_count = 0
         
         for i, bank_question in enumerate(bank_questions):
-            # Check if question already exists with the SAME context (text + respondent + commodity + country)
-            # This allows the same question text for different commodities/contexts
+            # Check if question already exists with the SAME context (text + respondent + commodity + country + section)
+            # This allows the same question text for different commodities/contexts/sections
             existing = cls.objects.filter(
                 project=project,
                 question_text=bank_question.question_text,
                 assigned_respondent_type=respondent_type,
                 assigned_commodity=commodity or '',
-                assigned_country=country or ''
+                assigned_country=country or '',
+                section_header=bank_question.section_header or ''
             ).first()
-            
+
             if existing:
                 # Skip if question already exists with the same context
                 skipped_count += 1
-                print(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...' (same context)")
-                logger.info(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...'")
+                print(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...' (same context including section)")
+                logger.info(f"[QuestionGen] Skipped duplicate question {i+1}: '{bank_question.question_text[:50]}...' (same context including section)")
                 continue
             
             # Create question with proper order_index
