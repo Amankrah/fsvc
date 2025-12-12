@@ -568,7 +568,7 @@ const FormBuilderScreen: React.FC = () => {
           hasActiveFilters={hasActiveFilters}
           activeFiltersCount={activeFiltersCount}
           filteredCount={filteredQuestions.length}
-          totalCount={activeTab === 'bank' ? totalCount : generatedQuestionsHook.totalCount}
+          totalCount={activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length}
           categories={questionBankFilters.categories}
           respondentTypes={questionBankFilters.respondentTypes}
         />
@@ -726,46 +726,43 @@ const FormBuilderScreen: React.FC = () => {
             colors={['#4b1e85']}
           />
         }
-        // Pagination - Infinite Scroll
+        // Pagination - Only for Question Bank tab
         onEndReached={() => {
           if (activeTab === 'bank' && hasMore && !loadingMore) {
             loadMore();
-          } else if (activeTab === 'generated' && generatedQuestionsHook.hasMore && !generatedQuestionsHook.loadingMore) {
-            generatedQuestionsHook.loadMore();
           }
         }}
         onEndReachedThreshold={0.5}
         ListFooterComponent={() => {
-          const isLoadingMore = activeTab === 'bank' ? loadingMore : generatedQuestionsHook.loadingMore;
-          const canLoadMore = activeTab === 'bank' ? hasMore : generatedQuestionsHook.hasMore;
-          const handleLoadMore = activeTab === 'bank' ? loadMore : generatedQuestionsHook.loadMore;
+          // Only show pagination for Question Bank tab
+          if (activeTab === 'bank') {
+            if (loadingMore) {
+              return (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#4b1e85" />
+                  <Text style={{ marginTop: 10, color: '#666' }}>Loading more questions...</Text>
+                </View>
+              );
+            }
 
-          if (isLoadingMore) {
-            return (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#4b1e85" />
-                <Text style={{ marginTop: 10, color: '#666' }}>Loading more questions...</Text>
-              </View>
-            );
-          }
-
-          if (canLoadMore && displayQuestions.length > 0) {
-            return (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Button
-                  mode="outlined"
-                  onPress={handleLoadMore}
-                  icon="chevron-down"
-                  style={{ borderColor: '#4b1e85', borderWidth: 2 }}
-                  labelStyle={{ color: '#4b1e85', fontWeight: 'bold' }}
-                >
-                  Load More Questions
-                </Button>
-                <Text style={{ marginTop: 10, color: '#888', fontSize: 12 }}>
-                  Showing {displayQuestions.length} of {activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length}
-                </Text>
-              </View>
-            );
+            if (hasMore && displayQuestions.length > 0) {
+              return (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Button
+                    mode="outlined"
+                    onPress={loadMore}
+                    icon="chevron-down"
+                    style={{ borderColor: '#4b1e85', borderWidth: 2 }}
+                    labelStyle={{ color: '#4b1e85', fontWeight: 'bold' }}
+                  >
+                    Load More Questions
+                  </Button>
+                  <Text style={{ marginTop: 10, color: '#888', fontSize: 12 }}>
+                    Showing {displayQuestions.length} of {totalCount}
+                  </Text>
+                </View>
+              );
+            }
           }
 
           return null;

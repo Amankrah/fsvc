@@ -5,9 +5,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { showAlert, showConfirm, showSuccess, showError } from '../../utils/alert';
 import apiService from '../../services/api';
 import { offlineQuestionCache, networkMonitor } from '../../services';
@@ -19,16 +16,11 @@ export const useGeneratedQuestions = (projectId: string) => {
   const [refreshing, setRefreshing] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderedQuestions, setReorderedQuestions] = useState<Question[]>([]);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
 
   const loadGeneratedQuestions = useCallback(async () => {
     try {
-      // FormBuilder should ALWAYS load ALL questions (no pagination)
-      console.log('📋 FormBuilder: Loading ALL generated questions (pagination disabled)');
+      console.log('📋 FormBuilder: Loading ALL generated questions');
 
       setLoading(true);
 
@@ -36,39 +28,33 @@ export const useGeneratedQuestions = (projectId: string) => {
       const isOnline = await networkMonitor.checkConnection();
 
       if (isOnline) {
-        // Fetch ALL questions from server (no pagination in FormBuilder)
-        console.log('🌐 Loading ALL generated questions from API (FormBuilder - no pagination)');
+        // Fetch ALL questions from server
+        console.log('🌐 Loading ALL generated questions from API');
         const questionsData = await apiService.getQuestions(projectId);
 
-        // Extract ALL questions (no pagination in FormBuilder)
+        // Extract ALL questions
         const questionsList: Question[] = Array.isArray(questionsData)
           ? questionsData
           : (questionsData.results || []);
 
-        console.log(`✓ Loaded ${questionsList.length} generated questions (ALL - no pagination)`);
+        console.log(`✓ Loaded ${questionsList.length} generated questions`);
 
         setGeneratedQuestions(questionsList);
-        setTotalCount(questionsList.length);
-        setHasMore(false); // No pagination in FormBuilder
-        setCurrentPage(1);
 
         // DON'T cache in FormBuilder - caching only happens in Data Collection screen
         // User should explicitly use "Cache for Offline" button when preparing for offline data collection
 
         return questionsList;
       } else {
-        // Load ALL from cache when offline (no pagination)
+        // Load ALL from cache when offline
         console.log('📴 Offline - loading ALL generated questions from cache');
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
         const questionsList = cachedQuestions as any as Question[];
 
         setGeneratedQuestions(questionsList);
-        setTotalCount(questionsList.length);
-        setHasMore(false); // No pagination
-        setCurrentPage(1);
 
         if (questionsList.length > 0) {
-          console.log(`✓ Loaded ${questionsList.length} generated questions from cache (ALL)`);
+          console.log(`✓ Loaded ${questionsList.length} generated questions from cache`);
         } else {
           showAlert(
             'No Cached Data',
@@ -81,7 +67,7 @@ export const useGeneratedQuestions = (projectId: string) => {
     } catch (error: any) {
       console.error('Error loading generated questions:', error);
 
-      // Try to load ALL from cache as fallback (no pagination)
+      // Try to load ALL from cache as fallback
       try {
         console.log('📴 Error occurred - trying to load ALL from cache as fallback');
         const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
@@ -89,22 +75,18 @@ export const useGeneratedQuestions = (projectId: string) => {
           const questionsList = cachedQuestions as any as Question[];
 
           setGeneratedQuestions(questionsList);
-          setTotalCount(questionsList.length);
-          setHasMore(false); // No pagination
-          setCurrentPage(1);
 
           showAlert(
             'Loaded from Cache',
-            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache (ALL).`
+            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache.`
           );
-          console.log(`✓ Loaded ${questionsList.length} questions from cache as fallback (ALL - no pagination)`);
+          console.log(`✓ Loaded ${questionsList.length} questions from cache as fallback`);
           return questionsList;
         }
       } catch (cacheError) {
         console.error('Failed to load from cache:', cacheError);
       }
 
-      setHasMore(false);
       showAlert('Error', 'Failed to load generated questions');
       return [];
     } finally {
@@ -338,12 +320,6 @@ export const useGeneratedQuestions = (projectId: string) => {
     }
   }, [generatedQuestions, loadGeneratedQuestions]);
 
-  // Load more questions - DISABLED (pagination removed from FormBuilder)
-  const loadMore = useCallback(async () => {
-    console.log('⚠️  LoadMore called but pagination is disabled in FormBuilder');
-    // No-op: FormBuilder always loads ALL questions at once
-    return;
-  }, []);
 
   // Load response counts for questions
   const loadResponseCounts = useCallback(async () => {
@@ -389,13 +365,9 @@ export const useGeneratedQuestions = (projectId: string) => {
     generatedQuestions,
     loading,
     refreshing,
-    loadingMore,
-    hasMore,
-    totalCount,
     responseCounts, // Response counts per question
     loadData,
     handleRefresh,
-    loadMore,
     loadResponseCounts, // Load response counts
     generateQuestionsOffline, // Offline question generation
     deleteGeneratedQuestion, // Single delete

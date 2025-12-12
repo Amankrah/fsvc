@@ -326,11 +326,12 @@ export const useQuestions = ({
                 `• Commodities: ${commoditiesText}\n` +
                 `• Country: ${countryText}\n\n` +
                 `These questions were previously generated and are ready to use.\n\n` +
-                `Note: The same filter combination cannot be generated multiple times to prevent duplicates. ` +
-                `You can either use these existing questions or regenerate to replace them.`,
+                `Click OK to REGENERATE and replace all questions.\n` +
+                `Click Cancel to keep the existing questions.`,
                 [
                   {
-                    text: 'Use Existing Questions',
+                    text: 'Cancel',
+                    style: 'cancel',
                     onPress: () => {},
                   },
                   {
@@ -357,7 +358,7 @@ export const useQuestions = ({
           commodity: selectedCommodities.length > 0 ? selectedCommodities.join(',') : undefined,
           country: selectedCountry || undefined,
           use_project_bank_only: useProjectBankOnly,
-          replace_existing: false,
+          replace_existing: forceRegenerate, // Use forceRegenerate to control replace_existing
           notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesForNotes}${
             selectedCountry ? `, ${selectedCountry}` : ''
           }`,
@@ -379,17 +380,41 @@ export const useQuestions = ({
           : 'All Commodities';
         const countryText = selectedCountry || 'All Countries';
 
-        const message = returnedExisting
-          ? `This filter combination already exists:\n\n` +
+        if (returnedExisting) {
+          // Backend returned existing questions - offer regenerate option
+          const message =
+            `This filter combination already exists:\n\n` +
             `• Respondent Type: ${selectedRespondentType}\n` +
             `• Commodities: ${commoditiesText}\n` +
             `• Country: ${countryText}\n\n` +
-            `Using ${allContextQuestions.length} existing question${
+            `Found ${allContextQuestions.length} existing question${
               allContextQuestions.length !== 1 ? 's' : ''
             }.\n\n` +
-            `Note: To prevent duplicates, the same filter combination can only be generated once. ` +
-            `Use the existing questions or regenerate to replace them.`
-          : `Successfully generated ${result.summary.questions_generated} new question${
+            `Click OK to REGENERATE and replace all questions.\n` +
+            `Click Cancel to keep the existing questions.`;
+
+          if (!silent) {
+            showAlert(
+              'Questions Already Exist',
+              message,
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                  onPress: () => {},
+                },
+                {
+                  text: 'Regenerate (Replace All)',
+                  onPress: () => generateDynamicQuestions(true, false),
+                  style: 'destructive',
+                },
+              ]
+            );
+          }
+        } else {
+          // New questions were generated
+          const message =
+            `Successfully generated ${result.summary.questions_generated} new question${
               result.summary.questions_generated !== 1 ? 's' : ''
             } for:\n\n` +
             `• Respondent Type: ${selectedRespondentType}\n` +
@@ -397,7 +422,11 @@ export const useQuestions = ({
             `• Country: ${countryText}\n\n` +
             `Total questions available: ${allContextQuestions.length}`;
 
-        showAlert(returnedExisting ? 'Using Existing Questions' : 'Questions Generated!', message, [{ text: 'OK' }]);
+          if (!silent) {
+            showAlert('Questions Generated!', message, [{ text: 'OK' }]);
+          }
+        }
+
         return allContextQuestions;
       } catch (error: any) {
         console.error('Error generating dynamic questions:', error);

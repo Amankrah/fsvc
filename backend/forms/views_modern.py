@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class ModernQuestionViewSet(BaseModelViewSet):
     """Modern, optimized Question ViewSet with enhanced performance and features"""
-    
+
     serializer_class = QuestionSerializer
     filterset_class = QuestionFilter
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -38,7 +38,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
     ordering_fields = ['question_text', 'order_index', 'created_at', 'response_type']
     ordering = ['order_index', 'created_at']
     permission_classes = [permissions.IsAuthenticated]
-    
+    pagination_class = None  # Disable pagination - return all questions
+
     # Caching configuration
     cache_timeout = 300  # 5 minutes
     
