@@ -412,18 +412,20 @@ class RespondentViewSet(BaseModelViewSet):
             writer = csv.writer(output)
 
             # Write header row
-            headers = ['Respondent ID', 'Name', 'Email', 'Created At', 'Last Response At']
-            headers.extend([f'Q{i+1}: {q.question_text[:50]}' for i, q in enumerate(questions)])
+            headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country']
+            # Add question headers with category prefix
+            for i, q in enumerate(questions):
+                category_prefix = f"[{q.question_category}] " if q.question_category else ""
+                headers.append(f'{category_prefix}Q{i+1}: {q.question_text[:100]}')
             writer.writerow(headers)
 
             # Write data rows
             for respondent in queryset:
                 row = [
                     respondent.respondent_id,
-                    respondent.name or '',
-                    respondent.email or '',
-                    respondent.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    respondent.last_response_at.strftime('%Y-%m-%d %H:%M:%S') if respondent.last_response_at else ''
+                    respondent.respondent_type or '',
+                    respondent.commodity or '',
+                    respondent.country or ''
                 ]
 
                 # Get responses for this respondent
@@ -525,10 +527,9 @@ class RespondentViewSet(BaseModelViewSet):
             for respondent in queryset:
                 respondent_data = {
                     'respondent_id': respondent.respondent_id,
-                    'name': respondent.name,
-                    'email': respondent.email,
-                    'created_at': respondent.created_at.isoformat(),
-                    'last_response_at': respondent.last_response_at.isoformat() if respondent.last_response_at else None,
+                    'respondent_type': respondent.respondent_type,
+                    'commodity': respondent.commodity,
+                    'country': respondent.country,
                     'responses': []
                 }
 
@@ -542,9 +543,7 @@ class RespondentViewSet(BaseModelViewSet):
                     response_data = {
                         'question_id': response.question_id,
                         'question_text': response.question.question_text,
-                        'response_type': response.question.response_type,
-                        'collected_at': response.collected_at.isoformat(),
-                        'is_validated': response.is_validated
+                        'question_category': response.question.question_category
                     }
 
                     # Parse response value based on type

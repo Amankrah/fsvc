@@ -1105,15 +1105,43 @@ class Question(models.Model):
                 # Copy section/preamble information
                 section_header=bank_question.section_header,
                 section_preamble=bank_question.section_preamble,
+                # Copy conditional/follow-up logic
+                is_follow_up=bank_question.is_follow_up,
+                conditional_logic=bank_question.conditional_logic,
             )
             
             logger.info(f"[QuestionGen] Created question {i+1}: '{bank_question.question_text[:50]}...'")
             questions.append(question)
             current_order += 1
-        
-        print(f"[QuestionGen] Step 9: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
+
+        # Step 10: Fix conditional logic parent_question_id references
+        print(f"[QuestionGen] Step 10: Fixing conditional logic parent question references...")
+        logger.info(f"[QuestionGen] Step 10: Fixing conditional logic parent question references...")
+
+        # Build mapping from QuestionBank ID to Generated Question ID
+        bank_to_generated_map = {}
+        for q in questions:
+            if q.question_bank_source_id:
+                bank_to_generated_map[str(q.question_bank_source_id)] = str(q.id)
+
+        # Update parent_question_id in conditional_logic for follow-up questions
+        for question in questions:
+            if question.is_follow_up and question.conditional_logic:
+                logic = question.conditional_logic
+                if 'parent_question_id' in logic:
+                    old_parent_id = logic['parent_question_id']
+                    # Map from QuestionBank parent ID to Generated Question parent ID
+                    if old_parent_id in bank_to_generated_map:
+                        new_parent_id = bank_to_generated_map[old_parent_id]
+                        logic['parent_question_id'] = new_parent_id
+                        question.conditional_logic = logic
+                        question.save(update_fields=['conditional_logic'])
+                        print(f"  Updated parent reference for '{question.question_text[:50]}': {old_parent_id} -> {new_parent_id}")
+                        logger.info(f"  Updated parent reference for question {question.id}")
+
+        print(f"[QuestionGen] Step 11: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
         print("="*60 + "\n")
-        logger.info(f"[QuestionGen] Step 9: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
+        logger.info(f"[QuestionGen] Step 11: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
         return questions
     
     @classmethod
