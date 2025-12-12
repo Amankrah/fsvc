@@ -808,16 +808,27 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 )
                 
                 # Remove existing questions if replace_existing is True
+                # Only delete questions for THIS specific bundle (respondent_type + commodity + country)
                 if replace_existing:
-                    existing_questions = Question.objects.filter(project=project)
+                    existing_questions = Question.objects.filter(
+                        project=project,
+                        assigned_respondent_type=respondent_type,
+                        assigned_commodity=commodity or '',
+                        assigned_country=country or ''
+                    )
                     existing_count = existing_questions.count()
-                    existing_questions.delete()
-                    logger.info(f"Removed {existing_count} existing questions from project {project_id}")
+                    if existing_count > 0:
+                        existing_questions.delete()
+                        logger.info(f"Removed {existing_count} existing questions for bundle: {respondent_type}, {commodity}, {country}")
+                        print(f"[QuestionGen] Deleted {existing_count} existing questions for this bundle before regenerating")
+                    else:
+                        logger.info(f"No existing questions to remove for this bundle")
+                        print(f"[QuestionGen] No existing questions found for this bundle")
                 
                 # Generate dynamic questions
                 print(f"Calling Question.generate_dynamic_questions_for_project...")
                 logger.info(f"Calling Question.generate_dynamic_questions_for_project...")
-                generated_questions = Question.generate_dynamic_questions_for_project(
+                result = Question.generate_dynamic_questions_for_project(
                     project=project,
                     respondent_type=respondent_type,
                     commodity=commodity,
@@ -829,8 +840,14 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     replace_existing=replace_existing  # Pass replace_existing flag
                 )
 
+                # Extract questions and metadata from result
+                generated_questions = result['questions']
+                returned_existing = result['returned_existing']
+                questions_generated_count = result['questions_generated']
+                questions_skipped_count = result['questions_skipped']
+
                 # Validate generated questions order (only if new questions were created)
-                if generated_questions and replace_existing:
+                if generated_questions and not returned_existing and replace_existing:
                     questions_for_validation = []
                     for q in generated_questions:
                         questions_for_validation.append({
@@ -845,13 +862,6 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     if not is_valid:
                         logger.warning(f"Generated questions have invalid order: {validation_errors}")
                         # Note: We log but don't fail, as generation should handle ordering correctly
-
-                # Determine if we returned existing questions or created new ones
-                returned_existing = (
-                    not replace_existing and
-                    len(generated_questions) > 0 and
-                    all(q.question_bank_source is not None for q in generated_questions[:min(3, len(generated_questions))])
-                )
 
                 print(f"✅ {'Returned existing' if returned_existing else 'Generated'} {len(generated_questions)} questions")
                 print("="*60 + "\n")
@@ -887,7 +897,9 @@ class ModernQuestionViewSet(BaseModelViewSet):
                     'questions': question_serializer.data,
                     'session': session_serializer.data,
                     'summary': {
-                        'questions_generated': len(generated_questions),
+                        'questions_generated': questions_generated_count,
+                        'questions_skipped': questions_skipped_count,
+                        'total_questions': len(generated_questions),
                         'partner_distribution': partner_distribution,
                         'respondent_type': respondent_type,
                         'commodity': commodity,

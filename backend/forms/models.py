@@ -972,7 +972,14 @@ class Question(models.Model):
                 print(f"[QuestionGen] Returning existing questions instead of creating duplicates")
                 logger.info(f"[QuestionGen] Found {existing_count} existing questions for respondent_type='{respondent_type}', commodity='{commodity}', country='{country}'")
                 logger.info(f"[QuestionGen] Returning existing questions instead of creating duplicates")
-                return list(existing_questions)
+
+                # Return dict with metadata to indicate existing questions were returned
+                return {
+                    'questions': list(existing_questions),
+                    'returned_existing': True,
+                    'questions_generated': 0,
+                    'questions_skipped': 0
+                }
 
         # Get question bank items based on scope preference
         if use_project_bank_only:
@@ -1142,7 +1149,14 @@ class Question(models.Model):
         print(f"[QuestionGen] Step 11: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
         print("="*60 + "\n")
         logger.info(f"[QuestionGen] Step 11: FINAL - Created {len(questions)} new questions, skipped {skipped_count} duplicates")
-        return questions
+
+        # Return dict with metadata to indicate new questions were generated
+        return {
+            'questions': questions,
+            'returned_existing': False,
+            'questions_generated': len(questions),
+            'questions_skipped': skipped_count
+        }
     
     @classmethod
     def get_questions_by_research_partner(cls, project, partner_type=None):

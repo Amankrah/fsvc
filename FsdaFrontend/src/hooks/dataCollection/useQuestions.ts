@@ -260,9 +260,26 @@ export const useQuestions = ({
       // Update state
       setHasMoreQuestions(hasMore);
       if (append) {
-        setQuestions(prev => [...prev, ...sortedQuestions]);
+        // Prevent duplicates when appending
+        setQuestions(prev => {
+          const existingIds = new Set(prev.map(q => q.id));
+          const newQuestions = sortedQuestions.filter(q => !existingIds.has(q.id));
+          if (newQuestions.length > 0) {
+            console.log(`Appending ${newQuestions.length} new questions (filtered ${sortedQuestions.length - newQuestions.length} duplicates)`);
+          }
+          return [...prev, ...newQuestions];
+        });
       } else {
-        setQuestions(sortedQuestions);
+        // Only update if questions actually changed (prevent unnecessary re-renders)
+        setQuestions(prevQuestions => {
+          const prevIds = prevQuestions.map(q => q.id).sort().join(',');
+          const newIds = sortedQuestions.map(q => q.id).sort().join(',');
+          if (prevIds === newIds) {
+            console.log('Questions unchanged, keeping same reference');
+            return prevQuestions; // Same questions, keep same reference
+          }
+          return sortedQuestions;
+        });
       }
 
       return sortedQuestions;
@@ -284,25 +301,40 @@ export const useQuestions = ({
       try {
         setGeneratingQuestions(true);
 
-        // Check if questions already exist
+        // Check if questions already exist (force fresh load to avoid stale cache)
         if (!forceRegenerate) {
-          const existingQuestions = await loadExistingQuestions();
+          console.log('🔍 Checking for existing questions with fresh API call...');
+          // Force a fresh load by clearing current page and reloading
+          setCurrentPage(1);
+          const existingQuestions = await loadExistingQuestions(1, 100, false);
 
           if (existingQuestions.length > 0) {
+            console.log(`Found ${existingQuestions.length} existing questions for this bundle`);
             setQuestions(existingQuestions);
             setQuestionsGenerated(true);
 
             if (!silent) {
+              const commoditiesText = selectedCommodities.length > 0
+                ? selectedCommodities.join(', ')
+                : 'All Commodities';
+              const countryText = selectedCountry || 'All Countries';
+
               showAlert(
-                'Questions Loaded!',
-                `Found ${existingQuestions.length} existing questions for ${selectedRespondentType} respondents with these criteria.\n\nThese questions were previously generated and are ready to use.`,
+                'Questions Already Exist',
+                `Found ${existingQuestions.length} existing questions for this filter combination:\n\n` +
+                `• Respondent Type: ${selectedRespondentType}\n` +
+                `• Commodities: ${commoditiesText}\n` +
+                `• Country: ${countryText}\n\n` +
+                `These questions were previously generated and are ready to use.\n\n` +
+                `Note: The same filter combination cannot be generated multiple times to prevent duplicates. ` +
+                `You can either use these existing questions or regenerate to replace them.`,
                 [
                   {
-                    text: 'Use These',
+                    text: 'Use Existing Questions',
                     onPress: () => {},
                   },
                   {
-                    text: 'Regenerate',
+                    text: 'Regenerate (Replace All)',
                     onPress: () => generateDynamicQuestions(true, false),
                     style: 'destructive',
                   },
@@ -310,11 +342,13 @@ export const useQuestions = ({
               );
             }
             return existingQuestions;
+          } else {
+            console.log('✓ No existing questions found, proceeding with generation');
           }
         }
 
         // Generate new questions
-        const commoditiesText =
+        const commoditiesForNotes =
           selectedCommodities.length > 0 ? selectedCommodities.join(', ') : 'all commodities';
 
         const generationData = {
@@ -324,7 +358,7 @@ export const useQuestions = ({
           country: selectedCountry || undefined,
           use_project_bank_only: useProjectBankOnly,
           replace_existing: false,
-          notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesText}${
+          notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesForNotes}${
             selectedCountry ? `, ${selectedCountry}` : ''
           }`,
         };
@@ -338,18 +372,32 @@ export const useQuestions = ({
         setQuestions(allContextQuestions);
         setQuestionsGenerated(true);
 
-        const message =
-          result.summary.questions_generated > 0
-            ? `Successfully generated ${result.summary.questions_generated} new question${
-                result.summary.questions_generated !== 1 ? 's' : ''
-              } for ${selectedRespondentType} respondents.\n\nTotal questions available: ${
-                allContextQuestions.length
-              }`
-            : `No new questions generated. All questions for this combination already exist.\n\nUsing ${
-                allContextQuestions.length
-              } existing question${allContextQuestions.length !== 1 ? 's' : ''}.`;
+        // Check if existing questions were returned vs new ones generated
+        const returnedExisting = (result.summary as any).returned_existing || false;
+        const commoditiesText = selectedCommodities.length > 0
+          ? selectedCommodities.join(', ')
+          : 'All Commodities';
+        const countryText = selectedCountry || 'All Countries';
 
-        showAlert('Questions Ready!', message, [{ text: 'OK' }]);
+        const message = returnedExisting
+          ? `This filter combination already exists:\n\n` +
+            `• Respondent Type: ${selectedRespondentType}\n` +
+            `• Commodities: ${commoditiesText}\n` +
+            `• Country: ${countryText}\n\n` +
+            `Using ${allContextQuestions.length} existing question${
+              allContextQuestions.length !== 1 ? 's' : ''
+            }.\n\n` +
+            `Note: To prevent duplicates, the same filter combination can only be generated once. ` +
+            `Use the existing questions or regenerate to replace them.`
+          : `Successfully generated ${result.summary.questions_generated} new question${
+              result.summary.questions_generated !== 1 ? 's' : ''
+            } for:\n\n` +
+            `• Respondent Type: ${selectedRespondentType}\n` +
+            `• Commodities: ${commoditiesText}\n` +
+            `• Country: ${countryText}\n\n` +
+            `Total questions available: ${allContextQuestions.length}`;
+
+        showAlert(returnedExisting ? 'Using Existing Questions' : 'Questions Generated!', message, [{ text: 'OK' }]);
         return allContextQuestions;
       } catch (error: any) {
         console.error('Error generating dynamic questions:', error);
@@ -379,6 +427,12 @@ export const useQuestions = ({
   // Auto-load questions when specifications change
   useEffect(() => {
     const autoLoadQuestions = async () => {
+      // Don't reload if survey is in progress (questions already generated and loaded)
+      if (questionsGenerated && questions.length > 0) {
+        console.log('Survey in progress, skipping auto-reload to prevent question count glitch');
+        return;
+      }
+
       if (selectedRespondentType && !generatingQuestions) {
         setCurrentPage(1); // Reset to first page
         const existingQuestions = await loadExistingQuestions(1, 100, false); // Load first page
@@ -392,7 +446,9 @@ export const useQuestions = ({
     };
 
     autoLoadQuestions();
-  }, [selectedRespondentType, selectedCommodities, selectedCountry, loadExistingQuestions, generatingQuestions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRespondentType, selectedCommodities, selectedCountry, generatingQuestions]);
+  // Note: loadExistingQuestions removed from deps to prevent mid-survey reloads (it's stable via useCallback)
 
   const resetQuestions = useCallback(() => {
     setQuestions([]);
