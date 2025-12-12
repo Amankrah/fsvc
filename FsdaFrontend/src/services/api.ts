@@ -541,6 +541,40 @@ class ApiService {
     return data;
   }
 
+  async exportQuestionBankCSV(projectId: string) {
+    const token = await secureStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/forms/question-bank/export_csv/?project_id=${projectId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to export Question Bank to CSV');
+    }
+
+    return response.blob();
+  }
+
+  async exportQuestionBankJSON(projectId: string) {
+    const token = await secureStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/forms/question-bank/export_json/?project_id=${projectId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Token ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to export Question Bank to JSON');
+    }
+
+    return response.blob();
+  }
+
   // Dynamic Question Session endpoints
   async getQuestionSessions(projectId?: string) {
     const params = projectId ? `?project=${projectId}` : '';

@@ -181,6 +181,7 @@ const FormBuilderScreen: React.FC = () => {
     importProgress,
     handleDownloadTemplate,
     handleImportQuestions,
+    handleExportQuestionBank,
   } = useImportExport(projectId, async () => {
     await loadProjectAndQuestions();
   });
@@ -911,6 +912,9 @@ const FormBuilderScreen: React.FC = () => {
               </View>
             ) : (
               <View style={styles.importExportButtons}>
+                <Text variant="labelLarge" style={styles.sectionLabel}>
+                  Templates
+                </Text>
                 <Button
                   mode="contained"
                   icon="download"
@@ -925,12 +929,34 @@ const FormBuilderScreen: React.FC = () => {
                   style={styles.importExportButton}>
                   Download Excel Template
                 </Button>
+
+                <Text variant="labelLarge" style={[styles.sectionLabel, { marginTop: 16 }]}>
+                  Import
+                </Text>
                 <Button
                   mode="contained"
                   icon="upload"
                   onPress={handleImportQuestions}
                   style={[styles.importExportButton, styles.importButton]}>
-                  Import Questions
+                  Import Questions to Question Bank
+                </Button>
+
+                <Text variant="labelLarge" style={[styles.sectionLabel, { marginTop: 16 }]}>
+                  Export Question Bank
+                </Text>
+                <Button
+                  mode="contained"
+                  icon="download"
+                  onPress={() => handleExportQuestionBank('csv')}
+                  style={[styles.importExportButton, styles.exportButton]}>
+                  Export Question Bank (CSV)
+                </Button>
+                <Button
+                  mode="contained"
+                  icon="download"
+                  onPress={() => handleExportQuestionBank('json')}
+                  style={[styles.importExportButton, styles.exportButton]}>
+                  Export Question Bank (JSON)
                 </Button>
               </View>
             )}
@@ -1168,6 +1194,14 @@ const styles = StyleSheet.create({
   },
   importButton: {
     backgroundColor: '#1976d2',
+  },
+  exportButton: {
+    backgroundColor: '#388e3c',
+  },
+  sectionLabel: {
+    color: '#ffffff',
+    marginBottom: 8,
+    fontWeight: 'bold',
   },
   tabContainer: {
     backgroundColor: '#1a1a3a',

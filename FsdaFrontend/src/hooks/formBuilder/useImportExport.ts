@@ -4,12 +4,20 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Platform } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { Platform, Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import apiService from '../../services/api';
+
+// Helper function for showing alerts
+const showAlert = (title: string, message: string, buttons?: any[]) => {
+  if (Platform.OS === 'web') {
+    alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export const useImportExport = (projectId: string, onImportSuccess: () => Promise<void>) => {
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
@@ -190,6 +198,64 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
     }
   }, [projectId, onImportSuccess]);
 
+  const handleExportQuestionBank = useCallback(async (format: 'csv' | 'json') => {
+    try {
+      const blob =
+        format === 'csv'
+          ? await apiService.exportQuestionBankCSV(projectId)
+          : await apiService.exportQuestionBankJSON(projectId);
+
+      const fileName = `question_bank_${projectId}_${new Date().toISOString().split('T')[0]}.${format === 'csv' ? 'csv' : 'json'}`;
+
+      if (Platform.OS === 'web') {
+        // Web download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showAlert('Success', `Question Bank exported to ${format.toUpperCase()} successfully`);
+      } else {
+        // Mobile: Save to device using expo-file-system and share
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          const base64data = reader.result as string;
+          const base64 = base64data.split(',')[1];
+
+          // Save file
+          await FileSystem.writeAsStringAsync(fileUri, base64, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Check if sharing is available
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: format === 'csv' ? 'text/csv' : 'application/json',
+              dialogTitle: 'Save Question Bank Export',
+              UTI: format === 'csv' ? 'public.comma-separated-values-text' : 'public.json',
+            });
+            showAlert('Success', `Question Bank export ready. Choose where to save it.`);
+          } else {
+            showAlert('Success', `Export saved to: ${fileUri}`);
+          }
+        };
+      }
+    } catch (error: any) {
+      console.error(`Error exporting Question Bank to ${format}:`, error);
+      showAlert('Error', error.message || `Failed to export Question Bank to ${format.toUpperCase()}`);
+    } finally {
+      setShowImportExportDialog(false);
+    }
+  }, [projectId]);
+
   return {
     showImportExportDialog,
     setShowImportExportDialog,
@@ -198,5 +264,6 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
     importResult,
     handleDownloadTemplate,
     handleImportQuestions,
+    handleExportQuestionBank,
   };
 };

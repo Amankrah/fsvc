@@ -2027,6 +2027,229 @@ class QuestionBankViewSet(BaseModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=False, methods=['get'])
+    def export_csv(self, request):
+        """Export Question Bank to CSV (project creator only)"""
+        import csv
+        from io import StringIO
+        from datetime import datetime
+
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Get project and verify user is the creator
+            from projects.models import Project
+            project = Project.objects.get(id=project_id)
+
+            if project.created_by != request.user and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only project creator can export Question Bank'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Get all question bank items for the project
+            questions = QuestionBank.objects.filter(project_id=project_id).order_by(
+                'question_category', 'created_at'
+            )
+
+            if not questions.exists():
+                return Response(
+                    {'error': 'No questions found in Question Bank for this project'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Create CSV
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # Write header row
+            headers = [
+                'Question Text',
+                'Category',
+                'Response Type',
+                'Targeted Respondents',
+                'Targeted Commodities',
+                'Targeted Countries',
+                'Is Required',
+                'Allow Multiple',
+                'Options',
+                'Priority Score',
+                'Data Source',
+                'Research Partner',
+                'Work Package',
+                'Section Header',
+                'Section Preamble',
+                'Is Follow-up',
+                'Parent Question Text',
+                'Condition Operator',
+                'Condition Value'
+            ]
+            writer.writerow(headers)
+
+            # Write data rows
+            for q in questions:
+                # Get parent question text if it's a follow-up
+                parent_text = ''
+                condition_operator = ''
+                condition_value = ''
+
+                if q.is_follow_up and q.conditional_logic:
+                    logic = q.conditional_logic
+                    parent_id = logic.get('parent_question_id')
+                    if parent_id:
+                        try:
+                            parent_q = QuestionBank.objects.get(id=parent_id)
+                            parent_text = parent_q.question_text
+                        except QuestionBank.DoesNotExist:
+                            parent_text = f'[ID: {parent_id}]'
+
+                    if 'show_if' in logic:
+                        condition_operator = logic['show_if'].get('operator', '')
+                        if 'value' in logic['show_if']:
+                            condition_value = str(logic['show_if']['value'])
+                        elif 'values' in logic['show_if']:
+                            condition_value = '|'.join(logic['show_if']['values'])
+
+                row = [
+                    q.question_text,
+                    q.question_category or '',
+                    q.response_type,
+                    ','.join(q.targeted_respondents) if q.targeted_respondents else '',
+                    ','.join(q.targeted_commodities) if q.targeted_commodities else '',
+                    ','.join(q.targeted_countries) if q.targeted_countries else '',
+                    'true' if q.is_required else 'false',
+                    'true' if q.allow_multiple else 'false',
+                    ','.join(q.options) if q.options else '',
+                    q.priority_score or '',
+                    q.data_source or '',
+                    q.research_partner_name or '',
+                    q.work_package or '',
+                    q.section_header or '',
+                    q.section_preamble or '',
+                    'true' if q.is_follow_up else 'false',
+                    parent_text,
+                    condition_operator,
+                    condition_value
+                ]
+                writer.writerow(row)
+
+            # Create HTTP response
+            csv_data = output.getvalue()
+            output.close()
+
+            response = HttpResponse(csv_data, content_type='text/csv')
+            filename = f'question_bank_{project_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            logger.info(f"Question Bank exported by {request.user} for project {project_id}")
+            return response
+
+        except Project.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error exporting Question Bank: {e}")
+            return Response(
+                {'error': f'Failed to export Question Bank: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def export_json(self, request):
+        """Export Question Bank to JSON (project creator only)"""
+        from datetime import datetime
+
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Get project and verify user is the creator
+            from projects.models import Project
+            project = Project.objects.get(id=project_id)
+
+            if project.created_by != request.user and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only project creator can export Question Bank'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Get all question bank items for the project
+            questions = QuestionBank.objects.filter(project_id=project_id).order_by(
+                'question_category', 'created_at'
+            )
+
+            if not questions.exists():
+                return Response(
+                    {'error': 'No questions found in Question Bank for this project'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Build export data
+            export_data = {
+                'project_id': project_id,
+                'project_name': project.name,
+                'exported_at': datetime.now().isoformat(),
+                'total_questions': questions.count(),
+                'questions': []
+            }
+
+            # Add question data
+            for q in questions:
+                question_data = {
+                    'id': str(q.id),
+                    'question_text': q.question_text,
+                    'category': q.question_category,
+                    'response_type': q.response_type,
+                    'targeted_respondents': q.targeted_respondents,
+                    'targeted_commodities': q.targeted_commodities,
+                    'targeted_countries': q.targeted_countries,
+                    'is_required': q.is_required,
+                    'allow_multiple': q.allow_multiple,
+                    'options': q.options,
+                    'priority_score': q.priority_score,
+                    'data_source': q.data_source,
+                    'research_partner': q.research_partner_name,
+                    'work_package': q.work_package,
+                    'section_header': q.section_header,
+                    'section_preamble': q.section_preamble,
+                    'is_follow_up': q.is_follow_up,
+                    'conditional_logic': q.conditional_logic,
+                }
+
+                export_data['questions'].append(question_data)
+
+            # Create HTTP response
+            json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
+            response = HttpResponse(json_data, content_type='application/json')
+            filename = f'question_bank_{project_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            logger.info(f"Question Bank JSON exported by {request.user} for project {project_id}")
+            return response
+
+        except Project.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error exporting Question Bank JSON: {e}")
+            return Response(
+                {'error': f'Failed to export Question Bank: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class DynamicQuestionSessionViewSet(BaseModelViewSet):
     """ViewSet for managing dynamic question generation sessions"""
