@@ -470,7 +470,7 @@ class Response(models.Model):
 
     # Relationships
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='responses')
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='responses')
+    question = models.ForeignKey(Question, on_delete=models.SET_NULL, null=True, blank=True, related_name='responses')
     respondent = models.ForeignKey(Respondent, on_delete=models.CASCADE, related_name='responses')
     response_type = models.ForeignKey(ResponseType, on_delete=models.CASCADE, related_name='responses', default=get_default_response_type)
 
@@ -591,14 +591,15 @@ class Response(models.Model):
         unique_together = ['question', 'respondent']
 
     def __str__(self):
-        return f"Response {self.response_id} to {self.question.question_text[:30]} by {self.respondent.respondent_id}"
+        question_text = self.question.question_text[:30] if self.question else "[Deleted Question]"
+        return f"Response {self.response_id} to {question_text} by {self.respondent.respondent_id}"
     
     def save(self, *args, **kwargs):
         """Override save to update respondent's last_response_at and process data"""
         is_new = self.pk is None
 
         # Auto-populate response_type from question if not set
-        if not self.response_type and self.question:
+        if not self.response_type_id and self.question:
             self.response_type = self.question.get_expected_response_type()
 
         # Auto-populate question metadata from QuestionBank source
@@ -761,12 +762,16 @@ class Response(models.Model):
     def validate_response(self):
         """Validate response against question's and response type's validation rules"""
         validation_errors = []
-        
-        # Use question's validation method if available
+
+        # Use question's validation method if available (if question still exists)
         if self.question:
-            is_valid, error_message = self.question.validate_response_value(self.response_value)
-            if not is_valid:
-                validation_errors.append(error_message)
+            try:
+                is_valid, error_message = self.question.validate_response_value(self.response_value)
+                if not is_valid:
+                    validation_errors.append(error_message)
+            except Exception:
+                # Question might have been deleted or validation method unavailable
+                pass
         
         # Additional response type specific validation
         if self.response_type and self.response_type.validation_schema:
@@ -973,7 +978,11 @@ class Response(models.Model):
         """Get list of partner endpoints this response should be sent to"""
         if not self.question:
             return []
-        return self.question.get_database_endpoints()
+        try:
+            return self.question.get_database_endpoints()
+        except Exception:
+            # Question might have been deleted
+            return []
     
     @classmethod
     def get_responses_by_category(cls, project, category=None):
