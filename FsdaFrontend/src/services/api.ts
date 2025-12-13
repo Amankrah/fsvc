@@ -612,7 +612,7 @@ class ApiService {
 
   // Respondent endpoints
   async getRespondents(projectId: string) {
-    return await this.get(`/responses/respondents/?project_id=${projectId}`);
+    return await this.get(`/responses/respondents/?project_id=${projectId}&page_size=1000`);
   }
 
   async createRespondent(data: any) {
