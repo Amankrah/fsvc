@@ -173,7 +173,7 @@ const DataCollectionScreen: React.FC = () => {
         }
       );
 
-      const matchingQuestions = filteredResponse.results || [];
+      const matchingQuestions = filteredResponse.questions || [];
 
       // Sort by category order first, then by order_index within each category
       const loadedQuestions = matchingQuestions.sort((a: any, b: any) => {
