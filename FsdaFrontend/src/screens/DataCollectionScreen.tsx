@@ -159,19 +159,21 @@ const DataCollectionScreen: React.FC = () => {
       // Wait for state to update before generating questions
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Load questions directly using the API with draft criteria
-      const allQuestions = await apiService.getQuestions(projectId);
-      const questionsList = Array.isArray(allQuestions) ? allQuestions : allQuestions.results || [];
+      // Load questions using the filtered API endpoint for this draft's criteria
+      const filteredResponse = await apiService.getQuestionsForRespondent(
+        projectId,
+        {
+          assigned_respondent_type: draft.respondent_type,
+          assigned_commodity: draft.commodity || '',
+          assigned_country: draft.country || '',
+        },
+        {
+          page: 1,
+          page_size: 1000,
+        }
+      );
 
-      // Filter questions to match the draft's criteria
-      const commodityStr = draft.commodity || '';
-      const countryStr = draft.country || '';
-      const matchingQuestions = questionsList.filter((q: any) => {
-        const matchesRespondent = q.assigned_respondent_type === draft.respondent_type;
-        const matchesCommodity = q.assigned_commodity === commodityStr;
-        const matchesCountry = q.assigned_country === countryStr;
-        return matchesRespondent && matchesCommodity && matchesCountry;
-      });
+      const matchingQuestions = filteredResponse.results || [];
 
       // Sort by category order first, then by order_index within each category
       const loadedQuestions = matchingQuestions.sort((a: any, b: any) => {
