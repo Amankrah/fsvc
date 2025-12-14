@@ -161,6 +161,15 @@ export const useQuestions = ({
       const commodityStr = selectedCommodities.join(',') || '';
       const countryStr = selectedCountry || '';
 
+      console.log(`📊 Filter criteria for loading questions:`, {
+        selectedRespondentType,
+        selectedCommoditiesArray: selectedCommodities,
+        commodityStr,
+        selectedCountry,
+        countryStr,
+        page,
+      });
+
       let questionsList: Question[] = [];
       let hasMore = false;
 
@@ -453,12 +462,22 @@ export const useQuestions = ({
     await loadExistingQuestions(nextPage, 100, true); // append=true
   }, [hasMoreQuestions, loadingQuestions, currentPage, loadExistingQuestions]);
 
-  // Auto-load questions when specifications change
+  // Auto-load questions when specifications change (ONLY when in form mode, not during survey)
   useEffect(() => {
     const autoLoadQuestions = async () => {
-      // Don't reload if survey is in progress (questions already generated and loaded)
+      console.log(`🔄 Auto-load effect triggered:`, {
+        selectedRespondentType,
+        selectedCommodities,
+        selectedCountry,
+        questionsGenerated,
+        questionsCount: questions.length,
+        generatingQuestions,
+      });
+
+      // CRITICAL: Don't reload if questions are already generated (prevents mid-survey reloads)
+      // This check prevents the bug where commodity filter gets cleared and loads all questions
       if (questionsGenerated && questions.length > 0) {
-        console.log('Survey in progress, skipping auto-reload to prevent question count glitch');
+        console.log('✋ Survey already started with generated questions, skipping auto-reload to prevent filter glitch');
         return;
       }
 
