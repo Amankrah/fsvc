@@ -147,8 +147,23 @@ export const useQuestions = ({
     }
   };
 
-  const loadExistingQuestions = useCallback(async (page: number = 1, pageSize: number = 100, append: boolean = false) => {
-    if (!selectedRespondentType) {
+  const loadExistingQuestions = useCallback(async (
+    page: number = 1,
+    pageSize: number = 100,
+    append: boolean = false,
+    // Accept optional filter overrides to prevent stale closure issues
+    filterOverrides?: {
+      respondentType?: string;
+      commodities?: string[];
+      country?: string;
+    }
+  ) => {
+    // Use overrides if provided, otherwise use current state
+    const effectiveRespondentType = filterOverrides?.respondentType ?? selectedRespondentType;
+    const effectiveCommodities = filterOverrides?.commodities ?? selectedCommodities;
+    const effectiveCountry = filterOverrides?.country ?? selectedCountry;
+
+    if (!effectiveRespondentType) {
       return [];
     }
 
@@ -158,16 +173,17 @@ export const useQuestions = ({
       // Check network connection
       const isOnline = await networkMonitor.checkConnection();
 
-      const commodityStr = selectedCommodities.join(',') || '';
-      const countryStr = selectedCountry || '';
+      const commodityStr = effectiveCommodities.join(',') || '';
+      const countryStr = effectiveCountry || '';
 
       console.log(`📊 Filter criteria for loading questions:`, {
-        selectedRespondentType,
-        selectedCommoditiesArray: selectedCommodities,
+        effectiveRespondentType,
+        effectiveCommodities,
         commodityStr,
-        selectedCountry,
+        effectiveCountry,
         countryStr,
         page,
+        usingOverrides: !!filterOverrides,
       });
 
       let questionsList: Question[] = [];
@@ -180,7 +196,7 @@ export const useQuestions = ({
           const response = await apiService.getQuestionsForRespondent(
             projectId,
             {
-              assigned_respondent_type: selectedRespondentType,
+              assigned_respondent_type: effectiveRespondentType,
               assigned_commodity: commodityStr,
               assigned_country: countryStr,
             },
@@ -211,7 +227,7 @@ export const useQuestions = ({
 
           // Filter cached questions client-side
           const filtered = allQuestions.filter((q: Question) => {
-            const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
+            const matchesRespondent = q.assigned_respondent_type === effectiveRespondentType;
             const matchesCommodity = q.assigned_commodity === commodityStr;
             const matchesCountry = q.assigned_country === countryStr;
             return matchesRespondent && matchesCommodity && matchesCountry;
@@ -230,7 +246,7 @@ export const useQuestions = ({
         const allQuestions = cachedQuestions as any as Question[];
 
         const filtered = allQuestions.filter((q: Question) => {
-          const matchesRespondent = q.assigned_respondent_type === selectedRespondentType;
+          const matchesRespondent = q.assigned_respondent_type === effectiveRespondentType;
           const matchesCommodity = q.assigned_commodity === commodityStr;
           const matchesCountry = q.assigned_country === countryStr;
           return matchesRespondent && matchesCommodity && matchesCountry;
@@ -244,7 +260,7 @@ export const useQuestions = ({
       }
 
       console.log(`✓ Found ${questionsList.length} matching questions for criteria:`, {
-        respondentType: selectedRespondentType,
+        respondentType: effectiveRespondentType,
         commodity: commodityStr,
         country: countryStr,
         page,
@@ -315,7 +331,12 @@ export const useQuestions = ({
           console.log('🔍 Checking for existing questions with fresh API call...');
           // Force a fresh load by clearing current page and reloading
           setCurrentPage(1);
-          const existingQuestions = await loadExistingQuestions(1, 100, false);
+          // Pass current filter values explicitly to prevent stale closure issues
+          const existingQuestions = await loadExistingQuestions(1, 100, false, {
+            respondentType: selectedRespondentType,
+            commodities: selectedCommodities,
+            country: selectedCountry,
+          });
 
           if (existingQuestions.length > 0) {
             console.log(`Found ${existingQuestions.length} existing questions for this bundle`);
@@ -377,8 +398,13 @@ export const useQuestions = ({
           generationData
         );
 
-        // Load all questions for this context
-        const allContextQuestions = await loadExistingQuestions();
+        // Load all questions for this context - CRITICAL: Pass current filter values explicitly
+        // to prevent stale closure from loading questions with wrong filters
+        const allContextQuestions = await loadExistingQuestions(1, 100, false, {
+          respondentType: selectedRespondentType,
+          commodities: selectedCommodities,
+          country: selectedCountry,
+        });
         setQuestions(allContextQuestions);
         setQuestionsGenerated(true);
 
@@ -483,7 +509,12 @@ export const useQuestions = ({
 
       if (selectedRespondentType && !generatingQuestions) {
         setCurrentPage(1); // Reset to first page
-        const existingQuestions = await loadExistingQuestions(1, 100, false); // Load first page
+        // Pass current filter values explicitly to ensure correct filters are used
+        const existingQuestions = await loadExistingQuestions(1, 100, false, {
+          respondentType: selectedRespondentType,
+          commodities: selectedCommodities,
+          country: selectedCountry,
+        });
         if (existingQuestions.length > 0) {
           setQuestionsGenerated(true);
           console.log(`Auto-loaded ${existingQuestions.length} existing questions for ${selectedRespondentType}`);
