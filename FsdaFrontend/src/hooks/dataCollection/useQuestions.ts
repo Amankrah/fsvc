@@ -39,6 +39,14 @@ export const useQuestions = ({
   const [cachingForOffline, setCachingForOffline] = useState(false);
   const [cachedOfflineCount, setCachedOfflineCount] = useState(0);
 
+  // Track the filters that were used to load the current questions
+  // This prevents unwanted reloads when filters change after questions are loaded
+  const [loadedWithFilters, setLoadedWithFilters] = useState<{
+    respondentType: string;
+    commodities: string[];
+    country: string;
+  } | null>(null);
+
   const loadAvailableOptions = useCallback(async () => {
     try {
       setLoadingOptions(true);
@@ -342,6 +350,12 @@ export const useQuestions = ({
             console.log(`Found ${existingQuestions.length} existing questions for this bundle`);
             setQuestions(existingQuestions);
             setQuestionsGenerated(true);
+            // Track which filters we used
+            setLoadedWithFilters({
+              respondentType: selectedRespondentType,
+              commodities: [...selectedCommodities],
+              country: selectedCountry,
+            });
 
             if (!silent) {
               const commoditiesText = selectedCommodities.length > 0
@@ -407,6 +421,12 @@ export const useQuestions = ({
         });
         setQuestions(allContextQuestions);
         setQuestionsGenerated(true);
+        // Track which filters we used
+        setLoadedWithFilters({
+          respondentType: selectedRespondentType,
+          commodities: [...selectedCommodities],
+          country: selectedCountry,
+        });
 
         // Check if existing questions were returned vs new ones generated
         const returnedExisting = (result.summary as any).returned_existing || false;
@@ -498,6 +518,7 @@ export const useQuestions = ({
         questionsGenerated,
         questionsCount: questions.length,
         generatingQuestions,
+        loadedWithFilters,
       });
 
       // CRITICAL: Don't reload if questions are already generated (prevents mid-survey reloads)
@@ -505,6 +526,23 @@ export const useQuestions = ({
       if (questionsGenerated && questions.length > 0) {
         console.log('✋ Survey already started with generated questions, skipping auto-reload to prevent filter glitch');
         return;
+      }
+
+      // Additional safeguard: If we've already loaded questions with specific filters,
+      // don't reload with different/empty filters (prevents race condition bug)
+      if (loadedWithFilters && questions.length > 0) {
+        const filtersChanged =
+          loadedWithFilters.respondentType !== selectedRespondentType ||
+          JSON.stringify(loadedWithFilters.commodities) !== JSON.stringify(selectedCommodities) ||
+          loadedWithFilters.country !== selectedCountry;
+
+        if (filtersChanged) {
+          console.log('⚠️ Filters changed after questions were loaded, ignoring to prevent unwanted reload:', {
+            loaded: loadedWithFilters,
+            current: { selectedRespondentType, selectedCommodities, selectedCountry }
+          });
+          return;
+        }
       }
 
       if (selectedRespondentType && !generatingQuestions) {
@@ -517,9 +555,16 @@ export const useQuestions = ({
         });
         if (existingQuestions.length > 0) {
           setQuestionsGenerated(true);
+          // Track which filters we used to load these questions
+          setLoadedWithFilters({
+            respondentType: selectedRespondentType,
+            commodities: [...selectedCommodities],
+            country: selectedCountry,
+          });
           console.log(`Auto-loaded ${existingQuestions.length} existing questions for ${selectedRespondentType}`);
         } else {
           setQuestionsGenerated(false);
+          setLoadedWithFilters(null);
         }
       }
     };
@@ -534,6 +579,7 @@ export const useQuestions = ({
     setQuestionsGenerated(false);
     setCurrentPage(1);
     setHasMoreQuestions(false);
+    setLoadedWithFilters(null); // Clear the tracked filters
   }, []);
 
   /**
