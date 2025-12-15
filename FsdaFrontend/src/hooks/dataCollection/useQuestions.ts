@@ -171,7 +171,19 @@ export const useQuestions = ({
     const effectiveCommodities = filterOverrides?.commodities ?? selectedCommodities;
     const effectiveCountry = filterOverrides?.country ?? selectedCountry;
 
+    // STRICT REQUIREMENT: All 3 filters must be provided
     if (!effectiveRespondentType) {
+      console.log('⚠️ Cannot load questions: respondent type is required');
+      return [];
+    }
+
+    if (!effectiveCommodities || effectiveCommodities.length === 0) {
+      console.log('⚠️ Cannot load questions: at least one commodity is required');
+      return [];
+    }
+
+    if (!effectiveCountry) {
+      console.log('⚠️ Cannot load questions: country is required');
       return [];
     }
 
@@ -545,7 +557,11 @@ export const useQuestions = ({
         }
       }
 
-      if (selectedRespondentType && !generatingQuestions) {
+      // STRICT REQUIREMENT: Only auto-load when ALL 3 filters are provided
+      if (selectedRespondentType &&
+          selectedCommodities.length > 0 &&
+          selectedCountry &&
+          !generatingQuestions) {
         setCurrentPage(1); // Reset to first page
         // Pass current filter values explicitly to ensure correct filters are used
         const existingQuestions = await loadExistingQuestions(1, 100, false, {
@@ -566,6 +582,12 @@ export const useQuestions = ({
           setQuestionsGenerated(false);
           setLoadedWithFilters(null);
         }
+      } else if (selectedRespondentType || selectedCommodities.length > 0 || selectedCountry) {
+        // User is still selecting filters - clear questions until all 3 are provided
+        console.log('⏳ Waiting for all 3 filters (respondent, commodity, country) before loading questions');
+        setQuestions([]);
+        setQuestionsGenerated(false);
+        setLoadedWithFilters(null);
       }
     };
 
@@ -587,8 +609,19 @@ export const useQuestions = ({
    * This allows users to explicitly cache questions after generation
    */
   const cacheForOffline = useCallback(async (): Promise<void> => {
+    // STRICT REQUIREMENT: All 3 filters must be provided
     if (!selectedRespondentType) {
       showAlert('Required', 'Please select a respondent type first');
+      return;
+    }
+
+    if (!selectedCommodities || selectedCommodities.length === 0) {
+      showAlert('Required', 'Please select at least one commodity first');
+      return;
+    }
+
+    if (!selectedCountry) {
+      showAlert('Required', 'Please select a country first');
       return;
     }
 

@@ -159,13 +159,24 @@ const DataCollectionScreen: React.FC = () => {
       // Wait for state to update before generating questions
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // STRICT VALIDATION: Ensure all 3 filters are present in the draft
+      if (!draft.respondent_type || !draft.commodity || !draft.country) {
+        console.error('Cannot resume draft - missing required filters:', {
+          respondent_type: draft.respondent_type,
+          commodity: draft.commodity,
+          country: draft.country
+        });
+        alert('Cannot resume this draft - it is missing required information (respondent type, commodity, or country).');
+        return;
+      }
+
       // Load questions using the filtered API endpoint for this draft's criteria
       const filteredResponse = await apiService.getQuestionsForRespondent(
         projectId,
         {
           assigned_respondent_type: draft.respondent_type,
-          assigned_commodity: draft.commodity || '',
-          assigned_country: draft.country || '',
+          assigned_commodity: draft.commodity,
+          assigned_country: draft.country,
         },
         {
           page: 1,

@@ -1161,13 +1161,14 @@ class ModernQuestionViewSet(BaseModelViewSet):
         """
         Get questions filtered by respondent criteria for optimized loading.
 
-        Query params:
+        Query params (ALL REQUIRED):
         - project_id (required): Project ID
-        - assigned_respondent_type (optional): Filter by respondent type (e.g., 'farmers')
-        - assigned_commodity (optional): Filter by commodity (e.g., 'cocoa')
-        - assigned_country (optional): Filter by country (e.g., 'Ghana')
+        - assigned_respondent_type (required): Filter by respondent type (e.g., 'farmers')
+        - assigned_commodity (required): Filter by commodity (e.g., 'cocoa')
+        - assigned_country (required): Filter by country (e.g., 'Ghana')
 
-        Returns only questions matching the specified criteria, reducing payload size.
+        Returns only questions matching ALL specified criteria.
+        All 3 filters are mandatory to prevent loading incorrect question sets.
         """
         project_id = request.query_params.get('project_id')
         if not project_id:
@@ -1183,23 +1184,37 @@ class ModernQuestionViewSet(BaseModelViewSet):
             if not project.can_user_access(request.user):
                 raise ValidationError("You don't have permission to access this project")
 
-            # Get optional filters
+            # Get filters - ALL 3 ARE REQUIRED (strict filtering)
             assigned_respondent_type = request.query_params.get('assigned_respondent_type')
             assigned_commodity = request.query_params.get('assigned_commodity')
             assigned_country = request.query_params.get('assigned_country')
 
-            # Start with base queryset
-            queryset = self.get_queryset().filter(project=project)
+            # STRICT REQUIREMENT: All 3 filters must be provided
+            if not assigned_respondent_type:
+                return Response(
+                    {'error': 'assigned_respondent_type parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # Apply filters
-            if assigned_respondent_type:
-                queryset = queryset.filter(assigned_respondent_type=assigned_respondent_type)
+            if not assigned_commodity:
+                return Response(
+                    {'error': 'assigned_commodity parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            if assigned_commodity:
-                queryset = queryset.filter(assigned_commodity=assigned_commodity)
+            if not assigned_country:
+                return Response(
+                    {'error': 'assigned_country parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            if assigned_country:
-                queryset = queryset.filter(assigned_country=assigned_country)
+            # Start with base queryset and apply ALL filters (all 3 are mandatory)
+            queryset = self.get_queryset().filter(
+                project=project,
+                assigned_respondent_type=assigned_respondent_type,
+                assigned_commodity=assigned_commodity,
+                assigned_country=assigned_country
+            )
 
             # Get questions with category sorting already applied by get_queryset()
             questions = list(queryset)
