@@ -175,11 +175,13 @@ class Command(BaseCommand):
         self.stdout.write(f'📊 Found {total_responses_missing} responses with missing/incomplete filter metadata')
         self.stdout.write('')
 
+        # Initialize counters
+        response_updated_count = 0
+        response_skipped_count = 0
+
         if total_responses_missing == 0:
             self.stdout.write(self.style.SUCCESS('✅ All responses have complete filter metadata!'))
         else:
-            response_updated_count = 0
-            response_skipped_count = 0
 
             # Process in batches for efficiency
             batch_size = 100
