@@ -33,44 +33,15 @@ export const ResponseCard: React.FC<ResponseCardProps> = ({ response }) => {
           )}
         </View>
 
-        {questionBankSummary && (
+        {questionBankSummary?.question_category && (
           <View style={styles.metadataContainer}>
-            {questionBankSummary.question_category && (
-              <Chip
-                style={styles.categoryChip}
-                textStyle={styles.categoryChipText}
-                icon="folder-outline"
-                compact>
-                {questionBankSummary.question_category}
-              </Chip>
-            )}
-
-            <View style={styles.filtersRow}>
-              {questionBankSummary.assigned_respondent_type && (
-                <Chip
-                  style={styles.filterChip}
-                  textStyle={styles.filterChipText}
-                  compact>
-                  {questionBankSummary.assigned_respondent_type}
-                </Chip>
-              )}
-              {questionBankSummary.assigned_commodity && (
-                <Chip
-                  style={styles.filterChip}
-                  textStyle={styles.filterChipText}
-                  compact>
-                  {questionBankSummary.assigned_commodity}
-                </Chip>
-              )}
-              {questionBankSummary.assigned_country && (
-                <Chip
-                  style={styles.filterChip}
-                  textStyle={styles.filterChipText}
-                  compact>
-                  {questionBankSummary.assigned_country}
-                </Chip>
-              )}
-            </View>
+            <Chip
+              style={styles.categoryChip}
+              textStyle={styles.categoryChipText}
+              icon="folder-outline"
+              compact>
+              {questionBankSummary.question_category}
+            </Chip>
           </View>
         )}
 
@@ -135,19 +106,5 @@ const styles = StyleSheet.create({
     color: '#ff9800',
     fontSize: 11,
     fontWeight: '600',
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  filterChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.25)',
-  },
-  filterChipText: {
-    color: '#64c8ff',
-    fontSize: 10,
   },
 });

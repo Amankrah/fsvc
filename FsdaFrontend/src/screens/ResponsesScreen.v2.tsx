@@ -18,6 +18,7 @@ import {
   Menu,
   IconButton,
   Chip,
+  Button,
 } from 'react-native-paper';
 import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 
@@ -51,6 +52,11 @@ const ResponsesScreen: React.FC = () => {
     commodity?: string;
     country?: string;
   }>({});
+  const [filterMenusVisible, setFilterMenusVisible] = useState({
+    respondent_type: false,
+    commodity: false,
+    country: false,
+  });
 
   // Hooks
   const respondentsHook = useRespondents(projectId);
@@ -134,11 +140,32 @@ const ResponsesScreen: React.FC = () => {
       ...prev,
       [filterType]: prev[filterType] === value ? undefined : value,
     }));
+    // Close the menu after selection
+    setFilterMenusVisible(prev => ({
+      ...prev,
+      [filterType]: false,
+    }));
   };
 
   // Clear all filters
   const clearFilters = () => {
     setSelectedFilters({});
+  };
+
+  // Toggle menu visibility
+  const toggleFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
+    setFilterMenusVisible(prev => ({
+      ...prev,
+      [filterType]: !prev[filterType],
+    }));
+  };
+
+  // Close menu
+  const closeFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
+    setFilterMenusVisible(prev => ({
+      ...prev,
+      [filterType]: false,
+    }));
   };
 
   // Calculate stats
@@ -214,6 +241,21 @@ const ResponsesScreen: React.FC = () => {
           <Chip style={styles.detailChip} textStyle={styles.chipText}>
             🆔 {detailsHook.selectedRespondent.respondent_id}
           </Chip>
+          {detailsHook.selectedRespondent.respondent_type && (
+            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
+              {detailsHook.selectedRespondent.respondent_type}
+            </Chip>
+          )}
+          {detailsHook.selectedRespondent.commodity && (
+            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
+              {detailsHook.selectedRespondent.commodity}
+            </Chip>
+          )}
+          {detailsHook.selectedRespondent.country && (
+            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
+              {detailsHook.selectedRespondent.country}
+            </Chip>
+          )}
         </View>
 
         <ScrollView
@@ -317,76 +359,131 @@ const ResponsesScreen: React.FC = () => {
             />
           </View>
 
-          {/* Filter Chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterScrollView}
-            contentContainerStyle={styles.filterContainer}>
-            {Object.keys(selectedFilters).length > 0 && (
-              <Chip
-                style={styles.clearFilterChip}
-                textStyle={styles.clearFilterChipText}
+          {/* Filter Dropdowns */}
+          <View style={styles.filterContainer}>
+            {/* Respondent Type Filter */}
+            <Menu
+              visible={filterMenusVisible.respondent_type}
+              onDismiss={() => closeFilterMenu('respondent_type')}
+              anchor={
+                <Button
+                  mode="outlined"
+                  onPress={() => toggleFilterMenu('respondent_type')}
+                  style={[
+                    styles.filterButton,
+                    selectedFilters.respondent_type && styles.filterButtonActive
+                  ]}
+                  labelStyle={styles.filterButtonLabel}
+                  icon="chevron-down">
+                  Type: {selectedFilters.respondent_type || 'All'}
+                </Button>
+              }
+              contentStyle={styles.menuContent}>
+              <Menu.Item
+                onPress={() => toggleFilter('respondent_type', '')}
+                title="All"
+                titleStyle={styles.menuItemText}
+              />
+              {uniqueRespondentTypes.map(type => (
+                <Menu.Item
+                  key={type}
+                  onPress={() => toggleFilter('respondent_type', type)}
+                  title={type}
+                  titleStyle={[
+                    styles.menuItemText,
+                    selectedFilters.respondent_type === type && styles.menuItemTextSelected
+                  ]}
+                  leadingIcon={selectedFilters.respondent_type === type ? "check" : undefined}
+                />
+              ))}
+            </Menu>
+
+            {/* Commodity Filter */}
+            <Menu
+              visible={filterMenusVisible.commodity}
+              onDismiss={() => closeFilterMenu('commodity')}
+              anchor={
+                <Button
+                  mode="outlined"
+                  onPress={() => toggleFilterMenu('commodity')}
+                  style={[
+                    styles.filterButton,
+                    selectedFilters.commodity && styles.filterButtonActive
+                  ]}
+                  labelStyle={styles.filterButtonLabel}
+                  icon="chevron-down">
+                  Commodity: {selectedFilters.commodity || 'All'}
+                </Button>
+              }
+              contentStyle={styles.menuContent}>
+              <Menu.Item
+                onPress={() => toggleFilter('commodity', '')}
+                title="All"
+                titleStyle={styles.menuItemText}
+              />
+              {uniqueCommodities.map(commodity => (
+                <Menu.Item
+                  key={commodity}
+                  onPress={() => toggleFilter('commodity', commodity)}
+                  title={commodity}
+                  titleStyle={[
+                    styles.menuItemText,
+                    selectedFilters.commodity === commodity && styles.menuItemTextSelected
+                  ]}
+                  leadingIcon={selectedFilters.commodity === commodity ? "check" : undefined}
+                />
+              ))}
+            </Menu>
+
+            {/* Country Filter */}
+            <Menu
+              visible={filterMenusVisible.country}
+              onDismiss={() => closeFilterMenu('country')}
+              anchor={
+                <Button
+                  mode="outlined"
+                  onPress={() => toggleFilterMenu('country')}
+                  style={[
+                    styles.filterButton,
+                    selectedFilters.country && styles.filterButtonActive
+                  ]}
+                  labelStyle={styles.filterButtonLabel}
+                  icon="chevron-down">
+                  Country: {selectedFilters.country || 'All'}
+                </Button>
+              }
+              contentStyle={styles.menuContent}>
+              <Menu.Item
+                onPress={() => toggleFilter('country', '')}
+                title="All"
+                titleStyle={styles.menuItemText}
+              />
+              {uniqueCountries.map(country => (
+                <Menu.Item
+                  key={country}
+                  onPress={() => toggleFilter('country', country)}
+                  title={country}
+                  titleStyle={[
+                    styles.menuItemText,
+                    selectedFilters.country === country && styles.menuItemTextSelected
+                  ]}
+                  leadingIcon={selectedFilters.country === country ? "check" : undefined}
+                />
+              ))}
+            </Menu>
+
+            {/* Clear Filters Button */}
+            {Object.values(selectedFilters).some(v => v) && (
+              <Button
+                mode="text"
                 onPress={clearFilters}
-                icon="close-circle">
-                Clear Filters
-              </Chip>
+                style={styles.clearButton}
+                labelStyle={styles.clearButtonLabel}
+                icon="close">
+                Clear
+              </Button>
             )}
-
-            <Text style={styles.filterLabel}>Type:</Text>
-            {uniqueRespondentTypes.map(type => (
-              <Chip
-                key={type}
-                style={[
-                  styles.filterOptionChip,
-                  selectedFilters.respondent_type === type && styles.filterOptionChipSelected
-                ]}
-                textStyle={[
-                  styles.filterOptionChipText,
-                  selectedFilters.respondent_type === type && styles.filterOptionChipTextSelected
-                ]}
-                onPress={() => toggleFilter('respondent_type', type)}
-                selected={selectedFilters.respondent_type === type}>
-                {type}
-              </Chip>
-            ))}
-
-            <Text style={styles.filterLabel}>Commodity:</Text>
-            {uniqueCommodities.map(commodity => (
-              <Chip
-                key={commodity}
-                style={[
-                  styles.filterOptionChip,
-                  selectedFilters.commodity === commodity && styles.filterOptionChipSelected
-                ]}
-                textStyle={[
-                  styles.filterOptionChipText,
-                  selectedFilters.commodity === commodity && styles.filterOptionChipTextSelected
-                ]}
-                onPress={() => toggleFilter('commodity', commodity)}
-                selected={selectedFilters.commodity === commodity}>
-                {commodity}
-              </Chip>
-            ))}
-
-            <Text style={styles.filterLabel}>Country:</Text>
-            {uniqueCountries.map(country => (
-              <Chip
-                key={country}
-                style={[
-                  styles.filterOptionChip,
-                  selectedFilters.country === country && styles.filterOptionChipSelected
-                ]}
-                textStyle={[
-                  styles.filterOptionChipText,
-                  selectedFilters.country === country && styles.filterOptionChipTextSelected
-                ]}
-                onPress={() => toggleFilter('country', country)}
-                selected={selectedFilters.country === country}>
-                {country}
-              </Chip>
-            ))}
-          </ScrollView>
+          </View>
         </>
       )}
 
@@ -492,6 +589,7 @@ const styles = StyleSheet.create({
   },
   detailStats: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -504,6 +602,16 @@ const styles = StyleSheet.create({
   chipText: {
     color: '#64c8ff',
   },
+  filterChipSmall: {
+    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.25)',
+    height: 28,
+  },
+  filterChipTextSmall: {
+    color: '#64c8ff',
+    fontSize: 11,
+  },
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -515,51 +623,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 999,
   },
-  filterScrollView: {
-    backgroundColor: '#0f0f23',
-    maxHeight: 60,
-  },
   filterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: '#0f0f23',
+    flexWrap: 'wrap',
   },
-  filterLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 13,
-    fontWeight: '600',
-    marginLeft: 8,
-    marginRight: 4,
-  },
-  clearFilterChip: {
-    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+  filterButton: {
+    borderColor: 'rgba(100, 200, 255, 0.3)',
     borderWidth: 1,
-    borderColor: 'rgba(244, 67, 54, 0.3)',
-    marginRight: 8,
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    minWidth: 140,
   },
-  clearFilterChipText: {
-    color: '#f44336',
-    fontSize: 11,
-  },
-  filterOptionChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.25)',
-  },
-  filterOptionChipText: {
-    color: '#64c8ff',
-    fontSize: 11,
-  },
-  filterOptionChipSelected: {
-    backgroundColor: 'rgba(100, 200, 255, 0.4)',
+  filterButtonActive: {
     borderColor: '#64c8ff',
     borderWidth: 2,
+    backgroundColor: 'rgba(100, 200, 255, 0.25)',
   },
-  filterOptionChipTextSelected: {
-    color: '#ffffff',
+  filterButtonLabel: {
+    color: '#64c8ff',
+    fontSize: 13,
+  },
+  menuItemTextSelected: {
+    color: '#64c8ff',
     fontWeight: '600',
+  },
+  clearButton: {
+    marginLeft: 'auto',
+  },
+  clearButtonLabel: {
+    color: '#f44336',
+    fontSize: 12,
   },
 });
 
