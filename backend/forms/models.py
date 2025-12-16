@@ -642,6 +642,48 @@ class Question(models.Model):
         """Get list of partner names this question belongs to"""
         return [source for source in self.question_sources if source != 'owner']
 
+    def save(self, *args, **kwargs):
+        """
+        Override save to enforce database-level validation.
+
+        STRICT REQUIREMENT: All generated questions MUST have all 3 filter fields:
+        - assigned_respondent_type
+        - assigned_commodity
+        - assigned_country
+
+        This prevents incomplete questions from being saved to the database.
+        """
+        from django.core.exceptions import ValidationError
+
+        # Only validate generated questions (questions with any assigned_ field)
+        is_generated_question = (
+            self.assigned_respondent_type or
+            self.assigned_commodity or
+            self.assigned_country
+        )
+
+        if is_generated_question:
+            # If ANY filter is set, ALL three must be set
+            errors = []
+
+            if not self.assigned_respondent_type or self.assigned_respondent_type.strip() == '':
+                errors.append("assigned_respondent_type is required for generated questions")
+
+            if not self.assigned_commodity or self.assigned_commodity.strip() == '':
+                errors.append("assigned_commodity is required for generated questions")
+
+            if not self.assigned_country or self.assigned_country.strip() == '':
+                errors.append("assigned_country is required for generated questions")
+
+            if errors:
+                error_message = (
+                    "Database-level validation failed: Generated questions MUST have all 3 filters. "
+                    f"Missing: {', '.join(errors)}"
+                )
+                raise ValidationError(error_message)
+
+        super().save(*args, **kwargs)
+
     class Meta:
         # Custom ordering: Sociodemographics first, then other categories alphabetically
         # Note: For runtime ordering with Sociodemographics priority, use annotate + Case/When in views
