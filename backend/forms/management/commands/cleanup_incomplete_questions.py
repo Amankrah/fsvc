@@ -43,7 +43,7 @@ class Command(BaseCommand):
 
         # Find all questions for this project with incomplete filters
         incomplete_questions = Question.objects.filter(
-            problem_id=project_id
+            project_id=project_id
         ).filter(
             Q(assigned_respondent_type__isnull=True) |
             Q(assigned_respondent_type='') |
