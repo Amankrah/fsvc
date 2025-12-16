@@ -132,32 +132,10 @@ const DataCollectionScreen: React.FC = () => {
     }
   };
 
-  // Handle Resume Draft
+  // Handle Resume Draft - Optimized with cleaner flow
   const handleResumeDraft = async (draft: any) => {
     try {
       setShowDraftsDialog(false);
-
-      // Store the draft's database ID for submission
-      setResumedDraftDatabaseId(draft.id);
-
-      // Set respondent information first (using the draft's database ID as respondent_id)
-      respondent.setRespondentId(draft.respondent_id);
-      respondent.setSelectedRespondentType(draft.respondent_type || '');
-
-      const commodities = draft.commodity ? draft.commodity.split(',').map((c: string) => c.trim()) : [];
-      respondent.setSelectedCommodities(commodities);
-      respondent.setSelectedCountry(draft.country || '');
-
-      console.log('Resume criteria:', {
-        respondent_type: draft.respondent_type,
-        commodities: commodities,
-        commodity_string: draft.commodity,
-        country: draft.country,
-        database_id: draft.id
-      });
-
-      // Wait for state to update before generating questions
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       // STRICT VALIDATION: Ensure all 3 filters are present in the draft
       if (!draft.respondent_type || !draft.commodity || !draft.country) {
@@ -166,28 +144,59 @@ const DataCollectionScreen: React.FC = () => {
           commodity: draft.commodity,
           country: draft.country
         });
-        alert('Cannot resume this draft - it is missing required information (respondent type, commodity, or country).');
+        showAlert('Error', 'Cannot resume this draft - it is missing required information (respondent type, commodity, or country).');
         return;
       }
 
-      // Load questions using the filtered API endpoint for this draft's criteria
-      const filteredResponse = await apiService.getQuestionsForRespondent(
-        projectId,
-        {
-          assigned_respondent_type: draft.respondent_type,
-          assigned_commodity: draft.commodity,
-          assigned_country: draft.country,
-        },
-        {
-          page: 1,
-          page_size: 1000,
-        }
-      );
+      console.log('📋 Resuming draft:', {
+        database_id: draft.id,
+        respondent_id: draft.respondent_id,
+        respondent_type: draft.respondent_type,
+        commodity: draft.commodity,
+        country: draft.country,
+        response_count: draft.response_count
+      });
 
-      const matchingQuestions = filteredResponse.questions || [];
+      // Store the draft's database ID for submission
+      setResumedDraftDatabaseId(draft.id);
 
-      // Sort by category order first, then by order_index within each category
-      const loadedQuestions = matchingQuestions.sort((a: any, b: any) => {
+      // Set respondent information
+      respondent.setRespondentId(draft.respondent_id);
+      respondent.setSelectedRespondentType(draft.respondent_type);
+      const commodities = draft.commodity.split(',').map((c: string) => c.trim());
+      respondent.setSelectedCommodities(commodities);
+      respondent.setSelectedCountry(draft.country);
+
+      // Wait for state to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Load questions and responses in parallel for efficiency
+      const [questionsResponse, responsesData] = await Promise.all([
+        apiService.getQuestionsForRespondent(
+          projectId,
+          {
+            assigned_respondent_type: draft.respondent_type,
+            assigned_commodity: draft.commodity,
+            assigned_country: draft.country,
+          },
+          { page: 1, page_size: 1000 }
+        ),
+        apiService.getRespondentResponses(draft.id)
+      ]);
+
+      const loadedQuestions = questionsResponse.questions || [];
+
+      // Verify questions loaded
+      if (loadedQuestions.length === 0) {
+        console.error('❌ No questions loaded for draft criteria');
+        showAlert('Error', 'No questions found for this respondent criteria. Please ensure questions are generated for this combination.');
+        return;
+      }
+
+      console.log(`✅ Loaded ${loadedQuestions.length} questions for resume`);
+
+      // Sort questions by category and order
+      loadedQuestions.sort((a: any, b: any) => {
         const categoryA = a.question_category || '';
         const categoryB = b.question_category || '';
         const categoryIndexA = getCategorySortIndex(categoryA);
@@ -196,33 +205,18 @@ const DataCollectionScreen: React.FC = () => {
         if (categoryIndexA !== categoryIndexB) {
           return categoryIndexA - categoryIndexB;
         }
-
-        // Within same category, maintain original order
         return a.order_index - b.order_index;
       });
 
-      // Verify questions loaded
-      if (!loadedQuestions || loadedQuestions.length === 0) {
-        console.error('No questions loaded after generation');
-        showAlert('Error', 'Failed to load questions for this respondent. Please check that questions were generated for this criteria.');
-        return;
-      }
-
-      console.log(`Loaded ${loadedQuestions.length} questions for resume`);
-
-      // Load the draft's responses
-      const draftResponses = await apiService.getRespondentResponses(draft.id);
-
-      // Build the responses object and track pre-existing response question IDs
+      // Build responses object and track existing question IDs
       const loadedResponses: any = {};
       const existingQuestionIds = new Set<string>();
 
-      if (draftResponses.responses && draftResponses.responses.length > 0) {
-        draftResponses.responses.forEach((resp: any) => {
-          // Track this question ID as having a pre-existing response
+      if (responsesData.responses && responsesData.responses.length > 0) {
+        responsesData.responses.forEach((resp: any) => {
           existingQuestionIds.add(resp.question);
 
-          // Parse JSON arrays if needed
+          // Parse JSON values if needed
           let value = resp.response_value;
           try {
             if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
@@ -234,81 +228,101 @@ const DataCollectionScreen: React.FC = () => {
           loadedResponses[resp.question] = value;
         });
 
+        // Store pre-existing IDs before loading responses
+        setPreExistingResponseQuestionIds(existingQuestionIds);
+
         // Load all responses at once
         responses.loadResponses(loadedResponses);
-
-        // Store the pre-existing response question IDs
-        setPreExistingResponseQuestionIds(existingQuestionIds);
-        console.log(`Captured ${existingQuestionIds.size} pre-existing response question IDs`);
       }
 
-      console.log(`Loaded ${Object.keys(loadedResponses).length} existing responses`);
+      console.log(`✅ Loaded ${Object.keys(loadedResponses).length} existing responses`);
 
-      // Calculate resume position using the loaded questions
-      const answeredQuestionIds = new Set(Object.keys(loadedResponses));
+      // Get resume metadata from backend (includes calculated resume index)
+      const resumeIndex = responsesData.resume_metadata?.resume_index ?? 0;
+      const answeredCount = responsesData.resume_metadata?.answered_count ?? 0;
+      const totalQuestions = responsesData.resume_metadata?.available_question_count ?? 0;
 
-      console.log('Total questions captured:', loadedQuestions.length);
-      console.log('Answered questions:', answeredQuestionIds.size);
-
-      // Find the last answered question index
-      let lastAnsweredIndex = -1;
-      for (let i = loadedQuestions.length - 1; i >= 0; i--) {
-        if (answeredQuestionIds.has(loadedQuestions[i].id)) {
-          lastAnsweredIndex = i;
-          break;
-        }
-      }
-
-      console.log('Last answered index:', lastAnsweredIndex);
-
-      // Move to the next unanswered question (or stay at last if all answered)
-      const resumeIndex = Math.min(
-        lastAnsweredIndex + 1,
-        loadedQuestions.length - 1
-      );
-
-      console.log('Resume index:', resumeIndex);
-
-      const totalQuestions = loadedQuestions.length;
-      const answeredCount = answeredQuestionIds.size;
+      console.log(`📊 Backend calculated resume index: ${resumeIndex} (question ${resumeIndex + 1} of ${totalQuestions})`);
 
       // Start the survey
       setShowRespondentForm(false);
 
-      // Wait for UI to render, then set question index and show alert
+      // Set the resume index provided by backend
+      // Use setTimeout to ensure state updates have propagated
       setTimeout(() => {
-        // Set the question index to resume from
-        if (resumeIndex > 0) {
-          responses.setQuestionIndex(resumeIndex);
-        }
+        console.log(`🎯 Setting question index to ${resumeIndex}`);
+        responses.setQuestionIndex(resumeIndex);
 
-        showAlert(
-          'Draft Loaded',
-          `Resuming survey for ${draft.respondent_id}\n\n` +
-          `${answeredCount} of ${totalQuestions} questions already answered.\n` +
-          `Starting at question ${resumeIndex + 1}.`,
-          [{ text: 'Continue' }]
-        );
-      }, 200);
+        // Show success alert
+        setTimeout(() => {
+          showAlert(
+            'Draft Loaded',
+            `Resuming survey for ${draft.respondent_id}\n\n` +
+            `${answeredCount} of ${totalQuestions} questions answered.\n` +
+            `Starting at question ${resumeIndex + 1}.`,
+            [{ text: 'Continue' }]
+          );
+        }, 200);
+      }, 500);
 
     } catch (error: any) {
-      console.error('Error resuming draft:', error);
-      showAlert('Error', 'Failed to load draft. Please try again.');
+      console.error('❌ Error resuming draft:', error);
+
+      // Provide more helpful error message
+      const errorMsg = error?.response?.data?.error || error?.message || 'Unknown error';
+      showAlert(
+        'Error Loading Draft',
+        `Failed to load draft: ${errorMsg}\n\nPlease try again or contact support if the problem persists.`
+      );
     }
   };
 
   // Handle Generate Questions
   const handleGenerateQuestions = async () => {
+    // CRITICAL SECURITY: Block if any filter is missing
+    if (!respondent.selectedRespondentType || respondent.selectedCommodities.length === 0 || !respondent.selectedCountry) {
+      const missing = [];
+      if (!respondent.selectedRespondentType) missing.push('Respondent Type');
+      if (respondent.selectedCommodities.length === 0) missing.push('Commodity');
+      if (!respondent.selectedCountry) missing.push('Country');
+
+      showAlert(
+        'Cannot Generate Questions',
+        `All 3 filters are required to generate questions:\n\n` +
+        `Missing: ${missing.join(', ')}\n\n` +
+        `This requirement prevents data leakage and ensures data integrity.`
+      );
+      return;
+    }
+
     await questions.generateDynamicQuestions(false, false);
   };
 
   // Handle Start Survey
   const handleStartSurvey = () => {
     if (!respondent.respondentId) {
+      showAlert('Missing Information', 'Please provide a respondent ID');
+      return;
+    }
+
+    // CRITICAL SECURITY: Block if any filter is missing
+    if (!respondent.selectedRespondentType || respondent.selectedCommodities.length === 0 || !respondent.selectedCountry) {
+      const missing = [];
+      if (!respondent.selectedRespondentType) missing.push('Respondent Type');
+      if (respondent.selectedCommodities.length === 0) missing.push('Commodity');
+      if (!respondent.selectedCountry) missing.push('Country');
+
+      showAlert(
+        'Cannot Start Survey',
+        `All 3 filters are required:\n\n` +
+        `Missing: ${missing.join(', ')}\n\n` +
+        `Please complete all selections before starting the survey.`
+      );
       return;
     }
 
     if (responses.visibleQuestions.length === 0) {
+      showAlert('No Questions', 'Please generate questions before starting the survey');
       return;
     }
 

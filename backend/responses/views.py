@@ -262,21 +262,103 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=True, methods=['get'])
     def responses(self, request, pk=None):
-        """Get all responses for a specific respondent with detailed information"""
+        """
+        Get all responses for a specific respondent with detailed information and resume metadata.
+
+        Returns:
+        - responses: List of all existing responses (only those with valid questions)
+        - resume_metadata: Information for resuming draft including answered question IDs
+        """
         try:
+            from forms.models import Question
+            from django.db.models import Q
+
             respondent = self.get_object()
+
+            # Only get responses with valid questions (exclude orphaned responses)
             responses = Response.objects.filter(
-                respondent=respondent
+                respondent=respondent,
+                question__isnull=False
             ).select_related('question', 'collected_by', 'project').order_by('collected_at')
-            
+
             serializer = ResponseSerializer(responses, many=True)
+
+            # Get answered question IDs (already filtered for non-null questions)
+            answered_question_ids = list(
+                responses.values_list('question_id', flat=True).distinct()
+            )
+
+            # Convert UUIDs to strings for frontend consumption
+            answered_question_ids = [str(qid) for qid in answered_question_ids]
+
+            # STRICT FILTERING: Get questions matching ALL 3 required criteria
+            # This ensures we only count questions that are actually available for this respondent
+            available_questions = Question.objects.filter(
+                project=respondent.project,
+                assigned_respondent_type=respondent.respondent_type,
+                assigned_commodity=respondent.commodity or '',
+                assigned_country=respondent.country or ''
+            ).exclude(
+                Q(assigned_respondent_type__isnull=True) |
+                Q(assigned_respondent_type='') |
+                Q(assigned_commodity__isnull=True) |
+                Q(assigned_commodity='') |
+                Q(assigned_country__isnull=True) |
+                Q(assigned_country='')
+            )
+
+            # Get all available questions ordered properly (for calculating resume index)
+            # Sort questions by order_index (matches frontend ordering)
+            available_questions_list = list(available_questions.order_by('order_index'))
+            available_question_count = len(available_questions_list)
+
+            # Calculate resume index: find first unanswered question
+            answered_ids_set = set(answered_question_ids)
+            resume_index = 0
+            first_unanswered_question_id = None
+
+            for i, question in enumerate(available_questions_list):
+                if str(question.id) not in answered_ids_set:
+                    resume_index = i
+                    first_unanswered_question_id = str(question.id)
+                    break
+            else:
+                # All questions answered - resume at last question
+                if available_questions_list:
+                    resume_index = max(0, len(available_questions_list) - 1)
+
+            resume_metadata = {
+                'total_responses': responses.count(),
+                'answered_question_ids': answered_question_ids,
+                'answered_count': len(answered_question_ids),
+                'available_question_count': available_question_count,
+                'resume_index': resume_index,  # NEW: Index to resume at
+                'first_unanswered_question_id': first_unanswered_question_id,  # NEW: ID of first unanswered question
+                'respondent_filters': {
+                    'respondent_type': respondent.respondent_type,
+                    'commodity': respondent.commodity,
+                    'country': respondent.country
+                }
+            }
+
+            logger.info(
+                f"Retrieved {responses.count()} responses for respondent {respondent.id}, "
+                f"{available_question_count} questions available for criteria: "
+                f"{respondent.respondent_type}, {respondent.commodity}, {respondent.country}. "
+                f"Resume index: {resume_index}"
+            )
+
             return DRFResponse({
                 'respondent': RespondentSerializer(respondent).data,
-                'responses': serializer.data
+                'responses': serializer.data,
+                'resume_metadata': resume_metadata
             })
         except Exception as e:
+            logger.exception(f"Error getting responses for respondent {pk}")
+            import traceback
             return DRFResponse({
-                'error': f'Failed to get responses: {str(e)}'
+                'error': f'Failed to get responses: {str(e)}',
+                'traceback': traceback.format_exc()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])

@@ -1,6 +1,9 @@
 /**
  * useQuestions Hook
  * Manages question loading and dynamic generation
+ *
+ * CRITICAL SECURITY: ALL 3 FILTERS (respondent_type, commodity, country) ARE MANDATORY
+ * Questions will NOT be loaded without all 3 filters to prevent data leakage
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -10,6 +13,13 @@ import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
 import { offlineProjectCache, offlineQuestionCache, networkMonitor } from '../../services';
 import { getCategorySortIndex } from '../../constants/formBuilder';
+import {
+  validateQuestionFilters,
+  hasAllFilters,
+  getFilterErrorMessage,
+  logFilterState,
+  requireAllFilters
+} from '../../utils/questionFilters';
 
 interface UseQuestionsProps {
   projectId: string;
@@ -171,21 +181,42 @@ export const useQuestions = ({
     const effectiveCommodities = filterOverrides?.commodities ?? selectedCommodities;
     const effectiveCountry = filterOverrides?.country ?? selectedCountry;
 
-    // STRICT REQUIREMENT: All 3 filters must be provided
-    if (!effectiveRespondentType) {
-      console.log('⚠️ Cannot load questions: respondent type is required');
+    // Convert commodities array to string for validation
+    const commodityStr = (effectiveCommodities || []).join(',');
+
+    // CRITICAL SECURITY: Validate ALL 3 mandatory filters
+    const validation = validateQuestionFilters(
+      effectiveRespondentType,
+      commodityStr,
+      effectiveCountry
+    );
+
+    if (!validation.valid) {
+      console.error('❌ BLOCKED: Cannot load questions without all 3 filters', {
+        validation,
+        provided: {
+          respondentType: effectiveRespondentType || 'MISSING',
+          commodities: commodityStr || 'MISSING',
+          country: effectiveCountry || 'MISSING'
+        }
+      });
+
+      // Alert the user about missing filters
+      const errorMsg = getFilterErrorMessage(validation);
+      if (errorMsg) {
+        showError(errorMsg);
+      }
+
       return [];
     }
 
-    if (!effectiveCommodities || effectiveCommodities.length === 0) {
-      console.log('⚠️ Cannot load questions: at least one commodity is required');
-      return [];
-    }
-
-    if (!effectiveCountry) {
-      console.log('⚠️ Cannot load questions: country is required');
-      return [];
-    }
+    // Log successful validation
+    logFilterState(
+      'loadExistingQuestions',
+      effectiveRespondentType,
+      commodityStr,
+      effectiveCountry
+    );
 
     try {
       setLoadingQuestions(true);
@@ -338,10 +369,36 @@ export const useQuestions = ({
 
   const generateDynamicQuestions = useCallback(
     async (forceRegenerate: boolean = false, silent: boolean = false): Promise<Question[]> => {
-      if (!selectedRespondentType) {
-        showAlert('Required', 'Please select a respondent type');
+      // CRITICAL SECURITY: Validate ALL 3 mandatory filters before generating
+      const commodityStr = selectedCommodities.join(',');
+      const validation = validateQuestionFilters(
+        selectedRespondentType,
+        commodityStr,
+        selectedCountry
+      );
+
+      if (!validation.valid) {
+        console.error('❌ BLOCKED: Cannot generate questions without all 3 filters', {
+          validation,
+          provided: {
+            respondentType: selectedRespondentType || 'MISSING',
+            commodities: commodityStr || 'MISSING',
+            country: selectedCountry || 'MISSING'
+          }
+        });
+
+        const errorMsg = getFilterErrorMessage(validation);
+        showAlert('Missing Required Information', errorMsg);
         return [];
       }
+
+      // Log successful validation
+      logFilterState(
+        'generateDynamicQuestions',
+        selectedRespondentType,
+        commodityStr,
+        selectedCountry
+      );
 
       try {
         setGeneratingQuestions(true);

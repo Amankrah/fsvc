@@ -21,6 +21,11 @@ from .validators import (
     validate_conditional_logic_integrity,
     auto_fix_question_order
 )
+from .question_validators import (
+    validate_question_filters,
+    require_all_filters,
+    validate_question_bundle
+)
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import QuestionFilter
 import logging
@@ -747,11 +752,16 @@ class ModernQuestionViewSet(BaseModelViewSet):
     
     @action(detail=False, methods=['post'])
     def generate_dynamic_questions(self, request):
-        """Generate dynamic questions from QuestionBank for a project"""
+        """
+        CRITICAL SECURITY ENDPOINT: Generate dynamic questions from QuestionBank.
+
+        ALL 3 FILTERS (respondent_type, commodity, country) ARE MANDATORY.
+        This prevents generating questions without proper categorization.
+        """
         serializer = GenerateDynamicQuestionsSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             # Get validated data
             project_id = serializer.validated_data['project']
@@ -763,19 +773,36 @@ class ModernQuestionViewSet(BaseModelViewSet):
             use_project_bank_only = serializer.validated_data.get('use_project_bank_only', True)
             replace_existing = serializer.validated_data.get('replace_existing', False)
             notes = serializer.validated_data.get('notes', '')
-            
+
+            # CRITICAL SECURITY: Validate ALL 3 filters before generating questions
+            validation_result = validate_question_filters(
+                respondent_type,
+                commodity,
+                country,
+                raise_exception=False
+            )
+
+            if not validation_result.get('valid'):
+                logger.error(
+                    f"SECURITY: generate_dynamic_questions validation failed for project {project_id}. "
+                    f"Missing filters: {validation_result.get('missing_filters')}"
+                )
+                return Response(validation_result, status=status.HTTP_400_BAD_REQUEST)
+
             # Get project and check permissions
             from projects.models import Project
             try:
                 project = Project.objects.get(id=project_id)
             except Project.DoesNotExist:
+                logger.error(f"Project {project_id} not found during question generation")
                 return Response(
                     {'error': 'Project not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            
+
             # Members can generate questions (use question bank), but only owners can add to question bank
             if not project.can_user_access(request.user):
+                logger.warning(f"Unauthorized question generation attempt by {request.user} for project {project_id}")
                 raise ValidationError("You don't have permission to generate questions for this project")
             
             # DEBUG: Log parameters
@@ -1170,21 +1197,28 @@ class ModernQuestionViewSet(BaseModelViewSet):
     @action(detail=False, methods=['get'])
     def get_for_respondent(self, request):
         """
-        Get questions filtered by respondent criteria for optimized loading.
+        CRITICAL SECURITY ENDPOINT: Get questions filtered by respondent criteria.
 
-        Query params (ALL REQUIRED):
+        Query params (ALL 3 REQUIRED - STRICTLY ENFORCED):
         - project_id (required): Project ID
         - assigned_respondent_type (required): Filter by respondent type (e.g., 'farmers')
         - assigned_commodity (required): Filter by commodity (e.g., 'cocoa')
         - assigned_country (required): Filter by country (e.g., 'Ghana')
 
         Returns only questions matching ALL specified criteria.
-        All 3 filters are mandatory to prevent loading incorrect question sets.
+        All 3 filters are mandatory to prevent:
+        - Data leakage across respondent types
+        - Cross-commodity data mixing
+        - Cross-country data contamination
         """
         project_id = request.query_params.get('project_id')
         if not project_id:
+            logger.error("get_for_respondent called without project_id")
             return Response(
-                {'error': 'project_id parameter is required'},
+                {
+                    'error': 'project_id parameter is required',
+                    'security_note': 'This endpoint requires project context'
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1193,31 +1227,28 @@ class ModernQuestionViewSet(BaseModelViewSet):
             from projects.models import Project
             project = Project.objects.get(id=project_id)
             if not project.can_user_access(request.user):
+                logger.warning(f"Unauthorized access attempt to project {project_id} by {request.user}")
                 raise ValidationError("You don't have permission to access this project")
 
-            # Get filters - ALL 3 ARE REQUIRED (strict filtering)
+            # Get filters
             assigned_respondent_type = request.query_params.get('assigned_respondent_type')
             assigned_commodity = request.query_params.get('assigned_commodity')
             assigned_country = request.query_params.get('assigned_country')
 
-            # STRICT REQUIREMENT: All 3 filters must be provided
-            if not assigned_respondent_type:
-                return Response(
-                    {'error': 'assigned_respondent_type parameter is required'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # CRITICAL SECURITY: Validate ALL 3 filters are present
+            validation_result = validate_question_filters(
+                assigned_respondent_type,
+                assigned_commodity,
+                assigned_country,
+                raise_exception=False
+            )
 
-            if not assigned_commodity:
-                return Response(
-                    {'error': 'assigned_commodity parameter is required'},
-                    status=status.HTTP_400_BAD_REQUEST
+            if not validation_result.get('valid'):
+                logger.error(
+                    f"SECURITY: get_for_respondent validation failed for project {project_id}. "
+                    f"Missing filters: {validation_result.get('missing_filters')}"
                 )
-
-            if not assigned_country:
-                return Response(
-                    {'error': 'assigned_country parameter is required'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response(validation_result, status=status.HTTP_400_BAD_REQUEST)
 
             # Start with base queryset and apply ALL filters (all 3 are mandatory)
             queryset = self.get_queryset().filter(
