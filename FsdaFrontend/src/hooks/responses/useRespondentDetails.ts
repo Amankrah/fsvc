@@ -15,6 +15,21 @@ export interface QuestionDetail {
   response_type: string;
 }
 
+export interface QuestionBankSummary {
+  question_category?: string;
+  data_source?: string;
+  research_partner?: string;
+  work_package?: string;
+  is_owner_question?: boolean;
+  question_sources?: string[];
+  respondent_type?: string;
+  commodity?: string;
+  country?: string;
+  assigned_respondent_type?: string;
+  assigned_commodity?: string;
+  assigned_country?: string;
+}
+
 export interface ResponseDetail {
   response_id: string;
   question: string;
@@ -22,6 +37,7 @@ export interface ResponseDetail {
   response_value: string;
   collected_at: string;
   is_validated: boolean;
+  question_bank_summary?: QuestionBankSummary;
 }
 
 export const useRespondentDetails = () => {

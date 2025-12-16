@@ -517,7 +517,10 @@ class RespondentViewSet(BaseModelViewSet):
                         'text': q.question_text,
                         'response_type': q.response_type,
                         'category': q.question_category,
-                        'order': q.order_index
+                        'order': q.order_index,
+                        'assigned_respondent_type': q.assigned_respondent_type,
+                        'assigned_commodity': q.assigned_commodity,
+                        'assigned_country': q.assigned_country
                     } for q in questions
                 ],
                 'respondents': []
@@ -543,7 +546,10 @@ class RespondentViewSet(BaseModelViewSet):
                     response_data = {
                         'question_id': response.question_id,
                         'question_text': response.question.question_text,
-                        'question_category': response.question.question_category
+                        'question_category': response.question.question_category,
+                        'assigned_respondent_type': response.question.assigned_respondent_type,
+                        'assigned_commodity': response.question.assigned_commodity,
+                        'assigned_country': response.question.assigned_country
                     }
 
                     # Parse response value based on type

@@ -602,14 +602,22 @@ class Response(models.Model):
         if not self.response_type_id and self.question:
             self.response_type = self.question.get_expected_response_type()
 
-        # Auto-populate question metadata from QuestionBank source
-        if self.question and self.question.question_bank_source:
-            bank_source = self.question.question_bank_source
-            self.question_category = bank_source.question_category
-            self.question_data_source = bank_source.data_source
-            self.research_partner_name = bank_source.research_partner_name
-            self.work_package = bank_source.work_package
-        
+        # Auto-populate question metadata from QuestionBank source OR directly from Question
+        if self.question:
+            if self.question.question_bank_source:
+                # Prefer QuestionBank source if available
+                bank_source = self.question.question_bank_source
+                self.question_category = bank_source.question_category
+                self.question_data_source = bank_source.data_source
+                self.research_partner_name = bank_source.research_partner_name
+                self.work_package = bank_source.work_package
+            else:
+                # Fallback to Question's own fields for manually created questions
+                self.question_category = self.question.question_category
+                self.question_data_source = self.question.data_source if hasattr(self.question, 'data_source') else 'internal'
+                self.research_partner_name = self.question.research_partner_name if hasattr(self.question, 'research_partner_name') else ''
+                self.work_package = self.question.work_package if hasattr(self.question, 'work_package') else ''
+
         # Auto-populate question ownership from Question model
         if self.question:
             self.is_owner_question = self.question.is_owner_question
@@ -644,14 +652,15 @@ class Response(models.Model):
                     'priority_score': bank_source.priority_score,
                 })
             
-            # Question assignment context
+            # Question assignment context (filters + category)
             if self.question:
                 context.update({
                     'assigned_respondent_type': self.question.assigned_respondent_type,
                     'assigned_commodity': self.question.assigned_commodity,
                     'assigned_country': self.question.assigned_country,
+                    'question_category': self.question.question_category,  # Include custom category
                 })
-            
+
             self.question_bank_context = context
 
         # Auto-populate structured fields based on response type
@@ -935,7 +944,8 @@ class Response(models.Model):
         )
     
     def get_question_bank_summary(self):
-        """Get a summary of question bank context for this response"""
+        """Get a summary of question bank context for this response including filter metadata"""
+        context = self.question_bank_context or {}
         return {
             'question_category': self.question_category,
             'data_source': self.question_data_source,
@@ -943,9 +953,14 @@ class Response(models.Model):
             'work_package': self.work_package,
             'is_owner_question': self.is_owner_question,
             'question_sources': self.question_sources,
-            'respondent_type': self.question_bank_context.get('respondent_type'),
-            'commodity': self.question_bank_context.get('commodity'),
-            'country': self.question_bank_context.get('country'),
+            # Respondent's actual filters
+            'respondent_type': context.get('respondent_type'),
+            'commodity': context.get('commodity'),
+            'country': context.get('country'),
+            # Question's assigned filters (what set of questions this response belongs to)
+            'assigned_respondent_type': context.get('assigned_respondent_type'),
+            'assigned_commodity': context.get('assigned_commodity'),
+            'assigned_country': context.get('assigned_country'),
         }
     
     def is_from_question_bank(self):
