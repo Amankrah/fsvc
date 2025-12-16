@@ -49,6 +49,17 @@ class ModernQuestionViewSet(BaseModelViewSet):
 
         queryset = Question.objects.select_related('project').prefetch_related('project__members')
 
+        # STRICT FILTERING: Only include questions with ALL 3 required filters
+        # This prevents loading questions with incomplete metadata
+        queryset = queryset.exclude(
+            Q(assigned_respondent_type__isnull=True) |
+            Q(assigned_respondent_type='') |
+            Q(assigned_commodity__isnull=True) |
+            Q(assigned_commodity='') |
+            Q(assigned_country__isnull=True) |
+            Q(assigned_country='')
+        )
+
         # Filter by user access
         user = self.request.user
         if not user.is_superuser:

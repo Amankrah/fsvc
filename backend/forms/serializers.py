@@ -358,16 +358,15 @@ class GenerateDynamicQuestionsSerializer(serializers.Serializer):
     )
     commodity = serializers.CharField(
         max_length=500,
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        help_text="Specific commodity or comma-separated list of commodities (e.g., 'cocoa' or 'cocoa,coffee')"
+        required=True,
+        allow_blank=False,
+        help_text="REQUIRED: Specific commodity or comma-separated list of commodities (e.g., 'cocoa' or 'cocoa,coffee')"
     )
     country = serializers.CharField(
         max_length=100,
-        required=False,
-        allow_null=True,
-        help_text="Specific country"
+        required=True,
+        allow_blank=False,
+        help_text="REQUIRED: Specific country"
     )
     categories = serializers.MultipleChoiceField(
         choices=QuestionBank.CATEGORY_CHOICES,
