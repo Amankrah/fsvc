@@ -137,10 +137,11 @@ class Command(BaseCommand):
 
         # Complete context (has all 3 assigned_ fields)
         complete_context = Response.objects.filter(
-            project=project,
-            question_bank_context__has_key='assigned_respondent_type',
-            question_bank_context__has_key='assigned_commodity',
-            question_bank_context__has_key='assigned_country'
+            project=project
+        ).filter(
+            Q(question_bank_context__has_key='assigned_respondent_type') &
+            Q(question_bank_context__has_key='assigned_commodity') &
+            Q(question_bank_context__has_key='assigned_country')
         ).count()
 
         # Missing context
