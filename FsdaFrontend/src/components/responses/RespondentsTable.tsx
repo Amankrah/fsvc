@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import { DataTable } from 'react-native-paper';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { DataTable, Chip } from 'react-native-paper';
 import { Respondent } from '../../hooks/responses';
 import { ITEMS_PER_PAGE } from '../../constants/responses';
 
@@ -29,6 +29,7 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
       <DataTable.Header style={styles.tableHeader}>
         <DataTable.Title textStyle={styles.headerText}>Respondent ID</DataTable.Title>
         <DataTable.Title textStyle={styles.headerText}>Name</DataTable.Title>
+        <DataTable.Title textStyle={styles.headerText}>Filters</DataTable.Title>
         <DataTable.Title textStyle={styles.headerText} numeric>
           Responses
         </DataTable.Title>
@@ -43,6 +44,25 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
             <DataTable.Cell textStyle={styles.cellText}>{respondent.respondent_id}</DataTable.Cell>
             <DataTable.Cell textStyle={styles.cellText}>
               {respondent.name || 'Anonymous'}
+            </DataTable.Cell>
+            <DataTable.Cell>
+              <View style={styles.filtersCell}>
+                {respondent.respondent_type && (
+                  <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                    {respondent.respondent_type}
+                  </Chip>
+                )}
+                {respondent.commodity && (
+                  <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                    {respondent.commodity}
+                  </Chip>
+                )}
+                {respondent.country && (
+                  <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                    {respondent.country}
+                  </Chip>
+                )}
+              </View>
             </DataTable.Cell>
             <DataTable.Cell textStyle={styles.cellText} numeric>
               {respondent.response_count}
@@ -94,5 +114,21 @@ const styles = StyleSheet.create({
   },
   pagination: {
     backgroundColor: 'rgba(75, 30, 133, 0.15)',
+  },
+  filtersCell: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  filterChip: {
+    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.25)',
+    height: 24,
+  },
+  filterChipText: {
+    color: '#64c8ff',
+    fontSize: 9,
   },
 });

@@ -46,6 +46,11 @@ const ResponsesScreen: React.FC = () => {
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
+  const [selectedFilters, setSelectedFilters] = useState<{
+    respondent_type?: string;
+    commodity?: string;
+    country?: string;
+  }>({});
 
   // Hooks
   const respondentsHook = useRespondents(projectId);
@@ -79,6 +84,61 @@ const ResponsesScreen: React.FC = () => {
   const handleBack = () => {
     detailsHook.clearSelection();
     setViewMode('list');
+  };
+
+  // Extract unique filter values
+  const uniqueRespondentTypes = React.useMemo(() => {
+    const types = new Set<string>();
+    respondentsHook.respondents.forEach(r => {
+      if (r.respondent_type) types.add(r.respondent_type);
+    });
+    return Array.from(types).sort();
+  }, [respondentsHook.respondents]);
+
+  const uniqueCommodities = React.useMemo(() => {
+    const commodities = new Set<string>();
+    respondentsHook.respondents.forEach(r => {
+      if (r.commodity) commodities.add(r.commodity);
+    });
+    return Array.from(commodities).sort();
+  }, [respondentsHook.respondents]);
+
+  const uniqueCountries = React.useMemo(() => {
+    const countries = new Set<string>();
+    respondentsHook.respondents.forEach(r => {
+      if (r.country) countries.add(r.country);
+    });
+    return Array.from(countries).sort();
+  }, [respondentsHook.respondents]);
+
+  // Apply filters to respondents
+  const filteredRespondents = React.useMemo(() => {
+    let filtered = searchHook.filteredRespondents;
+
+    if (selectedFilters.respondent_type) {
+      filtered = filtered.filter(r => r.respondent_type === selectedFilters.respondent_type);
+    }
+    if (selectedFilters.commodity) {
+      filtered = filtered.filter(r => r.commodity === selectedFilters.commodity);
+    }
+    if (selectedFilters.country) {
+      filtered = filtered.filter(r => r.country === selectedFilters.country);
+    }
+
+    return filtered;
+  }, [searchHook.filteredRespondents, selectedFilters]);
+
+  // Toggle filter selection
+  const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
+    setSelectedFilters(prev => ({
+      ...prev,
+      [filterType]: prev[filterType] === value ? undefined : value,
+    }));
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSelectedFilters({});
   };
 
   // Calculate stats
@@ -118,7 +178,7 @@ const ResponsesScreen: React.FC = () => {
         totalResponses={totalResponses}
       />
       <RespondentsTable
-        respondents={searchHook.filteredRespondents}
+        respondents={filteredRespondents}
         onRespondentPress={handleRespondentPress}
       />
     </ScrollView>
@@ -235,26 +295,99 @@ const ResponsesScreen: React.FC = () => {
 
       {/* Search Bar (List view only) */}
       {viewMode === 'list' && (
-        <View style={styles.searchContainer}>
-          <Searchbar
-            placeholder="Search respondents..."
-            onChangeText={searchHook.handleSearch}
-            value={searchHook.searchQuery}
-            style={styles.searchBar}
-            inputStyle={styles.searchInput}
-            iconColor="#64c8ff"
-            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-            theme={{
-              colors: {
-                onSurface: '#ffffff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                elevation: {
-                  level3: 'rgba(75, 30, 133, 0.3)',
+        <>
+          <View style={styles.searchContainer}>
+            <Searchbar
+              placeholder="Search respondents..."
+              onChangeText={searchHook.handleSearch}
+              value={searchHook.searchQuery}
+              style={styles.searchBar}
+              inputStyle={styles.searchInput}
+              iconColor="#64c8ff"
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              theme={{
+                colors: {
+                  onSurface: '#ffffff',
+                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                  elevation: {
+                    level3: 'rgba(75, 30, 133, 0.3)',
+                  },
                 },
-              },
-            }}
-          />
-        </View>
+              }}
+            />
+          </View>
+
+          {/* Filter Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScrollView}
+            contentContainerStyle={styles.filterContainer}>
+            {Object.keys(selectedFilters).length > 0 && (
+              <Chip
+                style={styles.clearFilterChip}
+                textStyle={styles.clearFilterChipText}
+                onPress={clearFilters}
+                icon="close-circle">
+                Clear Filters
+              </Chip>
+            )}
+
+            <Text style={styles.filterLabel}>Type:</Text>
+            {uniqueRespondentTypes.map(type => (
+              <Chip
+                key={type}
+                style={[
+                  styles.filterOptionChip,
+                  selectedFilters.respondent_type === type && styles.filterOptionChipSelected
+                ]}
+                textStyle={[
+                  styles.filterOptionChipText,
+                  selectedFilters.respondent_type === type && styles.filterOptionChipTextSelected
+                ]}
+                onPress={() => toggleFilter('respondent_type', type)}
+                selected={selectedFilters.respondent_type === type}>
+                {type}
+              </Chip>
+            ))}
+
+            <Text style={styles.filterLabel}>Commodity:</Text>
+            {uniqueCommodities.map(commodity => (
+              <Chip
+                key={commodity}
+                style={[
+                  styles.filterOptionChip,
+                  selectedFilters.commodity === commodity && styles.filterOptionChipSelected
+                ]}
+                textStyle={[
+                  styles.filterOptionChipText,
+                  selectedFilters.commodity === commodity && styles.filterOptionChipTextSelected
+                ]}
+                onPress={() => toggleFilter('commodity', commodity)}
+                selected={selectedFilters.commodity === commodity}>
+                {commodity}
+              </Chip>
+            ))}
+
+            <Text style={styles.filterLabel}>Country:</Text>
+            {uniqueCountries.map(country => (
+              <Chip
+                key={country}
+                style={[
+                  styles.filterOptionChip,
+                  selectedFilters.country === country && styles.filterOptionChipSelected
+                ]}
+                textStyle={[
+                  styles.filterOptionChipText,
+                  selectedFilters.country === country && styles.filterOptionChipTextSelected
+                ]}
+                onPress={() => toggleFilter('country', country)}
+                selected={selectedFilters.country === country}>
+                {country}
+              </Chip>
+            ))}
+          </ScrollView>
+        </>
       )}
 
       {/* Content */}
@@ -381,6 +514,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
+  },
+  filterScrollView: {
+    backgroundColor: '#0f0f23',
+    maxHeight: 60,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  filterLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 8,
+    marginRight: 4,
+  },
+  clearFilterChip: {
+    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 67, 54, 0.3)',
+    marginRight: 8,
+  },
+  clearFilterChipText: {
+    color: '#f44336',
+    fontSize: 11,
+  },
+  filterOptionChip: {
+    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 200, 255, 0.25)',
+  },
+  filterOptionChipText: {
+    color: '#64c8ff',
+    fontSize: 11,
+  },
+  filterOptionChipSelected: {
+    backgroundColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: '#64c8ff',
+    borderWidth: 2,
+  },
+  filterOptionChipTextSelected: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });
 

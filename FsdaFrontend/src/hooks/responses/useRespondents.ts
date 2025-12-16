@@ -17,6 +17,9 @@ export interface Respondent {
   last_response_at?: string;
   response_count: number;
   completion_rate: number;
+  respondent_type?: string;
+  commodity?: string;
+  country?: string;
 }
 
 export const useRespondents = (projectId: string) => {

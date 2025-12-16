@@ -436,6 +436,9 @@ class RespondentViewSet(BaseModelViewSet):
                 ).select_related('question')
 
                 for response in responses:
+                    # Skip responses with deleted questions
+                    if not response.question:
+                        continue
                     formatted_value = self.format_response_for_csv(
                         response.response_value,
                         response.question.response_type
@@ -543,6 +546,10 @@ class RespondentViewSet(BaseModelViewSet):
                 ).select_related('question').order_by('question__order_index')
 
                 for response in responses:
+                    # Skip responses with deleted questions
+                    if not response.question:
+                        continue
+
                     response_data = {
                         'question_id': response.question_id,
                         'question_text': response.question.question_text,
