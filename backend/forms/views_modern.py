@@ -1609,22 +1609,23 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 responses__project_id=project_id
             ).distinct()
 
-            completed_respondents = []
-            total_respondents = respondents_with_responses.count()
+            # Get all respondents for this bundle (based on their filters)
+            all_respondents_in_bundle = Respondent.objects.filter(
+                project_id=project_id,
+                respondent_type=respondent_type,
+                commodity=commodity,
+                country=country
+            )
 
-            for respondent in respondents_with_responses:
-                # Count how many questions from this bundle the respondent answered (non-empty)
-                answered_count = ResponseModel.objects.filter(
-                    respondent=respondent,
-                    question_id__in=question_ids,
-                    project_id=project_id
-                ).exclude(
-                    Q(response_value__isnull=True) | Q(response_value='')
-                ).values('question_id').distinct().count()
+            total_respondents = all_respondents_in_bundle.count()
 
-                # If they answered all questions, they completed the bundle
-                if answered_count == total_questions:
-                    completed_respondents.append(respondent.id)
+            # Use completion_status as the authoritative source
+            # This is more reliable than counting responses
+            completed_respondents_qs = all_respondents_in_bundle.filter(
+                completion_status='completed'
+            )
+
+            completed_respondents = list(completed_respondents_qs.values_list('id', flat=True))
 
             bundle_stats.append({
                 'respondent_type': respondent_type,
