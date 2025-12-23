@@ -93,12 +93,16 @@ const ResponsesScreen: React.FC = () => {
       const apiPage = page + 1;
       const data = await apiService.getRespondents(projectId, apiPage, itemsPerPage);
 
+      // Debug: Log the entire response structure
+      console.log('🔍 API Response:', JSON.stringify(data, null, 2));
+
       // Extract paginated data
       const respondentList = Array.isArray(data) ? data : data.results || [];
       // Backend uses 'total' field (not 'count') for total count
       const count = data.total || data.count || respondentList.length;
 
       console.log(`📊 Loaded page ${apiPage}: ${respondentList.length} respondents (${count} total)`);
+      console.log(`📊 Data structure: total=${data.total}, count=${data.count}, results.length=${respondentList.length}`);
 
       setRespondents(respondentList);
       setFilteredRespondents(respondentList);
