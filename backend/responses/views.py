@@ -363,22 +363,47 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=False, methods=['get'])
     def with_response_counts(self, request):
-        """Get respondents with their response counts - optimized for list view"""
+        """
+        Get respondents with their response counts - optimized for list view with pagination.
+
+        Query params:
+        - project_id: Filter by project (required)
+        - completion_status: Filter by status (draft/completed/abandoned)
+        - page: Page number (default: 1)
+        - page_size: Items per page (default: 50, max: 100)
+        """
         try:
-            queryset = self.get_queryset().annotate(
+            # CRITICAL: Only select necessary fields to reduce data transfer
+            queryset = self.get_queryset().only(
+                'id', 'respondent_id', 'created_at', 'last_response_at',
+                'completion_status', 'respondent_type', 'commodity', 'country',
+                'project_id'
+            ).select_related(
+                'project'  # Optimize foreign key access
+            ).annotate(
                 response_count=Count('responses'),
                 last_response_date=Max('responses__collected_at')
-            ).order_by('-created_at')
+            )
 
-            # Pagination
+            # Filter by completion status if provided
+            completion_status = request.query_params.get('completion_status')
+            if completion_status:
+                queryset = queryset.filter(completion_status=completion_status)
+
+            # Order by most recent first for better UX
+            queryset = queryset.order_by('-created_at')
+
+            # CRITICAL: Always use pagination for large datasets
             page = self.paginate_queryset(queryset)
             if page is not None:
                 serializer = self.get_serializer(page, many=True)
                 return self.get_paginated_response(serializer.data)
 
+            # Fallback (shouldn't reach here with pagination)
             serializer = self.get_serializer(queryset, many=True)
             return DRFResponse(serializer.data)
         except Exception as e:
+            logger.exception("Error in with_response_counts")
             return DRFResponse({
                 'error': f'Failed to get respondents with counts: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

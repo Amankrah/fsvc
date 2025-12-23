@@ -611,8 +611,9 @@ class ApiService {
   }
 
   // Respondent endpoints
-  async getRespondents(projectId: string) {
-    return await this.get(`/responses/respondents/?project_id=${projectId}&page_size=1000`);
+  async getRespondents(projectId: string, page: number = 1, pageSize: number = 50) {
+    // Use the optimized with_response_counts endpoint with pagination
+    return await this.get(`/responses/respondents/with_response_counts/?project_id=${projectId}&page=${page}&page_size=${pageSize}`);
   }
 
   async createRespondent(data: any) {
