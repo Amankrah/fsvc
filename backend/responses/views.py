@@ -373,12 +373,9 @@ class RespondentViewSet(BaseModelViewSet):
         - page_size: Items per page (default: 50, max: 100)
         """
         try:
-            # CRITICAL: Only select necessary fields to reduce data transfer
-            queryset = self.get_queryset().only(
-                'id', 'respondent_id', 'created_at', 'last_response_at',
-                'completion_status', 'respondent_type', 'commodity', 'country',
-                'project_id'
-            ).select_related(
+            # CRITICAL: Optimize queryset for performance
+            # Note: Can't use .only() with .select_related() on ForeignKey fields
+            queryset = self.get_queryset().select_related(
                 'project'  # Optimize foreign key access
             ).annotate(
                 response_count=Count('responses'),
