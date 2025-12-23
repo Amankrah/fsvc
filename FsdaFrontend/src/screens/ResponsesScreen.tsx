@@ -66,12 +66,13 @@ const ResponsesScreen: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [menuVisible, setMenuVisible] = useState(false);
   const [page, setPage] = useState(0);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50); // Server-side pagination: 50 items per page
+  const [totalCount, setTotalCount] = useState(0); // Total count from server
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, [page]) // Reload when page changes
   );
 
   const loadData = async () => {
@@ -88,10 +89,19 @@ const ResponsesScreen: React.FC = () => {
 
   const loadRespondents = async () => {
     try {
-      const data = await apiService.getRespondents(projectId);
+      // Use server-side pagination: page is 0-indexed in UI but 1-indexed in API
+      const apiPage = page + 1;
+      const data = await apiService.getRespondents(projectId, apiPage, itemsPerPage);
+
+      // Extract paginated data
       const respondentList = Array.isArray(data) ? data : data.results || [];
+      const count = data.count || respondentList.length;
+
+      console.log(`📊 Loaded page ${apiPage}: ${respondentList.length} respondents (${count} total)`);
+
       setRespondents(respondentList);
       setFilteredRespondents(respondentList);
+      setTotalCount(count);
     } catch (error) {
       console.error('Error loading respondents:', error);
       throw error;
@@ -211,12 +221,12 @@ const ResponsesScreen: React.FC = () => {
   };
 
   const renderListView = () => {
+    // Server-side pagination: display current page items directly
     const from = page * itemsPerPage;
-    const to = Math.min((page + 1) * itemsPerPage, filteredRespondents.length);
-    const paginatedData = filteredRespondents.slice(from, to);
+    const to = Math.min(from + filteredRespondents.length, totalCount);
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
@@ -232,7 +242,7 @@ const ResponsesScreen: React.FC = () => {
           <Card style={styles.statCard}>
             <Card.Content style={styles.statContent}>
               <Text variant="headlineMedium" style={styles.statNumber}>
-                {respondents.length}
+                {totalCount}
               </Text>
               <Text variant="bodyMedium" style={styles.statLabel}>
                 Total Respondents
@@ -246,7 +256,7 @@ const ResponsesScreen: React.FC = () => {
                 {respondents.reduce((sum, r) => sum + r.response_count, 0)}
               </Text>
               <Text variant="bodyMedium" style={styles.statLabel}>
-                Total Responses
+                Responses (Current Page)
               </Text>
             </Card.Content>
           </Card>
@@ -261,7 +271,7 @@ const ResponsesScreen: React.FC = () => {
             </DataTable.Title>
           </DataTable.Header>
 
-          {paginatedData.map((respondent) => (
+          {filteredRespondents.map((respondent) => (
             <TouchableOpacity
               key={respondent.id}
               onPress={() => handleRespondentPress(respondent)}
@@ -283,9 +293,9 @@ const ResponsesScreen: React.FC = () => {
 
           <DataTable.Pagination
             page={page}
-            numberOfPages={Math.ceil(filteredRespondents.length / itemsPerPage)}
+            numberOfPages={Math.ceil(totalCount / itemsPerPage)}
             onPageChange={setPage}
-            label={`${from + 1}-${to} of ${filteredRespondents.length}`}
+            label={`${from + 1}-${to} of ${totalCount}`}
             showFastPaginationControls
             numberOfItemsPerPage={itemsPerPage}
             style={styles.pagination}
