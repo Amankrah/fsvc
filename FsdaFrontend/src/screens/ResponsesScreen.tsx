@@ -95,7 +95,8 @@ const ResponsesScreen: React.FC = () => {
 
       // Extract paginated data
       const respondentList = Array.isArray(data) ? data : data.results || [];
-      const count = data.count || respondentList.length;
+      // Backend uses 'total' field (not 'count') for total count
+      const count = data.total || data.count || respondentList.length;
 
       console.log(`📊 Loaded page ${apiPage}: ${respondentList.length} respondents (${count} total)`);
 
