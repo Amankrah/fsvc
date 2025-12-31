@@ -27,6 +27,7 @@ MIN_RESPONSES = 36
 # Define response count ranges
 RESPONSE_RANGES = [
     (37, 37, "37"),
+    (190, 190, "190"),
     (191, 191, "191"),
     (195, 195, "195"),
     (197, 197, "197"),
