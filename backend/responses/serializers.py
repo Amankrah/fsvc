@@ -182,6 +182,12 @@ class ResponseSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Override create to perform validation, quality scoring, and database routing"""
+        # Set collected_by to the current user if not already set
+        if 'collected_by' not in validated_data or validated_data.get('collected_by') is None:
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                validated_data['collected_by'] = request.user
+
         response = super().create(validated_data)
 
         # Validate the response against question rules
