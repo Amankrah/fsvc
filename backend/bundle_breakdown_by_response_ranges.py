@@ -2,7 +2,7 @@
 """
 Breakdown of respondent bundles by specific response count ranges.
 Groups by (Respondent Type × Commodity × Country) and shows distribution
-across response count ranges: 37, 191, 195, 197, 198+
+across response count ranges: 37, 190, 191, 195, 197, 198+
 Sorted by Respondent Type.
 """
 
@@ -41,7 +41,7 @@ print("=" * 140)
 project = Project.objects.get(id=PROJECT_ID)
 
 print(f"\nProject: {project.name}")
-print(f"Response Ranges: 37, 191, 195, 197, 198+")
+print(f"Response Ranges: 37, 190, 191, 195, 197, 198+")
 
 # Get all respondents with response counts
 respondents_with_counts = Respondent.objects.filter(
@@ -94,13 +94,14 @@ print("BUNDLE BREAKDOWN BY RESPONSE COUNT RANGES (Sorted by Respondent Type)")
 print("=" * 140)
 
 # Header
-print(f"\n{'Respondent Type':<25} {'Commodity':<25} {'Country':<12} {'Total':<8} {'37':<8} {'191':<8} {'195':<8} {'197':<8} {'198+':<8} {'Avg':<8}")
-print(f"{'-'*25} {'-'*25} {'-'*12} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8}")
+print(f"\n{'Respondent Type':<25} {'Commodity':<25} {'Country':<12} {'Total':<8} {'37':<8} {'190':<8} {'191':<8} {'195':<8} {'197':<8} {'198+':<8} {'Avg':<8}")
+print(f"{'-'*25} {'-'*25} {'-'*12} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8}")
 
 # Data rows
 for (resp_type, commodity, country), data in sorted_bundles:
     print(f"{resp_type:<25} {commodity:<25} {country:<12} {data['total']:<8} "
           f"{data['ranges'].get('37', 0):<8} "
+          f"{data['ranges'].get('190', 0):<8} "
           f"{data['ranges'].get('191', 0):<8} "
           f"{data['ranges'].get('195', 0):<8} "
           f"{data['ranges'].get('197', 0):<8} "
@@ -108,9 +109,10 @@ for (resp_type, commodity, country), data in sorted_bundles:
           f"{data['avg_responses']:<8.1f}")
 
 # Summary totals
-print(f"\n{'-'*25} {'-'*25} {'-'*12} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8}")
+print(f"\n{'-'*25} {'-'*25} {'-'*12} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8}")
 
 total_37 = sum(d['ranges'].get('37', 0) for d in bundles.values())
+total_190 = sum(d['ranges'].get('190', 0) for d in bundles.values())
 total_191 = sum(d['ranges'].get('191', 0) for d in bundles.values())
 total_195 = sum(d['ranges'].get('195', 0) for d in bundles.values())
 total_197 = sum(d['ranges'].get('197', 0) for d in bundles.values())
@@ -118,11 +120,12 @@ total_198_plus = sum(d['ranges'].get('198+', 0) for d in bundles.values())
 overall_avg = sum(d['total_responses'] for d in bundles.values()) / total_qualified if total_qualified > 0 else 0
 
 print(f"{'TOTAL':<25} {'':<25} {'':<12} {total_qualified:<8} "
-      f"{total_37:<8} {total_191:<8} {total_195:<8} {total_197:<8} {total_198_plus:<8} {overall_avg:<8.1f}")
+      f"{total_37:<8} {total_190:<8} {total_191:<8} {total_195:<8} {total_197:<8} {total_198_plus:<8} {overall_avg:<8.1f}")
 
 # Percentage row
 print(f"{'PERCENTAGE':<25} {'':<25} {'':<12} {'100%':<8} "
       f"{total_37/total_qualified*100 if total_qualified>0 else 0:<7.1f}% "
+      f"{total_190/total_qualified*100 if total_qualified>0 else 0:<7.1f}% "
       f"{total_191/total_qualified*100 if total_qualified>0 else 0:<7.1f}% "
       f"{total_195/total_qualified*100 if total_qualified>0 else 0:<7.1f}% "
       f"{total_197/total_qualified*100 if total_qualified>0 else 0:<7.1f}% "
@@ -148,13 +151,14 @@ for (resp_type, _, _), data in bundles.items():
 # Sort by respondent type
 sorted_types = sorted(type_summary.items())
 
-print(f"\n{'Respondent Type':<30} {'Total':<10} {'37':<10} {'191':<10} {'195':<10} {'197':<10} {'198+':<10} {'Avg Resp':<10}")
-print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+print(f"\n{'Respondent Type':<30} {'Total':<10} {'37':<10} {'190':<10} {'191':<10} {'195':<10} {'197':<10} {'198+':<10} {'Avg Resp':<10}")
+print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
 
 for resp_type, data in sorted_types:
     avg = data['total_responses'] / data['total'] if data['total'] > 0 else 0
     print(f"{resp_type:<30} {data['total']:<10} "
           f"{data['ranges'].get('37', 0):<10} "
+          f"{data['ranges'].get('190', 0):<10} "
           f"{data['ranges'].get('191', 0):<10} "
           f"{data['ranges'].get('195', 0):<10} "
           f"{data['ranges'].get('197', 0):<10} "
@@ -181,13 +185,14 @@ for (_, commodity, _), data in bundles.items():
 # Sort by total count (descending)
 sorted_commodities = sorted(commodity_summary.items(), key=lambda x: x[1]['total'], reverse=True)
 
-print(f"\n{'Commodity':<30} {'Total':<10} {'37':<10} {'191':<10} {'195':<10} {'197':<10} {'198+':<10} {'Avg Resp':<10}")
-print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+print(f"\n{'Commodity':<30} {'Total':<10} {'37':<10} {'190':<10} {'191':<10} {'195':<10} {'197':<10} {'198+':<10} {'Avg Resp':<10}")
+print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
 
 for commodity, data in sorted_commodities:
     avg = data['total_responses'] / data['total'] if data['total'] > 0 else 0
     print(f"{commodity:<30} {data['total']:<10} "
           f"{data['ranges'].get('37', 0):<10} "
+          f"{data['ranges'].get('190', 0):<10} "
           f"{data['ranges'].get('191', 0):<10} "
           f"{data['ranges'].get('195', 0):<10} "
           f"{data['ranges'].get('197', 0):<10} "
@@ -204,6 +209,7 @@ TOTAL RESPONDENTS (>{MIN_RESPONSES} responses): {total_qualified}
 
 RESPONSE COUNT DISTRIBUTION:
   - 37 responses:    {total_37:<6} ({total_37/total_qualified*100 if total_qualified>0 else 0:.1f}%)
+  - 190 responses:   {total_190:<6} ({total_190/total_qualified*100 if total_qualified>0 else 0:.1f}%)
   - 191 responses:   {total_191:<6} ({total_191/total_qualified*100 if total_qualified>0 else 0:.1f}%)
   - 195 responses:   {total_195:<6} ({total_195/total_qualified*100 if total_qualified>0 else 0:.1f}%)
   - 197 responses:   {total_197:<6} ({total_197/total_qualified*100 if total_qualified>0 else 0:.1f}%)
