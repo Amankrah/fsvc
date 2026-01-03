@@ -60,8 +60,8 @@ try:
         created_by=member
     ).annotate(
         response_count=Count('responses'),
-        first_response_date=Min('responses__created_at'),
-        last_response_date=Max('responses__created_at')
+        first_response_date=Min('responses__collected_at'),
+        last_response_date=Max('responses__collected_at')
     ).order_by('-created_at')
 
     total_created = respondents_created.count()
@@ -114,8 +114,8 @@ try:
                     respondent=respondent,
                     collected_by=member
                 ).aggregate(
-                    first_response=Min('created_at'),
-                    last_response=Max('created_at'),
+                    first_response=Min('collected_at'),
+                    last_response=Max('collected_at'),
                     total_responses=Count('response_id')
                 )
 
