@@ -21,7 +21,7 @@ from collections import defaultdict
 
 # Target project and member
 PROJECT_ID = "f7672c4b-db61-421a-8c41-15aa5909e760"
-MEMBER_EMAIL = "a.ziz@fsa.com"
+MEMBER_EMAIL = "a.abu@fsa.com"
 MIN_RESPONSES = 36
 
 print("=" * 140)
