@@ -134,44 +134,49 @@ try:
         pct = (collector['count'] / total_project_responses * 100)
         print(f"{collector['collected_by__email']:<50} {collector['count']:<20} {pct:<14.1f}%")
 
-    # STEP 5: Respondents with >36 responses
+    # STEP 5: Respondents with >36 responses - CHECK CREATED_BY
     print("\n" + "=" * 140)
-    print("STEP 5: RESPONDENTS WITH >36 RESPONSES (QUALIFIED)")
+    print("STEP 5: RESPONDENTS WITH >36 RESPONSES CREATED BY THIS MEMBER")
     print("=" * 140)
 
-    # Get all qualified respondents
-    qualified_respondents = Respondent.objects.filter(
-        project=project
+    # Get all qualified respondents CREATED BY this member
+    qualified_by_created_by = Respondent.objects.filter(
+        project=project,
+        created_by=member
     ).annotate(
         response_count=Count('responses')
     ).filter(
         response_count__gt=36
     )
 
-    print(f"\nTotal qualified respondents (>36 responses): {qualified_respondents.count()}")
+    print(f"\nQualified respondents (>36 responses) CREATED BY {MEMBER_EMAIL}: {qualified_by_created_by.count()}")
 
-    # How many of these have responses collected by this member?
-    qualified_with_member = qualified_respondents.filter(
+    # Show breakdown
+    if qualified_by_created_by.exists():
+        print(f"\n{'Respondent ID':<40} {'Type':<25} {'Commodity':<15} {'Responses':<12}")
+        print(f"{'-'*40} {'-'*25} {'-'*15} {'-'*12}")
+
+        for resp in qualified_by_created_by:
+            resp_type = resp.respondent_type or 'NULL'
+            commodity = resp.commodity or 'NULL'
+            total = Response.objects.filter(respondent=resp).count()
+            print(f"{resp.respondent_id:<40} {resp_type:<25} {commodity:<15} {total:<12}")
+
+    # ALSO check via Response.collected_by for comparison
+    print("\n" + "=" * 140)
+    print("COMPARISON: VIA RESPONSE.COLLECTED_BY")
+    print("=" * 140)
+
+    qualified_via_responses = Respondent.objects.filter(
+        project=project,
         responses__collected_by=member
+    ).annotate(
+        response_count=Count('responses')
+    ).filter(
+        response_count__gt=36
     ).distinct()
 
-    print(f"Qualified respondents with at least 1 response by {MEMBER_EMAIL}: {qualified_with_member.count()}")
-
-    # Count those where member collected ALL or MAJORITY of responses
-    member_majority_count = 0
-    member_all_count = 0
-
-    for respondent in qualified_with_member:
-        total = Response.objects.filter(respondent=respondent).count()
-        member_count = Response.objects.filter(respondent=respondent, collected_by=member).count()
-
-        if member_count == total:
-            member_all_count += 1
-        elif member_count > total / 2:
-            member_majority_count += 1
-
-    print(f"Qualified respondents where {MEMBER_EMAIL} collected ALL responses: {member_all_count}")
-    print(f"Qualified respondents where {MEMBER_EMAIL} collected MAJORITY (>50%): {member_majority_count}")
+    print(f"Qualified respondents (>36) with at least 1 response by {MEMBER_EMAIL}: {qualified_via_responses.count()}")
 
     # STEP 6: Summary
     print("\n" + "=" * 140)
