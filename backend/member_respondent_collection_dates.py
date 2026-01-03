@@ -25,6 +25,19 @@ MEMBER_EMAIL = "a.ziz@fsa.com"
 MIN_RESPONSES = 36
 
 print("=" * 140)
+print("ALL USERS IN DATABASE")
+print("=" * 140)
+
+# List all users
+all_users = User.objects.all().order_by('email')
+print(f"\nTotal users in database: {all_users.count()}\n")
+print(f"{'Email':<50} {'First Name':<20} {'Last Name':<20} {'Active':<10} {'Staff':<10}")
+print(f"{'-'*50} {'-'*20} {'-'*20} {'-'*10} {'-'*10}")
+
+for user in all_users:
+    print(f"{user.email:<50} {user.first_name:<20} {user.last_name:<20} {str(user.is_active):<10} {str(user.is_staff):<10}")
+
+print("\n" + "=" * 140)
 print(f"RESPONDENT COLLECTION ANALYSIS FOR MEMBER: {MEMBER_EMAIL}")
 print("=" * 140)
 
