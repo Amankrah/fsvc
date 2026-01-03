@@ -178,7 +178,28 @@ try:
 
     print(f"Qualified respondents (>36) with at least 1 response by {MEMBER_EMAIL}: {qualified_via_responses.count()}")
 
-    # STEP 6: Summary
+    # STEP 6: Analyze which qualified respondents member collected ALL responses for
+    print("\n" + "=" * 140)
+    print("STEP 6: QUALIFIED RESPONDENTS WHERE MEMBER COLLECTED ALL RESPONSES")
+    print("=" * 140)
+
+    # For each qualified respondent via responses, check if member collected ALL responses
+    member_all_count = 0
+    member_partial_count = 0
+
+    for respondent in qualified_via_responses:
+        total_resp = Response.objects.filter(respondent=respondent).count()
+        member_resp = Response.objects.filter(respondent=respondent, collected_by=member).count()
+
+        if total_resp > 0 and member_resp == total_resp:
+            member_all_count += 1
+        elif member_resp > 0:
+            member_partial_count += 1
+
+    print(f"\nQualified respondents where {MEMBER_EMAIL} collected ALL responses: {member_all_count}")
+    print(f"Qualified respondents where {MEMBER_EMAIL} collected SOME responses: {member_partial_count}")
+
+    # STEP 7: Summary
     print("\n" + "=" * 140)
     print("SUMMARY")
     print("=" * 140)
@@ -193,18 +214,25 @@ RESPONSES:
 
 RESPONDENTS:
   - Created by member (Respondent.created_by): {respondents_created.count()}
+  - Qualified (>36) created by member: {qualified_by_created_by.count()}
   - With at least 1 response by member: {respondents_with_member_responses.count()}
-  - Qualified (>36) with at least 1 response by member: {qualified_with_member.count()}
+  - Qualified (>36) with at least 1 response by member: {qualified_via_responses.count()}
   - Qualified (>36) where member collected ALL responses: {member_all_count}
-  - Qualified (>36) where member collected MAJORITY: {member_majority_count}
+  - Qualified (>36) where member collected SOME responses: {member_partial_count}
 
-RECOMMENDATION:
-  The most accurate count for government reporting would be:
-  - Respondents where this member collected ALL responses: {member_all_count}
-  OR
-  - Respondents where this member collected MAJORITY of responses: {member_majority_count}
+PROJECT COVERAGE:
+  - Total responses in project: {total_project_responses}
+  - Responses with collected_by tracking: {responses_with_collected_by} ({responses_with_collected_by/total_project_responses*100:.1f}%)
+  - Responses WITHOUT tracking: {responses_without_collected_by} ({responses_without_collected_by/total_project_responses*100:.1f}%)
 
-  TOTAL ATTRIBUTION: {member_all_count + member_majority_count} qualified respondents
+CRITICAL FINDING:
+  Only {qualified_by_created_by.count()} qualified respondents were created by this member (via Respondent.created_by).
+  However, {qualified_via_responses.count()} qualified respondents have at least 1 response collected by this member.
+  Of these, {member_all_count} respondents have ALL their responses collected by this member.
+
+RECOMMENDATION FOR GOVERNMENT REPORTING:
+  The most conservative and accurate attribution is: {member_all_count} qualified respondents
+  (respondents where this member collected 100% of their responses)
 """)
 
 except User.DoesNotExist:
