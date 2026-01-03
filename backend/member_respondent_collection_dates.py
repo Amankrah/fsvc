@@ -15,7 +15,7 @@ django.setup()
 
 from responses.models import Response, Respondent
 from projects.models import Project
-from django.contrib.auth.models import User
+from authentication.models import User
 from django.db.models import Count, Min, Max
 from collections import defaultdict
 
