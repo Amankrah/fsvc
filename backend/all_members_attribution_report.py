@@ -33,10 +33,15 @@ print(f"\nProject: {project.name}")
 print(f"Project ID: {PROJECT_ID}")
 print(f"Minimum responses threshold: >{MIN_RESPONSES}")
 
-# Get all members of this project
-members = project.members.all()
+# Get all members of this project (extract User objects from ProjectMember)
+project_members = project.members.select_related('user').all()
+members = [pm.user for pm in project_members]
 
-print(f"\nTotal project members: {members.count()}")
+# Also include the project creator
+if project.created_by not in members:
+    members.append(project.created_by)
+
+print(f"\nTotal project members (including creator): {len(members)}")
 
 # Project-wide statistics
 total_respondents = Respondent.objects.filter(project=project).count()
