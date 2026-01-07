@@ -899,12 +899,13 @@ class RespondentViewSet(BaseModelViewSet):
                 logger.info(f"Fetching responses for {len(respondent_ids)} respondents")
                 logger.info(f"Respondent UUIDs: {respondent_ids}")
 
-                # CRITICAL: Get ALL responses, including those with deleted questions
-                # This matches the breakdown script behavior and ensures all data is exported
+                # CRITICAL: Get ALL responses, including orphaned ones (question_id is NULL)
+                # STRATEGY: Since all respondents in same bundle answer same questions in same order,
+                # we can match orphaned responses to current questions by POSITION
                 responses = Response.objects.filter(
                     respondent_id__in=respondent_ids,
                     project_id=project_id
-                ).select_related('question', 'respondent')
+                ).select_related('question', 'respondent').order_by('respondent_id', 'collected_at')
 
                 total_responses = responses.count()
                 logger.info(f"Found {total_responses} total responses for bundle export")
@@ -913,41 +914,67 @@ class RespondentViewSet(BaseModelViewSet):
                 from collections import Counter
                 respondent_response_counts = Counter([r.respondent_id for r in responses])
                 responses_with_valid_questions = 0
-                responses_with_deleted_questions = 0
+                responses_with_orphaned_questions = 0
+                orphaned_matched_by_position = 0
 
                 for resp_id, count in respondent_response_counts.items():
                     respondent_obj = next((r for r in bundle_respondents if r.id == resp_id), None)
                     resp_identifier = respondent_obj.respondent_id if respondent_obj else 'Unknown'
                     logger.info(f"  Respondent {resp_identifier} ({resp_id}): {count} responses")
 
+                # Convert questions to list for position-based matching
+                questions_list = list(questions)
+
+                # Group responses by respondent for position-based matching
+                responses_by_respondent = defaultdict(list)
                 for response in responses:
-                    # Handle responses with deleted questions
-                    if response.question is None:
-                        responses_with_deleted_questions += 1
-                        # Skip responses with deleted questions - can't display them
-                        continue
+                    responses_by_respondent[response.respondent_id].append(response)
 
-                    responses_with_valid_questions += 1
-                    formatted_value = self.format_response_for_csv(
-                        response.response_value,
-                        response.question.response_type
-                    )
-                    # Use respondent UUID (id) as key to match with respondent.id below
-                    response_matrix[response.question_id][response.respondent_id] = formatted_value
+                # Process each respondent's responses
+                for respondent_uuid, respondent_responses in responses_by_respondent.items():
+                    # Sort by collected_at to maintain order
+                    respondent_responses.sort(key=lambda r: r.collected_at if r.collected_at else datetime.min)
 
-                logger.info(f"  Valid responses: {responses_with_valid_questions}, Orphaned responses (deleted questions): {responses_with_deleted_questions}")
+                    for position, response in enumerate(respondent_responses):
+                        if response.question is not None:
+                            # Valid response with question
+                            responses_with_valid_questions += 1
+                            formatted_value = self.format_response_for_csv(
+                                response.response_value,
+                                response.question.response_type
+                            )
+                            response_matrix[response.question_id][response.respondent_id] = formatted_value
+                        else:
+                            # Orphaned response - match by position
+                            responses_with_orphaned_questions += 1
+                            if position < len(questions_list):
+                                matched_question = questions_list[position]
+                                orphaned_matched_by_position += 1
+                                # Use the matched question's response type for formatting
+                                formatted_value = self.format_response_for_csv(
+                                    response.response_value,
+                                    matched_question.response_type
+                                )
+                                response_matrix[matched_question.id][response.respondent_id] = formatted_value
+                                logger.debug(f"Matched orphaned response at position {position} to question: {matched_question.question_text[:50]}")
+                            else:
+                                logger.warning(f"Orphaned response at position {position} exceeds available questions ({len(questions_list)})")
+
+                logger.info(f"  Valid responses: {responses_with_valid_questions}")
+                logger.info(f"  Orphaned responses: {responses_with_orphaned_questions} (matched {orphaned_matched_by_position} by position)")
 
                 # DEBUG: Add response count summary to CSV
                 writer.writerow(['=== DEBUG: RESPONSE COUNTS PER RESPONDENT ==='])
+                writer.writerow([f'Position-based matching applied for orphaned responses (NULL question_id)'])
                 for respondent in bundle_respondents:
                     # Count total responses (including orphaned ones)
                     total_resp = respondent_response_counts.get(respondent.id, 0)
-                    # Count valid responses (in matrix)
-                    valid_resp = sum(1 for q_id, resp_dict in response_matrix.items() if respondent.id in resp_dict)
-                    orphaned_resp = total_resp - valid_resp
-                    writer.writerow([f'Respondent {respondent.respondent_id} ({respondent.id}): {valid_resp} valid responses, {orphaned_resp} orphaned (deleted questions), {total_resp} total'])
-                writer.writerow([f'Total valid responses in matrix: {sum(len(resp_dict) for resp_dict in response_matrix.values())}'])
-                writer.writerow([f'Total orphaned responses: {responses_with_deleted_questions}'])
+                    # Count responses in matrix (includes both valid and matched orphaned)
+                    matrix_resp = sum(1 for q_id, resp_dict in response_matrix.items() if respondent.id in resp_dict)
+                    writer.writerow([f'Respondent {respondent.respondent_id}: {total_resp} collected, {matrix_resp} in export'])
+                writer.writerow([f'Total responses in export matrix: {sum(len(resp_dict) for resp_dict in response_matrix.values())}'])
+                writer.writerow([f'Valid responses (with question_id): {responses_with_valid_questions}'])
+                writer.writerow([f'Orphaned responses (NULL question_id): {responses_with_orphaned_questions} (matched {orphaned_matched_by_position} by position)'])
                 writer.writerow([])  # Empty row
 
                 # Write data rows - one row per question
