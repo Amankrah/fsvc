@@ -298,6 +298,26 @@ const ResponsesScreen: React.FC = () => {
           {detailsHook.respondentResponses.map((response) => (
             <ResponseCard key={response.response_id} response={response} />
           ))}
+
+          {/* Pagination Info and Load More Button */}
+          {detailsHook.totalCount > 0 && (
+            <View style={styles.responsePaginationContainer}>
+              <Text style={styles.responsePaginationText}>
+                Showing {detailsHook.respondentResponses.length} of {detailsHook.totalCount} responses
+              </Text>
+              {detailsHook.hasMore && (
+                <Button
+                  mode="contained"
+                  onPress={detailsHook.loadMore}
+                  loading={detailsHook.loading}
+                  disabled={detailsHook.loading}
+                  style={styles.loadMoreButton}
+                  labelStyle={styles.loadMoreButtonLabel}>
+                  Load More Responses
+                </Button>
+              )}
+            </View>
+          )}
         </ScrollView>
       </>
     );
@@ -403,24 +423,26 @@ const ResponsesScreen: React.FC = () => {
                   Type: {selectedFilters.respondent_type || 'All'}
                 </Button>
               }
-              contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('respondent_type', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
-              {uniqueRespondentTypes.map(type => (
+              contentStyle={[styles.menuContent, styles.scrollableMenu]}>
+              <ScrollView style={styles.menuScrollView} nestedScrollEnabled>
                 <Menu.Item
-                  key={type}
-                  onPress={() => toggleFilter('respondent_type', type)}
-                  title={type}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.respondent_type === type && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.respondent_type === type ? "check" : undefined}
+                  onPress={() => toggleFilter('respondent_type', '')}
+                  title="All"
+                  titleStyle={styles.menuItemText}
                 />
-              ))}
+                {uniqueRespondentTypes.map(type => (
+                  <Menu.Item
+                    key={type}
+                    onPress={() => toggleFilter('respondent_type', type)}
+                    title={type}
+                    titleStyle={[
+                      styles.menuItemText,
+                      selectedFilters.respondent_type === type && styles.menuItemTextSelected
+                    ]}
+                    leadingIcon={selectedFilters.respondent_type === type ? "check" : undefined}
+                  />
+                ))}
+              </ScrollView>
             </Menu>
 
             {/* Commodity Filter */}
@@ -440,24 +462,26 @@ const ResponsesScreen: React.FC = () => {
                   Commodity: {selectedFilters.commodity || 'All'}
                 </Button>
               }
-              contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('commodity', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
-              {uniqueCommodities.map(commodity => (
+              contentStyle={[styles.menuContent, styles.scrollableMenu]}>
+              <ScrollView style={styles.menuScrollView} nestedScrollEnabled>
                 <Menu.Item
-                  key={commodity}
-                  onPress={() => toggleFilter('commodity', commodity)}
-                  title={commodity}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.commodity === commodity && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.commodity === commodity ? "check" : undefined}
+                  onPress={() => toggleFilter('commodity', '')}
+                  title="All"
+                  titleStyle={styles.menuItemText}
                 />
-              ))}
+                {uniqueCommodities.map(commodity => (
+                  <Menu.Item
+                    key={commodity}
+                    onPress={() => toggleFilter('commodity', commodity)}
+                    title={commodity}
+                    titleStyle={[
+                      styles.menuItemText,
+                      selectedFilters.commodity === commodity && styles.menuItemTextSelected
+                    ]}
+                    leadingIcon={selectedFilters.commodity === commodity ? "check" : undefined}
+                  />
+                ))}
+              </ScrollView>
             </Menu>
 
             {/* Country Filter */}
@@ -477,24 +501,26 @@ const ResponsesScreen: React.FC = () => {
                   Country: {selectedFilters.country || 'All'}
                 </Button>
               }
-              contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('country', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
-              {uniqueCountries.map(country => (
+              contentStyle={[styles.menuContent, styles.scrollableMenu]}>
+              <ScrollView style={styles.menuScrollView} nestedScrollEnabled>
                 <Menu.Item
-                  key={country}
-                  onPress={() => toggleFilter('country', country)}
-                  title={country}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.country === country && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.country === country ? "check" : undefined}
+                  onPress={() => toggleFilter('country', '')}
+                  title="All"
+                  titleStyle={styles.menuItemText}
                 />
-              ))}
+                {uniqueCountries.map(country => (
+                  <Menu.Item
+                    key={country}
+                    onPress={() => toggleFilter('country', country)}
+                    title={country}
+                    titleStyle={[
+                      styles.menuItemText,
+                      selectedFilters.country === country && styles.menuItemTextSelected
+                    ]}
+                    leadingIcon={selectedFilters.country === country ? "check" : undefined}
+                  />
+                ))}
+              </ScrollView>
             </Menu>
 
             {/* Clear Filters Button */}
@@ -703,6 +729,33 @@ const styles = StyleSheet.create({
     color: '#64c8ff',
   },
   paginationText: {
+    color: '#ffffff',
+    fontSize: 14,
+  },
+  scrollableMenu: {
+    maxHeight: 300,
+  },
+  menuScrollView: {
+    maxHeight: 300,
+  },
+  responsePaginationContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(75, 30, 133, 0.1)',
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  responsePaginationText: {
+    color: '#ffffff',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  loadMoreButton: {
+    backgroundColor: '#4b1e85',
+    minWidth: 200,
+  },
+  loadMoreButtonLabel: {
     color: '#ffffff',
     fontSize: 14,
   },

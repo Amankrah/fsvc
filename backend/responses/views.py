@@ -265,6 +265,11 @@ class RespondentViewSet(BaseModelViewSet):
         """
         Get all responses for a specific respondent with detailed information and resume metadata.
 
+        Query Parameters:
+        - page: Page number for pagination (optional)
+        - page_size: Number of items per page (optional, max 1000)
+        - no_pagination: Set to 'true' to disable pagination (returns all responses)
+
         Returns:
         - responses: List of all existing responses (only those with valid questions)
         - resume_metadata: Information for resuming draft including answered question IDs
@@ -272,16 +277,45 @@ class RespondentViewSet(BaseModelViewSet):
         try:
             from forms.models import Question
             from django.db.models import Q
+            from django_core.utils.pagination import CustomPagination
 
             respondent = self.get_object()
 
             # Only get responses with valid questions (exclude orphaned responses)
+            # Optimize queries with select_related and prefetch_related to avoid N+1 queries
             responses = Response.objects.filter(
                 respondent=respondent,
                 question__isnull=False
-            ).select_related('question', 'collected_by', 'project').order_by('collected_at')
+            ).select_related(
+                'question',
+                'question__project',
+                'question__project__created_by',
+                'collected_by',
+                'project',
+                'project__created_by',
+                'respondent',
+                'respondent__project',
+                'respondent__project__created_by',
+                'respondent__created_by'
+            ).order_by('collected_at')
 
-            serializer = ResponseSerializer(responses, many=True)
+            # Check if pagination is disabled
+            no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
+
+            # Use lightweight serializer for better performance
+            from .serializers import ResponseLightSerializer
+
+            if no_pagination:
+                # Return all responses without pagination (backward compatibility)
+                serializer = ResponseLightSerializer(responses, many=True)
+                responses_data = serializer.data
+            else:
+                # Apply pagination for better performance with large datasets
+                paginator = CustomPagination()
+                paginator.page_size = int(request.query_params.get('page_size', 100))
+                paginated_responses = paginator.paginate_queryset(responses, request)
+                serializer = ResponseLightSerializer(paginated_responses, many=True)
+                responses_data = serializer.data
 
             # Get answered question IDs (already filtered for non-null questions)
             answered_question_ids = list(
@@ -348,11 +382,24 @@ class RespondentViewSet(BaseModelViewSet):
                 f"Resume index: {resume_index}"
             )
 
-            return DRFResponse({
+            response_data = {
                 'respondent': RespondentSerializer(respondent).data,
-                'responses': serializer.data,
+                'responses': responses_data,
                 'resume_metadata': resume_metadata
-            })
+            }
+
+            # Add pagination info if paginated
+            if not no_pagination:
+                response_data['pagination'] = {
+                    'total': paginator.page.paginator.count,
+                    'total_pages': paginator.page.paginator.num_pages,
+                    'current_page': paginator.page.number,
+                    'page_size': paginator.get_page_size(request),
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link()
+                }
+
+            return DRFResponse(response_data)
         except Exception as e:
             logger.exception(f"Error getting responses for respondent {pk}")
             import traceback

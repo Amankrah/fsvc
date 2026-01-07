@@ -586,6 +586,8 @@ class Response(models.Model):
             models.Index(fields=['question_data_source']),
             models.Index(fields=['work_package']),
             models.Index(fields=['is_owner_question']),
+            # Composite index for fetching respondent responses (optimizes responses endpoint)
+            models.Index(fields=['respondent', 'collected_at'], name='resp_respondent_time_idx'),
         ]
         # Ensure one response per question per respondent
         unique_together = ['question', 'respondent']

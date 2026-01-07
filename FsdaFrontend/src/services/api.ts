@@ -620,8 +620,30 @@ class ApiService {
     return await this.post('/responses/respondents/', data);
   }
 
-  async getRespondentResponses(respondentId: string) {
-    return await this.get(`/responses/respondents/${respondentId}/responses/`);
+  async getRespondentResponses(
+    respondentId: string,
+    options?: {
+      page?: number;
+      page_size?: number;
+      no_pagination?: boolean;
+    }
+  ) {
+    const params = new URLSearchParams();
+
+    if (options?.page) {
+      params.append('page', String(options.page));
+    }
+    if (options?.page_size) {
+      params.append('page_size', String(options.page_size));
+    }
+    if (options?.no_pagination) {
+      params.append('no_pagination', 'true');
+    }
+
+    const queryString = params.toString();
+    const url = `/responses/respondents/${respondentId}/responses/${queryString ? '?' + queryString : ''}`;
+
+    return await this.get(url);
   }
 
   async saveDraftResponse(data: any) {

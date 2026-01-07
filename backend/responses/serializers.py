@@ -71,6 +71,21 @@ class RespondentSerializer(serializers.ModelSerializer):
             return None
         return value
 
+class ResponseLightSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing responses - includes only essential data"""
+    question_text = serializers.CharField(source='question.question_text', read_only=True)
+    question_type = serializers.CharField(source='question.question_type', read_only=True)
+    collected_by_name = serializers.CharField(source='collected_by.username', read_only=True)
+
+    class Meta:
+        model = Response
+        fields = [
+            'response_id', 'question', 'question_text', 'question_type',
+            'response_value', 'collected_at', 'collected_by_name',
+            'is_validated', 'sync_status', 'database_routing_status'
+        ]
+        read_only_fields = ['response_id', 'collected_at']
+
 class ResponseSerializer(serializers.ModelSerializer):
     """Updated serializer for the restructured Response model with QuestionBank alignment"""
     project_details = ProjectSerializer(source='project', read_only=True)
