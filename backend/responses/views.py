@@ -895,6 +895,7 @@ class RespondentViewSet(BaseModelViewSet):
                 respondent_ids = [r.id for r in bundle_respondents]  # Get UUIDs for filtering
 
                 logger.info(f"Fetching responses for {len(respondent_ids)} respondents")
+                logger.info(f"Respondent UUIDs: {respondent_ids}")
 
                 responses = Response.objects.filter(
                     respondent_id__in=respondent_ids,
@@ -904,6 +905,14 @@ class RespondentViewSet(BaseModelViewSet):
 
                 total_responses = responses.count()
                 logger.info(f"Found {total_responses} total responses for bundle export")
+
+                # Debug: Log responses per respondent
+                from collections import Counter
+                respondent_response_counts = Counter([r.respondent_id for r in responses])
+                for resp_id, count in respondent_response_counts.items():
+                    respondent_obj = next((r for r in bundle_respondents if r.id == resp_id), None)
+                    resp_identifier = respondent_obj.respondent_id if respondent_obj else 'Unknown'
+                    logger.info(f"  Respondent {resp_identifier} ({resp_id}): {count} responses")
 
                 for response in responses:
                     formatted_value = self.format_response_for_csv(
