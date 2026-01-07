@@ -350,6 +350,11 @@ class Respondent(models.Model):
             models.Index(fields=['project']),
             models.Index(fields=['respondent_id']),
             models.Index(fields=['created_at']),
+            # Performance indexes from migration 0008 - DO NOT REMOVE!
+            models.Index(fields=['project', 'completion_status', '-created_at'], name='resp_proj_status_created_idx'),
+            models.Index(fields=['project', 'respondent_type', 'commodity', 'country'], name='resp_bundle_criteria_idx'),
+            models.Index(fields=['completion_status'], name='resp_completion_status_idx'),
+            models.Index(fields=['-last_response_at'], name='resp_last_response_idx'),
         ]
 
     def __str__(self):
