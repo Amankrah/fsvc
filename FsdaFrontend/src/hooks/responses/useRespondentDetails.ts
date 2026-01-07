@@ -32,10 +32,15 @@ export interface QuestionBankSummary {
 export interface ResponseDetail {
   response_id: string;
   question: string;
-  question_details: QuestionDetail;
+  question_text: string;  // From ResponseLightSerializer
+  question_type: string;  // From ResponseLightSerializer
+  question_details?: QuestionDetail;  // Optional for backward compatibility
   response_value: string;
   collected_at: string;
+  collected_by_name?: string;  // From ResponseLightSerializer
   is_validated: boolean;
+  sync_status?: string;
+  database_routing_status?: any;
   question_bank_summary?: QuestionBankSummary;
 }
 

@@ -21,7 +21,7 @@ export const ResponseCard: React.FC<ResponseCardProps> = ({ response }) => {
       <Card.Content>
         <View style={styles.header}>
           <Text variant="labelLarge" style={styles.questionLabel}>
-            {response.question_details?.question_text || 'Question'}
+            {response.question_text || response.question_details?.question_text || 'Question'}
           </Text>
           {response.is_validated && (
             <Chip
