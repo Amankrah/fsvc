@@ -799,14 +799,26 @@ class RespondentViewSet(BaseModelViewSet):
             logger.info(f"Export bundle request - Project: {project_id}, Type: {respondent_type}, Commodity: {commodity}, Country: {country}")
 
             # Get ALL respondents matching the specific bundle (NO PAGINATION for export)
-            # CRITICAL: Bypass get_queryset() pagination by using model directly
-            # Use case-insensitive matching for string fields
-            respondents = Respondent.objects.filter(
-                project_id=project_id,
-                respondent_type__iexact=respondent_type,
-                commodity__iexact=commodity,
-                country__iexact=country
-            ).select_related('project').order_by('respondent_id')
+            # CRITICAL: Query directly from model to bypass any pagination from viewset
+            # Use case-insensitive matching for string fields to handle variations
+            user = self.request.user
+
+            # Apply user permissions: superusers see all, regular users see only their projects
+            if user.is_superuser:
+                respondents = Respondent.objects.filter(
+                    project_id=project_id,
+                    respondent_type__iexact=respondent_type,
+                    commodity__iexact=commodity,
+                    country__iexact=country
+                ).select_related('project').order_by('respondent_id')
+            else:
+                respondents = Respondent.objects.filter(
+                    Q(project__created_by=user) | Q(project__members__user=user),
+                    project_id=project_id,
+                    respondent_type__iexact=respondent_type,
+                    commodity__iexact=commodity,
+                    country__iexact=country
+                ).select_related('project').distinct().order_by('respondent_id')
 
             if not respondents.exists():
                 return DRFResponse({
@@ -817,8 +829,11 @@ class RespondentViewSet(BaseModelViewSet):
             output = StringIO()
             writer = csv.writer(output)
 
+            # Convert to list to avoid re-querying and get accurate count
+            bundle_respondents = list(respondents)
+            total_respondents = len(bundle_respondents)
+
             # Write bundle header
-            total_respondents = respondents.count()
             writer.writerow([f'=== BUNDLE: {respondent_type} | {commodity} | {country} ==='])
             writer.writerow([f'Total Respondents: {total_respondents}'])
             writer.writerow([])  # Empty row
@@ -827,14 +842,12 @@ class RespondentViewSet(BaseModelViewSet):
 
             # Log sample of respondent IDs for debugging
             if total_respondents > 0:
-                sample_ids = [r.respondent_id for r in respondents[:5]]
+                sample_ids = [r.respondent_id for r in bundle_respondents[:5]]
                 logger.info(f"Sample respondent IDs: {sample_ids}")
 
             # Get ALL questions for this specific bundle with CUSTOM CATEGORY ORDERING
             # Match frontend category order: Sociodemographics, Environmental LCA, Social LCA, etc.
             from django.db.models import Case, When, Value, IntegerField
-
-            bundle_respondents = list(respondents)
 
             # Get ALL questions for this specific bundle with CUSTOM CATEGORY ORDERING
             # Use case-insensitive matching for bundle assignment fields
@@ -859,13 +872,13 @@ class RespondentViewSet(BaseModelViewSet):
             ).order_by('category_priority', 'order_index')
 
             total_questions = questions.count()
-            logger.info(f"Found {total_questions} questions for bundle")
+            logger.info(f"Found {total_questions} questions for bundle with custom category ordering applied")
 
             # Log first few question categories for debugging
             if total_questions > 0:
-                sample_questions = questions[:5]
-                categories = [q.question_category for q in sample_questions]
-                logger.info(f"Sample question categories: {categories}")
+                sample_questions = list(questions[:5])
+                categories = [(q.question_category, q.order_index) for q in sample_questions]
+                logger.info(f"Sample question categories (category, order_index): {categories}")
 
             if not questions.exists():
                 writer.writerow(['No questions found for this bundle'])
@@ -877,9 +890,11 @@ class RespondentViewSet(BaseModelViewSet):
                 writer.writerow(header)
 
                 # Collect all responses for this bundle
-                # Create a mapping: {question_id: {respondent_id: response_value}}
+                # Create a mapping: {question_id: {respondent_uuid: response_value}}
                 response_matrix = defaultdict(dict)
-                respondent_ids = [r.id for r in bundle_respondents]
+                respondent_ids = [r.id for r in bundle_respondents]  # Get UUIDs for filtering
+
+                logger.info(f"Fetching responses for {len(respondent_ids)} respondents")
 
                 responses = Response.objects.filter(
                     respondent_id__in=respondent_ids,
@@ -887,11 +902,15 @@ class RespondentViewSet(BaseModelViewSet):
                     question__isnull=False
                 ).select_related('question', 'respondent')
 
+                total_responses = responses.count()
+                logger.info(f"Found {total_responses} total responses for bundle export")
+
                 for response in responses:
                     formatted_value = self.format_response_for_csv(
                         response.response_value,
                         response.question.response_type
                     )
+                    # Use respondent UUID (id) as key to match with respondent.id below
                     response_matrix[response.question_id][response.respondent_id] = formatted_value
 
                 # Write data rows - one row per question
