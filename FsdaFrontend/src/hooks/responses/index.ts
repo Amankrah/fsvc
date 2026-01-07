@@ -3,7 +3,7 @@
  */
 
 export { useRespondents } from './useRespondents';
-export type { Respondent } from './useRespondents';
+export type { Respondent, RespondentFilters } from './useRespondents';
 
 export { useRespondentDetails } from './useRespondentDetails';
 export type { ResponseDetail, QuestionDetail, QuestionBankSummary } from './useRespondentDetails';

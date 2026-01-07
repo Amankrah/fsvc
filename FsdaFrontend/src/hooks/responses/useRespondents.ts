@@ -21,7 +21,13 @@ export interface Respondent {
   country?: string;
 }
 
-export const useRespondents = (projectId: string) => {
+export interface RespondentFilters {
+  respondent_type?: string;
+  commodity?: string;
+  country?: string;
+}
+
+export const useRespondents = (projectId: string, filters?: RespondentFilters) => {
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,10 +36,11 @@ export const useRespondents = (projectId: string) => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const loadRespondents = useCallback(async (pageNum?: number) => {
+  const loadRespondents = useCallback(async (pageNum?: number, customFilters?: RespondentFilters) => {
     try {
       const currentPage = pageNum || page;
-      const data = await apiService.getRespondents(projectId, currentPage, pageSize);
+      const activeFilters = customFilters || filters || {};
+      const data = await apiService.getRespondents(projectId, currentPage, pageSize, activeFilters);
 
       // Extract paginated data and metadata
       const respondentList: Respondent[] = Array.isArray(data) ? data : data.results || [];
@@ -51,12 +58,13 @@ export const useRespondents = (projectId: string) => {
       console.error('Error loading respondents:', error);
       throw error;
     }
-  }, [projectId, page, pageSize]);
+  }, [projectId, page, pageSize, filters]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (customFilters?: RespondentFilters) => {
     try {
       setLoading(true);
-      await loadRespondents();
+      setPage(1); // Reset to page 1 when filters change
+      await loadRespondents(1, customFilters);
     } catch (error) {
       console.error('Error loading data:', error);
       showAlert('Error', 'Failed to load responses');

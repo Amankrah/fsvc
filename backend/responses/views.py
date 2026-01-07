@@ -441,6 +441,9 @@ class RespondentViewSet(BaseModelViewSet):
 
         Query params:
         - project_id: Filter by project (required)
+        - respondent_type: Filter by respondent type
+        - commodity: Filter by commodity
+        - country: Filter by country
         - completion_status: Filter by status (draft/completed/abandoned)
         - page: Page number (default: 1)
         - page_size: Items per page (default: 50, max: 100)
@@ -454,6 +457,19 @@ class RespondentViewSet(BaseModelViewSet):
                 response_count=Count('responses'),
                 last_response_date=Max('responses__collected_at')
             )
+
+            # Filter by bundle parameters (respondent_type, commodity, country)
+            respondent_type = request.query_params.get('respondent_type')
+            if respondent_type:
+                queryset = queryset.filter(respondent_type__iexact=respondent_type)
+
+            commodity = request.query_params.get('commodity')
+            if commodity:
+                queryset = queryset.filter(commodity__iexact=commodity)
+
+            country = request.query_params.get('country')
+            if country:
+                queryset = queryset.filter(country__iexact=country)
 
             # Filter by completion status if provided
             completion_status = request.query_params.get('completion_status')

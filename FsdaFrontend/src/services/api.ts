@@ -611,9 +611,31 @@ class ApiService {
   }
 
   // Respondent endpoints
-  async getRespondents(projectId: string, page: number = 1, pageSize: number = 50) {
-    // Use the optimized with_response_counts endpoint with pagination
-    return await this.get(`/responses/respondents/with_response_counts/?project_id=${projectId}&page=${page}&page_size=${pageSize}`);
+  async getRespondents(
+    projectId: string,
+    page: number = 1,
+    pageSize: number = 50,
+    filters?: {
+      respondent_type?: string;
+      commodity?: string;
+      country?: string;
+    }
+  ) {
+    // Build query string with filters
+    let queryParams = `project_id=${projectId}&page=${page}&page_size=${pageSize}`;
+
+    if (filters?.respondent_type) {
+      queryParams += `&respondent_type=${encodeURIComponent(filters.respondent_type)}`;
+    }
+    if (filters?.commodity) {
+      queryParams += `&commodity=${encodeURIComponent(filters.commodity)}`;
+    }
+    if (filters?.country) {
+      queryParams += `&country=${encodeURIComponent(filters.country)}`;
+    }
+
+    // Use the optimized with_response_counts endpoint with pagination and filters
+    return await this.get(`/responses/respondents/with_response_counts/?${queryParams}`);
   }
 
   async createRespondent(data: any) {

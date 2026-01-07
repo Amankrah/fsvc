@@ -28,6 +28,7 @@ import {
   useRespondentDetails,
   useSearch,
   useExport,
+  type RespondentFilters,
 } from '../hooks/responses';
 
 // Components
@@ -47,19 +48,15 @@ const ResponsesScreen: React.FC = () => {
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
-  const [selectedFilters, setSelectedFilters] = useState<{
-    respondent_type?: string;
-    commodity?: string;
-    country?: string;
-  }>({});
+  const [selectedFilters, setSelectedFilters] = useState<RespondentFilters>({});
   const [filterMenusVisible, setFilterMenusVisible] = useState({
     respondent_type: false,
     commodity: false,
     country: false,
   });
 
-  // Hooks
-  const respondentsHook = useRespondents(projectId);
+  // Hooks - pass filters to backend
+  const respondentsHook = useRespondents(projectId, selectedFilters);
   const searchHook = useSearch(respondentsHook.respondents);
   const detailsHook = useRespondentDetails();
   const exportHook = useExport(projectId, projectName);
@@ -117,39 +114,39 @@ const ResponsesScreen: React.FC = () => {
     return Array.from(countries).sort();
   }, [respondentsHook.respondents]);
 
-  // Apply filters to respondents
-  const filteredRespondents = React.useMemo(() => {
-    let filtered = searchHook.filteredRespondents;
+  // No client-side filtering needed - backend handles it via API filters
+  // Just use search-filtered respondents
+  const filteredRespondents = searchHook.filteredRespondents;
 
-    if (selectedFilters.respondent_type) {
-      filtered = filtered.filter(r => r.respondent_type === selectedFilters.respondent_type);
-    }
-    if (selectedFilters.commodity) {
-      filtered = filtered.filter(r => r.commodity === selectedFilters.commodity);
-    }
-    if (selectedFilters.country) {
-      filtered = filtered.filter(r => r.country === selectedFilters.country);
-    }
+  // Toggle filter selection - only reload if ALL three filters are set
+  const toggleFilter = async (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
+    const newFilters = {
+      ...selectedFilters,
+      [filterType]: selectedFilters[filterType] === value ? undefined : value,
+    };
 
-    return filtered;
-  }, [searchHook.filteredRespondents, selectedFilters]);
+    setSelectedFilters(newFilters);
 
-  // Toggle filter selection
-  const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
-    setSelectedFilters(prev => ({
-      ...prev,
-      [filterType]: prev[filterType] === value ? undefined : value,
-    }));
     // Close the menu after selection
     setFilterMenusVisible(prev => ({
       ...prev,
       [filterType]: false,
     }));
+
+    // CRITICAL: Only reload data if ALL THREE filters are set
+    // This prevents partial filtering and matches export validation requirement
+    if (newFilters.respondent_type && newFilters.commodity && newFilters.country) {
+      await respondentsHook.loadData(newFilters);
+    } else {
+      // If not all filters set, load unfiltered data to show full list
+      await respondentsHook.loadData({});
+    }
   };
 
-  // Clear all filters
-  const clearFilters = () => {
+  // Clear all filters and reload unfiltered data
+  const clearFilters = async () => {
     setSelectedFilters({});
+    await respondentsHook.loadData({});
   };
 
   // Toggle menu visibility
