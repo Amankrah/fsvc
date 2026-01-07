@@ -899,10 +899,11 @@ class RespondentViewSet(BaseModelViewSet):
                 logger.info(f"Fetching responses for {len(respondent_ids)} respondents")
                 logger.info(f"Respondent UUIDs: {respondent_ids}")
 
+                # CRITICAL: Get ALL responses, including those with deleted questions
+                # This matches the breakdown script behavior and ensures all data is exported
                 responses = Response.objects.filter(
                     respondent_id__in=respondent_ids,
-                    project_id=project_id,
-                    question__isnull=False
+                    project_id=project_id
                 ).select_related('question', 'respondent')
 
                 total_responses = responses.count()
@@ -911,12 +912,22 @@ class RespondentViewSet(BaseModelViewSet):
                 # Debug: Log responses per respondent
                 from collections import Counter
                 respondent_response_counts = Counter([r.respondent_id for r in responses])
+                responses_with_valid_questions = 0
+                responses_with_deleted_questions = 0
+
                 for resp_id, count in respondent_response_counts.items():
                     respondent_obj = next((r for r in bundle_respondents if r.id == resp_id), None)
                     resp_identifier = respondent_obj.respondent_id if respondent_obj else 'Unknown'
                     logger.info(f"  Respondent {resp_identifier} ({resp_id}): {count} responses")
 
                 for response in responses:
+                    # Handle responses with deleted questions
+                    if response.question is None:
+                        responses_with_deleted_questions += 1
+                        # Skip responses with deleted questions - can't display them
+                        continue
+
+                    responses_with_valid_questions += 1
                     formatted_value = self.format_response_for_csv(
                         response.response_value,
                         response.question.response_type
@@ -924,12 +935,19 @@ class RespondentViewSet(BaseModelViewSet):
                     # Use respondent UUID (id) as key to match with respondent.id below
                     response_matrix[response.question_id][response.respondent_id] = formatted_value
 
+                logger.info(f"  Valid responses: {responses_with_valid_questions}, Orphaned responses (deleted questions): {responses_with_deleted_questions}")
+
                 # DEBUG: Add response count summary to CSV
                 writer.writerow(['=== DEBUG: RESPONSE COUNTS PER RESPONDENT ==='])
                 for respondent in bundle_respondents:
-                    resp_count = sum(1 for q_id, resp_dict in response_matrix.items() if respondent.id in resp_dict)
-                    writer.writerow([f'Respondent {respondent.respondent_id} ({respondent.id}): {resp_count} responses'])
-                writer.writerow([f'Total responses in matrix: {sum(len(resp_dict) for resp_dict in response_matrix.values())}'])
+                    # Count total responses (including orphaned ones)
+                    total_resp = respondent_response_counts.get(respondent.id, 0)
+                    # Count valid responses (in matrix)
+                    valid_resp = sum(1 for q_id, resp_dict in response_matrix.items() if respondent.id in resp_dict)
+                    orphaned_resp = total_resp - valid_resp
+                    writer.writerow([f'Respondent {respondent.respondent_id} ({respondent.id}): {valid_resp} valid responses, {orphaned_resp} orphaned (deleted questions), {total_resp} total'])
+                writer.writerow([f'Total valid responses in matrix: {sum(len(resp_dict) for resp_dict in response_matrix.values())}'])
+                writer.writerow([f'Total orphaned responses: {responses_with_deleted_questions}'])
                 writer.writerow([])  # Empty row
 
                 # Write data rows - one row per question
