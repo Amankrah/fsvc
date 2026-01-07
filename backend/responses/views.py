@@ -281,11 +281,11 @@ class RespondentViewSet(BaseModelViewSet):
 
             respondent = self.get_object()
 
-            # Only get responses with valid questions (exclude orphaned responses)
+            # CRITICAL: Get ALL responses including orphaned ones (NULL question_id)
+            # We'll match orphaned responses to questions by position
             # Optimize queries with select_related and prefetch_related to avoid N+1 queries
-            responses = Response.objects.filter(
-                respondent=respondent,
-                question__isnull=False
+            all_responses = Response.objects.filter(
+                respondent=respondent
             ).select_related(
                 'question',
                 'question__project',
@@ -298,6 +298,43 @@ class RespondentViewSet(BaseModelViewSet):
                 'respondent__project__created_by',
                 'respondent__created_by'
             ).order_by('collected_at')
+
+            # Get available questions for this bundle (for position-based matching)
+            available_questions = Question.objects.filter(
+                project=respondent.project,
+                assigned_respondent_type=respondent.respondent_type,
+                assigned_commodity=respondent.commodity or '',
+                assigned_country=respondent.country or ''
+            ).exclude(
+                Q(assigned_respondent_type__isnull=True) |
+                Q(assigned_respondent_type='') |
+                Q(assigned_commodity__isnull=True) |
+                Q(assigned_commodity='') |
+                Q(assigned_country__isnull=True) |
+                Q(assigned_country='')
+            ).order_by('order_index')
+
+            questions_list = list(available_questions)
+
+            # Process responses: match orphaned ones by position
+            responses_to_serialize = []
+            for position, response in enumerate(all_responses):
+                if response.question is not None:
+                    # Valid response with question - use as-is
+                    responses_to_serialize.append(response)
+                else:
+                    # Orphaned response - match to question by position
+                    if position < len(questions_list):
+                        # Create a temporary response object with matched question
+                        # This allows us to serialize it properly for frontend
+                        response.question = questions_list[position]
+                        response._matched_by_position = True  # Flag for debugging
+                        responses_to_serialize.append(response)
+                        logger.debug(f"Matched orphaned response at position {position} to question: {questions_list[position].question_text[:50]}")
+                    else:
+                        logger.warning(f"Orphaned response at position {position} exceeds available questions ({len(questions_list)})")
+
+            responses = responses_to_serialize
 
             # Check if pagination is disabled
             no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
@@ -317,52 +354,41 @@ class RespondentViewSet(BaseModelViewSet):
                 serializer = ResponseLightSerializer(paginated_responses, many=True)
                 responses_data = serializer.data
 
-            # Get answered question IDs (already filtered for non-null questions)
-            answered_question_ids = list(
-                responses.values_list('question_id', flat=True).distinct()
-            )
+            # Get answered question IDs from the processed responses (includes position-matched orphaned)
+            answered_question_ids = []
+            for resp in responses:
+                if resp.question and resp.question.id:
+                    answered_question_ids.append(str(resp.question.id))
 
-            # Convert UUIDs to strings for frontend consumption
-            answered_question_ids = [str(qid) for qid in answered_question_ids]
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_answered_ids = []
+            for qid in answered_question_ids:
+                if qid not in seen:
+                    seen.add(qid)
+                    unique_answered_ids.append(qid)
+            answered_question_ids = unique_answered_ids
 
-            # STRICT FILTERING: Get questions matching ALL 3 required criteria
-            # This ensures we only count questions that are actually available for this respondent
-            available_questions = Question.objects.filter(
-                project=respondent.project,
-                assigned_respondent_type=respondent.respondent_type,
-                assigned_commodity=respondent.commodity or '',
-                assigned_country=respondent.country or ''
-            ).exclude(
-                Q(assigned_respondent_type__isnull=True) |
-                Q(assigned_respondent_type='') |
-                Q(assigned_commodity__isnull=True) |
-                Q(assigned_commodity='') |
-                Q(assigned_country__isnull=True) |
-                Q(assigned_country='')
-            )
-
-            # Get all available questions ordered properly (for calculating resume index)
-            # Sort questions by order_index (matches frontend ordering)
-            available_questions_list = list(available_questions.order_by('order_index'))
-            available_question_count = len(available_questions_list)
+            # We already have available_questions_list from position-based matching above
+            available_question_count = len(questions_list)
 
             # Calculate resume index: find first unanswered question
             answered_ids_set = set(answered_question_ids)
             resume_index = 0
             first_unanswered_question_id = None
 
-            for i, question in enumerate(available_questions_list):
+            for i, question in enumerate(questions_list):
                 if str(question.id) not in answered_ids_set:
                     resume_index = i
                     first_unanswered_question_id = str(question.id)
                     break
             else:
                 # All questions answered - resume at last question
-                if available_questions_list:
-                    resume_index = max(0, len(available_questions_list) - 1)
+                if questions_list:
+                    resume_index = max(0, len(questions_list) - 1)
 
             resume_metadata = {
-                'total_responses': responses.count(),
+                'total_responses': len(responses),
                 'answered_question_ids': answered_question_ids,
                 'answered_count': len(answered_question_ids),
                 'available_question_count': available_question_count,
@@ -376,7 +402,7 @@ class RespondentViewSet(BaseModelViewSet):
             }
 
             logger.info(
-                f"Retrieved {responses.count()} responses for respondent {respondent.id}, "
+                f"Retrieved {len(responses)} responses for respondent {respondent.id}, "
                 f"{available_question_count} questions available for criteria: "
                 f"{respondent.respondent_type}, {respondent.commodity}, {respondent.country}. "
                 f"Resume index: {resume_index}"
