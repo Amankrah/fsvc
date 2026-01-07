@@ -352,24 +352,6 @@ const ResponsesScreen: React.FC = () => {
             <Menu.Item
               onPress={() => {
                 setMenuVisible(false);
-                exportHook.handleExportCSV();
-              }}
-              title="Export to CSV"
-              leadingIcon="file-delimited"
-              titleStyle={styles.menuItemText}
-            />
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                exportHook.handleExportJSON();
-              }}
-              title="Export to JSON"
-              leadingIcon="code-json"
-              titleStyle={styles.menuItemText}
-            />
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
                 respondentsHook.loadData();
               }}
               title="Refresh"
@@ -534,6 +516,21 @@ const ResponsesScreen: React.FC = () => {
                 Clear
               </Button>
             )}
+
+            {/* Export Bundle Button - Only enabled when ALL filters selected */}
+            <Button
+              mode="contained"
+              onPress={() => exportHook.handleExportBundlePivot(selectedFilters)}
+              disabled={!selectedFilters.respondent_type || !selectedFilters.commodity || !selectedFilters.country || exportHook.exporting}
+              loading={exportHook.exporting}
+              style={[
+                styles.exportButton,
+                (!selectedFilters.respondent_type || !selectedFilters.commodity || !selectedFilters.country) && styles.exportButtonDisabled
+              ]}
+              labelStyle={styles.exportButtonLabel}
+              icon="download">
+              Export Bundle
+            </Button>
           </View>
         </>
       )}
@@ -758,6 +755,19 @@ const styles = StyleSheet.create({
   loadMoreButtonLabel: {
     color: '#ffffff',
     fontSize: 14,
+  },
+  exportButton: {
+    backgroundColor: '#4b1e85',
+    marginLeft: 'auto',
+    minWidth: 150,
+  },
+  exportButtonDisabled: {
+    backgroundColor: 'rgba(75, 30, 133, 0.3)',
+  },
+  exportButtonLabel: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

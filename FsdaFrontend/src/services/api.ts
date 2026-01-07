@@ -677,6 +677,26 @@ class ApiService {
     return await this.get(`/responses/responses/?project_id=${projectId}`);
   }
 
+  async exportBundlePivot(
+    projectId: string,
+    respondentType: string,
+    commodity: string,
+    country: string
+  ) {
+    const params = new URLSearchParams({
+      project_id: projectId,
+      respondent_type: respondentType,
+      commodity: commodity,
+      country: country,
+    });
+
+    const response = await this.axiosInstance.get(
+      `/responses/respondents/export_bundle_pivot/?${params.toString()}`,
+      { responseType: 'text' }
+    );
+    return response.data;
+  }
+
   // User search endpoints
   async searchUsers(query: string) {
     return await this.get(`/auth/users/search/?q=${encodeURIComponent(query)}`);

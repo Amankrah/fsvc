@@ -761,6 +761,131 @@ class RespondentViewSet(BaseModelViewSet):
                 'error': f'Failed to export JSON: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'])
+    def export_bundle_pivot(self, request):
+        """
+        Export responses in bundle-based pivot format for a SPECIFIC bundle.
+        Questions as rows, respondents as columns.
+
+        CRITICAL: ALL three filter parameters are REQUIRED to prevent timeout with large datasets.
+
+        Required Parameters:
+        - project_id: Project UUID
+        - respondent_type: Type of respondent (e.g., 'farmers')
+        - commodity: Commodity (e.g., 'maize')
+        - country: Country (e.g., 'Ghana')
+
+        Format:
+        - Columns: Question_Index | Question | Question_Category | Respondent_ID_1 | Respondent_ID_2 | ...
+        - Rows: One row per question in the bundle
+        - Questions ordered by order_index
+        """
+        try:
+            from collections import defaultdict
+            from forms.models import Question
+
+            # Validate ALL required parameters
+            project_id = request.query_params.get('project_id')
+            respondent_type = request.query_params.get('respondent_type')
+            commodity = request.query_params.get('commodity')
+            country = request.query_params.get('country')
+
+            if not all([project_id, respondent_type, commodity, country]):
+                return DRFResponse({
+                    'error': 'All filter parameters are required: project_id, respondent_type, commodity, country. This prevents system timeout with large datasets.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get ONLY respondents matching the specific bundle
+            respondents = self.get_queryset().filter(
+                project_id=project_id,
+                respondent_type=respondent_type,
+                commodity=commodity,
+                country=country
+            ).select_related('project').order_by('respondent_id')
+
+            if not respondents.exists():
+                return DRFResponse({
+                    'error': f'No respondents found for bundle: {respondent_type}, {commodity}, {country}'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Create CSV
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # Write bundle header
+            writer.writerow([f'=== BUNDLE: {respondent_type} | {commodity} | {country} ==='])
+            writer.writerow([f'Total Respondents: {respondents.count()}'])
+            writer.writerow([])  # Empty row
+
+            # Get questions for this specific bundle
+            bundle_respondents = list(respondents)
+            questions = Question.objects.filter(
+                project_id=project_id,
+                assigned_respondent_type=respondent_type,
+                assigned_commodity=commodity,
+                assigned_country=country
+            ).order_by('order_index')
+
+            if not questions.exists():
+                writer.writerow(['No questions found for this bundle'])
+            else:
+                # Build header row: Question | Question_Category | Respondent_ID columns
+                header = ['Question_Index', 'Question', 'Question_Category']
+                for respondent in bundle_respondents:
+                    header.append(respondent.respondent_id)
+                writer.writerow(header)
+
+                # Collect all responses for this bundle
+                # Create a mapping: {question_id: {respondent_id: response_value}}
+                response_matrix = defaultdict(dict)
+                respondent_ids = [r.id for r in bundle_respondents]
+
+                responses = Response.objects.filter(
+                    respondent_id__in=respondent_ids,
+                    project_id=project_id,
+                    question__isnull=False
+                ).select_related('question', 'respondent')
+
+                for response in responses:
+                    formatted_value = self.format_response_for_csv(
+                        response.response_value,
+                        response.question.response_type
+                    )
+                    response_matrix[response.question_id][response.respondent_id] = formatted_value
+
+                # Write data rows - one row per question
+                for idx, question in enumerate(questions, 1):
+                    row = [
+                        idx,  # Question index
+                        question.question_text,
+                        question.question_category or 'Uncategorized'
+                    ]
+
+                    # Add response for each respondent
+                    for respondent in bundle_respondents:
+                        response_value = response_matrix.get(question.id, {}).get(respondent.id, '')
+                        row.append(response_value)
+
+                    writer.writerow(row)
+
+            # Create HTTP response
+            csv_data = output.getvalue()
+            output.close()
+
+            response = HttpResponse(csv_data, content_type='text/csv')
+            filename = f'bundle_pivot_{project_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            return response
+
+        except Exception as e:
+            import traceback
+            logger.exception("Error in export_bundle_pivot")
+            return DRFResponse({
+                'error': f'Failed to export bundle pivot: {str(e)}',
+                'traceback': traceback.format_exc()
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['post'])
     def save_draft(self, request):
         """
