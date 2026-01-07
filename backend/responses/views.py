@@ -833,9 +833,11 @@ class RespondentViewSet(BaseModelViewSet):
             bundle_respondents = list(respondents)
             total_respondents = len(bundle_respondents)
 
-            # Write bundle header
+            # Write bundle header with debug info
             writer.writerow([f'=== BUNDLE: {respondent_type} | {commodity} | {country} ==='])
             writer.writerow([f'Total Respondents: {total_respondents}'])
+            writer.writerow([f'DEBUG: Respondent IDs: {[r.respondent_id for r in bundle_respondents]}'])
+            writer.writerow([f'DEBUG: Respondent UUIDs: {[str(r.id) for r in bundle_respondents]}'])
             writer.writerow([])  # Empty row
 
             logger.info(f"Exporting bundle: {respondent_type}, {commodity}, {country} - {total_respondents} respondents")
@@ -921,6 +923,14 @@ class RespondentViewSet(BaseModelViewSet):
                     )
                     # Use respondent UUID (id) as key to match with respondent.id below
                     response_matrix[response.question_id][response.respondent_id] = formatted_value
+
+                # DEBUG: Add response count summary to CSV
+                writer.writerow(['=== DEBUG: RESPONSE COUNTS PER RESPONDENT ==='])
+                for respondent in bundle_respondents:
+                    resp_count = sum(1 for q_id, resp_dict in response_matrix.items() if respondent.id in resp_dict)
+                    writer.writerow([f'Respondent {respondent.respondent_id} ({respondent.id}): {resp_count} responses'])
+                writer.writerow([f'Total responses in matrix: {sum(len(resp_dict) for resp_dict in response_matrix.values())}'])
+                writer.writerow([])  # Empty row
 
                 # Write data rows - one row per question
                 for idx, question in enumerate(questions, 1):
