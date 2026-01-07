@@ -19,13 +19,8 @@ from responses.models import Response, Respondent
 
 # List of test projects to delete
 TEST_PROJECTS = [
-    "Test Nigeria",
-    "Test 5",
-    "Test 4 removed questions",
-    "Test QG_DD",
-    "Test 3 removed questions",
-    "Test 2 removed questions",
-    "Test with removed questions"
+    "FCI4Africa Demo",
+    "FCI4Africa Data Collection Internal"
 ]
 
 print("=" * 120)
