@@ -795,12 +795,17 @@ class RespondentViewSet(BaseModelViewSet):
                     'error': 'All filter parameters are required: project_id, respondent_type, commodity, country. This prevents system timeout with large datasets.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Get ONLY respondents matching the specific bundle
-            respondents = self.get_queryset().filter(
+            # Log the received filter values for debugging
+            logger.info(f"Export bundle request - Project: {project_id}, Type: {respondent_type}, Commodity: {commodity}, Country: {country}")
+
+            # Get ALL respondents matching the specific bundle (NO PAGINATION for export)
+            # CRITICAL: Bypass get_queryset() pagination by using model directly
+            # Use case-insensitive matching for string fields
+            respondents = Respondent.objects.filter(
                 project_id=project_id,
-                respondent_type=respondent_type,
-                commodity=commodity,
-                country=country
+                respondent_type__iexact=respondent_type,
+                commodity__iexact=commodity,
+                country__iexact=country
             ).select_related('project').order_by('respondent_id')
 
             if not respondents.exists():
@@ -813,18 +818,54 @@ class RespondentViewSet(BaseModelViewSet):
             writer = csv.writer(output)
 
             # Write bundle header
+            total_respondents = respondents.count()
             writer.writerow([f'=== BUNDLE: {respondent_type} | {commodity} | {country} ==='])
-            writer.writerow([f'Total Respondents: {respondents.count()}'])
+            writer.writerow([f'Total Respondents: {total_respondents}'])
             writer.writerow([])  # Empty row
 
-            # Get questions for this specific bundle
+            logger.info(f"Exporting bundle: {respondent_type}, {commodity}, {country} - {total_respondents} respondents")
+
+            # Log sample of respondent IDs for debugging
+            if total_respondents > 0:
+                sample_ids = [r.respondent_id for r in respondents[:5]]
+                logger.info(f"Sample respondent IDs: {sample_ids}")
+
+            # Get ALL questions for this specific bundle with CUSTOM CATEGORY ORDERING
+            # Match frontend category order: Sociodemographics, Environmental LCA, Social LCA, etc.
+            from django.db.models import Case, When, Value, IntegerField
+
             bundle_respondents = list(respondents)
+
+            # Get ALL questions for this specific bundle with CUSTOM CATEGORY ORDERING
+            # Use case-insensitive matching for bundle assignment fields
             questions = Question.objects.filter(
                 project_id=project_id,
-                assigned_respondent_type=respondent_type,
-                assigned_commodity=commodity,
-                assigned_country=country
-            ).order_by('order_index')
+                assigned_respondent_type__iexact=respondent_type,
+                assigned_commodity__iexact=commodity,
+                assigned_country__iexact=country
+            ).annotate(
+                category_priority=Case(
+                    When(question_category__iexact='Sociodemographics', then=Value(0)),
+                    When(question_category__iexact='Environmental LCA', then=Value(1)),
+                    When(question_category__iexact='Social LCA', then=Value(2)),
+                    When(question_category__iexact='Vulnerability', then=Value(3)),
+                    When(question_category__iexact='Fairness', then=Value(4)),
+                    When(question_category__iexact='Solutions', then=Value(5)),
+                    When(question_category__iexact='Informations', then=Value(6)),
+                    When(question_category__iexact='Proximity and Value', then=Value(7)),
+                    default=Value(9999),  # Unknown categories go to the end
+                    output_field=IntegerField()
+                )
+            ).order_by('category_priority', 'order_index')
+
+            total_questions = questions.count()
+            logger.info(f"Found {total_questions} questions for bundle")
+
+            # Log first few question categories for debugging
+            if total_questions > 0:
+                sample_questions = questions[:5]
+                categories = [q.question_category for q in sample_questions]
+                logger.info(f"Sample question categories: {categories}")
 
             if not questions.exists():
                 writer.writerow(['No questions found for this bundle'])
