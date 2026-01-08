@@ -61,17 +61,18 @@ const ResponsesScreen: React.FC = () => {
   const detailsHook = useRespondentDetails();
   const exportHook = useExport(projectId, projectName);
 
-  // Load data on focus
+  // Load data on focus - pass current filters
   useFocusEffect(
     useCallback(() => {
-      respondentsHook.loadData();
+      respondentsHook.loadData(selectedFilters);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [selectedFilters])
   );
 
-  // Reload data when projectId changes
+  // Reload data when projectId changes - clear filters and load all data
   useEffect(() => {
-    respondentsHook.loadData();
+    setSelectedFilters({});
+    respondentsHook.loadData({});
     detailsHook.clearSelection();
     setViewMode('list');
     // eslint-disable-next-line react-hooks/exhaustive-deps
