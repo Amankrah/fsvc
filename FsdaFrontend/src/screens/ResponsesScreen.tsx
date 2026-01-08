@@ -9,7 +9,7 @@
  * - Full Django backend compatibility
  */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Platform, RefreshControl } from 'react-native';
 import {
   Text,
@@ -20,7 +20,7 @@ import {
   Chip,
   Button,
 } from 'react-native-paper';
-import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useRoute, RouteProp } from '@react-navigation/native';
 
 // Custom Hooks
 import {
@@ -61,15 +61,7 @@ const ResponsesScreen: React.FC = () => {
   const detailsHook = useRespondentDetails();
   const exportHook = useExport(projectId, projectName);
 
-  // Load data on focus - pass current filters
-  useFocusEffect(
-    useCallback(() => {
-      respondentsHook.loadData(selectedFilters);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedFilters])
-  );
-
-  // Reload data when projectId changes - clear filters and load all data
+  // Initial data load on mount and when project changes
   useEffect(() => {
     setSelectedFilters({});
     respondentsHook.loadData({});
