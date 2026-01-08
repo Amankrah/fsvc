@@ -449,16 +449,11 @@ class RespondentViewSet(BaseModelViewSet):
         - page_size: Items per page (default: 50, max: 100)
         """
         try:
-            # CRITICAL: Optimize queryset for performance
-            # Note: Can't use .only() with .select_related() on ForeignKey fields
-            queryset = self.get_queryset().select_related(
-                'project'  # Optimize foreign key access
-            ).annotate(
-                response_count=Count('responses'),
-                last_response_date=Max('responses__collected_at')
-            )
+            # CRITICAL: Apply filters BEFORE annotation for correct counts
+            queryset = self.get_queryset().select_related('project')
 
             # Filter by bundle parameters (respondent_type, commodity, country)
+            # MUST be applied BEFORE annotate() to get correct response_count
             respondent_type = request.query_params.get('respondent_type')
             if respondent_type:
                 queryset = queryset.filter(respondent_type__iexact=respondent_type)
@@ -475,6 +470,12 @@ class RespondentViewSet(BaseModelViewSet):
             completion_status = request.query_params.get('completion_status')
             if completion_status:
                 queryset = queryset.filter(completion_status=completion_status)
+
+            # NOW annotate with response counts (will only count for filtered respondents)
+            queryset = queryset.annotate(
+                response_count=Count('responses'),
+                last_response_date=Max('responses__collected_at')
+            )
 
             # Order by most recent first for better UX
             queryset = queryset.order_by('-created_at')
