@@ -104,6 +104,10 @@ def extract_responses_by_questionbank():
         # Initialize data structure
         data_rows = []
 
+        # Track orphaned response recovery
+        total_orphaned_recovered = 0
+        respondents_with_orphaned = 0
+
         # Process each respondent
         for respondent_idx, respondent in enumerate(respondents, 1):
             row = {
@@ -120,27 +124,60 @@ def extract_responses_by_questionbank():
             for col_name in qb_columns.values():
                 row[col_name] = ''
 
-            # Group responses by QuestionBank source
-            # If a respondent has multiple responses to generated questions from same QuestionBank,
-            # we'll consolidate them (for now, taking the first response)
-            qb_responses = {}
+            # Separate valid and orphaned responses
+            valid_responses = []
+            orphaned_responses = []
 
-            for response in respondent.responses.all():
+            for response in respondent.responses.all().order_by('collected_at'):
                 if response.question and response.question.question_bank_source:
-                    qb_id = str(response.question.question_bank_source.id)
+                    valid_responses.append(response)
+                else:
+                    # Orphaned response (question_id is NULL)
+                    orphaned_responses.append(response)
 
-                    # If we don't have a response for this QuestionBank yet, store it
-                    if qb_id not in qb_responses:
-                        qb_responses[qb_id] = response.response_value or ''
-                    # If response_type is choice_multiple, we might want to consolidate multiple responses
-                    # For now, we just keep the first response
-                    # TODO: In future, handle consolidation better (e.g., combine multiple choice responses)
+            # Group valid responses by QuestionBank source
+            qb_responses = {}
+            for response in valid_responses:
+                qb_id = str(response.question.question_bank_source.id)
+                if qb_id not in qb_responses:
+                    qb_responses[qb_id] = response.response_value or ''
 
-            # Fill in the QuestionBank columns
+            # Fill in the QuestionBank columns from valid responses
             for qb_id, response_value in qb_responses.items():
                 if qb_id in qb_columns:
                     col_name = qb_columns[qb_id]
                     row[col_name] = response_value
+
+            # RECOVERY STRATEGY: Position-based matching for orphaned responses
+            # If there are orphaned responses, try to match them by position to current questions
+            if orphaned_responses and len(orphaned_responses) > 0:
+                respondents_with_orphaned += 1
+
+                # Get current questions for this bundle (respondent_type + commodity + country)
+                current_questions = Question.objects.filter(
+                    project=project,
+                    assigned_respondent_type=respondent.respondent_type,
+                    assigned_commodity=respondent.commodity or '',
+                    assigned_country=respondent.country or ''
+                ).select_related('question_bank_source').order_by('order_index')
+
+                current_questions_list = list(current_questions)
+
+                # Match orphaned responses by position
+                recovered_count = 0
+                for idx, orphaned_response in enumerate(orphaned_responses):
+                    if idx < len(current_questions_list):
+                        question = current_questions_list[idx]
+                        if question.question_bank_source:
+                            qb_id = str(question.question_bank_source.id)
+                            if qb_id in qb_columns:
+                                col_name = qb_columns[qb_id]
+                                # Only fill if not already filled by valid response
+                                if not row[col_name]:
+                                    row[col_name] = orphaned_response.response_value or ''
+                                    recovered_count += 1
+
+                total_orphaned_recovered += recovered_count
 
             data_rows.append(row)
 
@@ -149,6 +186,17 @@ def extract_responses_by_questionbank():
 
         print(f"Processed all {total_respondents} respondents")
         print()
+
+        # Report orphaned response recovery
+        if respondents_with_orphaned > 0:
+            print(f"{'='*80}")
+            print(f"Orphaned Response Recovery")
+            print(f"{'='*80}")
+            print(f"Respondents with orphaned responses: {respondents_with_orphaned}")
+            print(f"Total orphaned responses recovered: {total_orphaned_recovered}")
+            print(f"Recovery method: Position-based matching")
+            print(f"Note: Orphaned responses had NULL question_id but were matched by position")
+            print()
 
         # Create DataFrame
         df = pd.DataFrame(data_rows)
