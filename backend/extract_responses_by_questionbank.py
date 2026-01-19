@@ -191,34 +191,70 @@ def extract_responses_by_questionbank():
                     col_name = qb_columns[qb_id]
                     row[col_name] = response_value
 
-            # RECOVERY STRATEGY: Position-based matching for orphaned responses
-            # If there are orphaned responses, try to match them by position to current questions
+            # RECOVERY STRATEGY: Category-aware position-based matching for orphaned responses
+            # Match responses using category from question_bank_context and position within category
             if orphaned_responses and len(orphaned_responses) > 0:
                 respondents_with_orphaned += 1
 
-                # Get current questions for this bundle (respondent_type + commodity + country)
-                current_questions = Question.objects.filter(
-                    project=project,
-                    assigned_respondent_type=respondent.respondent_type,
-                    assigned_commodity=respondent.commodity or '',
-                    assigned_country=respondent.country or ''
-                ).select_related('question_bank_source').order_by('order_index')
+                # Group QuestionBank items by category for this respondent
+                qb_by_category = {}
+                for cat in CATEGORY_ORDER:
+                    qb_by_category[cat] = []
 
-                current_questions_list = list(current_questions)
+                # Populate with applicable QB items in order
+                for idx, bank_item in enumerate(question_bank_items, 1):
+                    # Check if this QB is targeted to this respondent
+                    is_targeted = True
 
-                # Match orphaned responses by position
+                    if bank_item.targeted_respondents:
+                        if respondent.respondent_type not in bank_item.targeted_respondents:
+                            is_targeted = False
+
+                    if bank_item.targeted_commodities:
+                        if respondent.commodity not in bank_item.targeted_commodities:
+                            is_targeted = False
+
+                    if bank_item.targeted_countries:
+                        if respondent.country not in bank_item.targeted_countries:
+                            is_targeted = False
+
+                    if is_targeted:
+                        category = bank_item.question_category or 'general'
+                        if category in qb_by_category:
+                            qb_by_category[category].append({
+                                'qb_number': idx,
+                                'qb_id': str(bank_item.id)
+                            })
+
+                # Track position within each category
+                category_positions = {cat: 0 for cat in CATEGORY_ORDER}
+
+                # Match orphaned responses by category and position
                 recovered_count = 0
-                for idx, orphaned_response in enumerate(orphaned_responses):
-                    if idx < len(current_questions_list):
-                        question = current_questions_list[idx]
-                        if question.question_bank_source:
-                            qb_id = str(question.question_bank_source.id)
-                            if qb_id in qb_columns:
-                                col_name = qb_columns[qb_id]
-                                # Only fill if not already filled by valid response
-                                if not row[col_name]:
-                                    row[col_name] = orphaned_response.response_value or ''
-                                    recovered_count += 1
+                for orphaned_response in orphaned_responses:
+                    # Get category from question_bank_context
+                    if orphaned_response.question_bank_context:
+                        category = orphaned_response.question_bank_context.get('question_category', '')
+
+                        if category in qb_by_category:
+                            # Get the QB items in this category applicable to this respondent
+                            applicable_qbs = qb_by_category[category]
+
+                            # Get current position within this category
+                            position = category_positions[category]
+                            category_positions[category] += 1
+
+                            # Match by position within category
+                            if position < len(applicable_qbs):
+                                qb_info = applicable_qbs[position]
+                                qb_id = qb_info['qb_id']
+
+                                if qb_id in qb_columns:
+                                    col_name = qb_columns[qb_id]
+                                    # Only fill if not already filled
+                                    if not row[col_name]:
+                                        row[col_name] = orphaned_response.response_value or ''
+                                        recovered_count += 1
 
                 total_orphaned_recovered += recovered_count
 
@@ -237,8 +273,9 @@ def extract_responses_by_questionbank():
             print(f"{'='*80}")
             print(f"Respondents with orphaned responses: {respondents_with_orphaned}")
             print(f"Total orphaned responses recovered: {total_orphaned_recovered}")
-            print(f"Recovery method: Position-based matching")
-            print(f"Note: Orphaned responses had NULL question_id but were matched by position")
+            print(f"Recovery method: Category-aware position-based matching")
+            print(f"Note: Orphaned responses matched using category from question_bank_context")
+            print(f"      and position within that category, respecting custom category order")
             print()
 
         # Create DataFrame
