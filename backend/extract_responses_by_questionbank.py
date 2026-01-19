@@ -52,13 +52,56 @@ def extract_responses_by_questionbank():
         print(f"Project ID: {PROJECT_ID}")
         print(f"{'='*80}\n")
 
-        # Get all QuestionBank items for this project
-        question_bank_items = QuestionBank.objects.filter(
-            project=project
-        ).order_by('question_category', '-priority_score')
+        # Define custom category order (same as frontend)
+        CATEGORY_ORDER = [
+            'Sociodemographics',
+            'Environmental LCA',
+            'Social LCA',
+            'Vulnerability',
+            'Fairness',
+            'Solutions',
+            'Informations',
+            'Proximity and Value',
+        ]
 
-        total_bank_items = question_bank_items.count()
+        # Get all QuestionBank items for this project
+        all_bank_items = QuestionBank.objects.filter(
+            project=project
+        ).select_related('project')
+
+        # Sort by custom category order, then by order within category
+        # Create a mapping for category order
+        category_order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
+
+        question_bank_items = sorted(
+            all_bank_items,
+            key=lambda item: (
+                category_order_map.get(item.question_category, 999),  # Category order
+                -item.priority_score,  # Then by priority (descending)
+                item.created_at  # Then by creation time
+            )
+        )
+
+        total_bank_items = len(question_bank_items)
         print(f"Total QuestionBank Items: {total_bank_items}\n")
+        print(f"Category Order: {' → '.join(CATEGORY_ORDER)}\n")
+
+        # Show QuestionBank breakdown by category (in correct order)
+        print("QuestionBank Items by Category:")
+        category_counts = {}
+        for item in question_bank_items:
+            cat = item.question_category or 'Uncategorized'
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+
+        for category in CATEGORY_ORDER:
+            count = category_counts.get(category, 0)
+            if count > 0:
+                print(f"  {category}: {count} items")
+
+        # Show any uncategorized items
+        if 'Uncategorized' in category_counts:
+            print(f"  Uncategorized: {category_counts['Uncategorized']} items")
+        print()
 
         if total_bank_items == 0:
             print("⚠️  No QuestionBank items found for this project.")
