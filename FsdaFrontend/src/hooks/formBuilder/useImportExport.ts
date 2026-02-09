@@ -144,14 +144,29 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
         // Reload questions from QuestionBank
         await onImportSuccess();
 
+        // Build detailed message with errors if any
+        let detailMessage = `✅ Created: ${importResultData.created} questions\n✅ Updated: ${importResultData.updated} questions`;
+
+        if (importResultData.errors && importResultData.errors.length > 0) {
+          detailMessage += `\n\n⚠️ ${importResultData.errors.length} Error(s):\n`;
+          // Show first 5 errors in detail
+          const errorsToShow = importResultData.errors.slice(0, 5);
+          errorsToShow.forEach((err: string, idx: number) => {
+            detailMessage += `\n${idx + 1}. ${err}`;
+          });
+          if (importResultData.errors.length > 5) {
+            detailMessage += `\n\n... and ${importResultData.errors.length - 5} more errors.`;
+            detailMessage += `\nCheck the console for full error list.`;
+            console.log('Full import errors:', importResultData.errors);
+          }
+        }
+
         // Show success with details
         showAlert(
-          'Import Successful! 🎉',
-          `✅ Created: ${importResultData.created} questions\n✅ Updated: ${importResultData.updated} questions${
-            importResultData.errors && importResultData.errors.length > 0
-              ? `\n⚠️  Errors: ${importResultData.errors.length}`
-              : ''
-          }`,
+          importResultData.errors && importResultData.errors.length > 0
+            ? 'Import Completed with Errors'
+            : 'Import Successful! 🎉',
+          detailMessage,
           [
             {
               text: 'OK',
@@ -165,27 +180,39 @@ export const useImportExport = (projectId: string, onImportSuccess: () => Promis
         );
       } catch (error: any) {
         console.error('Error importing questions:', error);
+        console.log('Full error details:', JSON.stringify(error, null, 2));
 
         let errorMessage = 'Failed to import questions to Question Bank';
         const details: string[] = [];
 
         if (error.details && Array.isArray(error.details)) {
-          details.push(...error.details.slice(0, 10));
+          // Show detailed errors with row numbers
+          error.details.forEach((detail: string, idx: number) => {
+            if (idx < 10) {
+              details.push(detail);
+            }
+          });
           if (error.details.length > 10) {
-            details.push(`... and ${error.details.length - 10} more errors`);
+            details.push(`\n... and ${error.details.length - 10} more errors`);
           }
         } else if (error.error) {
           details.push(error.error);
+        } else if (error.message) {
+          details.push(error.message);
         }
 
         setImportResult({
           created: 0,
           updated: 0,
-          errors: details,
+          errors: error.details || details,
           error: true,
         });
 
-        showAlert('Import Failed', errorMessage + '\n\n' + details.join('\n'));
+        const alertMessage = details.length > 0
+          ? `${errorMessage}\n\n${details.join('\n')}`
+          : errorMessage;
+
+        showAlert('Import Failed', alertMessage);
       } finally {
         setImporting(false);
         setImportProgress(0);
