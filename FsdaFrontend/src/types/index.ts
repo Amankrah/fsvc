@@ -440,21 +440,27 @@ export interface ApiError {
 export type RespondentType =
   | 'input_suppliers'
   | 'farmers'
+  | 'farmers_in'
+  | 'farmers_out'
   | 'aggregators_lbcs'
   | 'processors'
   | 'processors_eu'
+  | 'traders'
   | 'retailers_food_vendors'
   | 'retailers_food_vendors_eu'
   | 'local_consumers'
+  | 'consumers_in'
+  | 'consumers_out'
   | 'consumers_eu_prolific'
   | 'client_business_eu_prolific'
   | 'government'
+  | 'policymakers'
   | 'ngos'
   | 'certification_schemes'
   | 'coop'
   | 'chief';
 
-export type CommodityType = 'cocoa' | 'maize' | 'palm_oil' | 'groundnut' | 'honey';
+export type CommodityType = 'cocoa' | 'maize' | 'palm_oil' | 'groundnut' | 'honey' | 'fish' | 'vegetables';
 
 // Changed from strict union type to string to allow custom categories
 export type QuestionCategory = string;
