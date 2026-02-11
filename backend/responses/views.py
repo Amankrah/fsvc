@@ -235,6 +235,10 @@ class RespondentViewSet(BaseModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        """Ensure created_by is set to the current user"""
+        serializer.save(created_by=self.request.user)
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get summary statistics for respondents"""
@@ -299,6 +303,67 @@ class RespondentViewSet(BaseModelViewSet):
         except Exception as e:
             return DRFResponse({
                 'error': f'Failed to get respondents with counts: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def my_stats(self, request):
+        """Get collection stats for the current user"""
+        try:
+            project_id = request.query_params.get('project_id')
+            if not project_id:
+                return DRFResponse({
+                    'error': 'project_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Filter respondents created by the current user
+            queryset = self.get_queryset().filter(
+                project_id=project_id,
+                created_by=request.user
+            )
+
+            # Group by criteria
+            stats = queryset.values(
+                'respondent_type', 
+                'commodity', 
+                'country'
+            ).annotate(
+                total_respondents=Count('id'),
+                completed_respondents_count=Count('id', filter=Q(completion_status='completed'))
+            ).order_by('respondent_type', 'commodity', 'country')
+
+            # Format results
+            bundles = []
+            
+            # We need Question model to get total questions for each group
+            from forms.models import Question
+            
+            for item in stats:
+                # Get question count for this criteria
+                question_count = Question.objects.filter(
+                    project_id=project_id,
+                    assigned_respondent_type=item['respondent_type'],
+                    assigned_commodity=item['commodity'] or '',
+                    assigned_country=item['country'] or ''
+                ).count()
+                
+                bundles.append({
+                    'respondent_type': item['respondent_type'],
+                    'commodity': item['commodity'],
+                    'country': item['country'],
+                    'total_questions': question_count,
+                    'total_respondents': item['total_respondents'],
+                    'completed_respondents_count': item['completed_respondents_count'],
+                    'completed_respondent_ids': [] # Information not needed for summary
+                })
+                
+            return DRFResponse({
+                'bundles': bundles,
+                'total_bundles': len(bundles)
+            })
+
+        except Exception as e:
+            return DRFResponse({
+                'error': f'Failed to get user stats: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def format_response_for_csv(self, response_value, question_type):

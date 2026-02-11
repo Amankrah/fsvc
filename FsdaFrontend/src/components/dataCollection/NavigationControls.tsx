@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Button, ProgressBar, Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface NavigationControlsProps {
   currentIndex: number;
@@ -32,8 +33,10 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   canGoBack,
   isLastQuestion,
 }) => {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]}>
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
         <Text style={styles.progressText}>
@@ -97,7 +100,8 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     backgroundColor: 'rgba(75, 30, 133, 0.1)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(75, 30, 133, 0.3)',

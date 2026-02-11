@@ -13,7 +13,7 @@ import apiService from '../services/api';
 import { showAlert } from '../utils/alert';
 
 type RootStackParamList = {
-  BundleCompletion: { projectId: string; projectName: string };
+  BundleCompletion: { projectId: string; projectName: string; mode?: 'project' | 'user' };
 };
 
 type BundleCompletionRouteProp = RouteProp<RootStackParamList, 'BundleCompletion'>;
@@ -31,7 +31,7 @@ interface BundleStats {
 const BundleCompletionScreen: React.FC = () => {
   const route = useRoute<BundleCompletionRouteProp>();
   const navigation = useNavigation();
-  const { projectId, projectName } = route.params;
+  const { projectId, projectName, mode = 'project' } = route.params;
 
   const [bundles, setBundles] = useState<BundleStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +39,10 @@ const BundleCompletionScreen: React.FC = () => {
 
   const loadBundleStats = async () => {
     try {
-      const data = await apiService.getBundleCompletionStats(projectId);
+      const data = mode === 'user'
+        ? await apiService.getMyCollectionStats(projectId)
+        : await apiService.getBundleCompletionStats(projectId);
+
       setBundles(data.bundles || []);
       console.log(`✓ Loaded completion stats for ${data.total_bundles} bundles`);
     } catch (error) {
@@ -141,7 +144,7 @@ const BundleCompletionScreen: React.FC = () => {
         />
         <View style={styles.headerContent}>
           <Text variant="headlineSmall" style={styles.title}>
-            Bundle Completion Stats
+            {mode === 'user' ? 'My Collection Stats' : 'Bundle Completion Stats'}
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             {projectName}
@@ -176,9 +179,13 @@ const BundleCompletionScreen: React.FC = () => {
       {/* Bundles List */}
       {bundles.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No question bundles found</Text>
+          <Text style={styles.emptyText}>
+            {mode === 'user' ? 'No collections found' : 'No question bundles found'}
+          </Text>
           <Text style={styles.emptySubtext}>
-            Generate questions with respondent type, commodity, and country to see completion stats
+            {mode === 'user'
+              ? 'You haven\'t collected any data yet.'
+              : 'Generate questions with respondent type, commodity, and country to see completion stats'}
           </Text>
         </View>
       ) : (

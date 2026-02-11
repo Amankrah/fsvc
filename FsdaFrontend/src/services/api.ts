@@ -336,6 +336,10 @@ class ApiService {
     return await this.get(`/forms/questions/bundle-completion-stats/?project_id=${projectId}`);
   }
 
+  async getMyCollectionStats(projectId: string) {
+    return await this.get(`/responses/respondents/my_stats/?project_id=${projectId}`);
+  }
+
   // Dynamic Question Generation endpoints
   async generateDynamicQuestions(data: {
     project: string;

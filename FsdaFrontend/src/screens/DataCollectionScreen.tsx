@@ -24,6 +24,7 @@ import {
   RespondentForm,
   QuestionInput,
   NavigationControls,
+  SwipeableQuestionView,
 } from '../components/dataCollection';
 
 // Services
@@ -57,6 +58,7 @@ const DataCollectionScreen: React.FC = () => {
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [resumedDraftDatabaseId, setResumedDraftDatabaseId] = useState<string | null>(null);
   const [preExistingResponseQuestionIds, setPreExistingResponseQuestionIds] = useState<Set<string>>(new Set());
+  const [isResumingDraft, setIsResumingDraft] = useState(false);
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -134,6 +136,7 @@ const DataCollectionScreen: React.FC = () => {
 
   // Handle Resume Draft
   const handleResumeDraft = async (draft: any) => {
+    setIsResumingDraft(true);
     try {
       setShowDraftsDialog(false);
 
@@ -282,6 +285,8 @@ const DataCollectionScreen: React.FC = () => {
           responses.setQuestionIndex(resumeIndex);
         }
 
+        setIsResumingDraft(false);
+
         showAlert(
           'Draft Loaded',
           `Resuming survey for ${draft.respondent_id}\n\n` +
@@ -292,6 +297,7 @@ const DataCollectionScreen: React.FC = () => {
       }, 200);
 
     } catch (error: any) {
+      setIsResumingDraft(false);
       console.error('Error resuming draft:', error);
       showAlert('Error', 'Failed to load draft. Please try again.');
     }
@@ -508,6 +514,16 @@ const DataCollectionScreen: React.FC = () => {
             </View>
             <View style={{ flexDirection: 'row' }}>
               <IconButton
+                icon="chart-bar"
+                iconColor="#2196F3"
+                size={24}
+                onPress={() => (navigation as any).navigate('BundleCompletion', {
+                  projectId,
+                  projectName,
+                  mode: 'user'
+                })}
+              />
+              <IconButton
                 icon="file-document-edit-outline"
                 iconColor="#FFA500"
                 size={24}
@@ -703,6 +719,19 @@ const DataCollectionScreen: React.FC = () => {
               <Button onPress={() => setShowDraftsDialog(false)}>Close</Button>
             </Dialog.Actions>
           </Dialog>
+
+          {/* Loading Draft Dialog */}
+          <Dialog visible={isResumingDraft} dismissable={false}>
+            <Dialog.Content>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
+                <ActivityIndicator size="large" color="#4b1e85" style={{ marginRight: 20 }} />
+                <View>
+                  <Text variant="titleMedium">Resuming Draft</Text>
+                  <Text variant="bodySmall" style={{ color: '#666' }}>Please wait...</Text>
+                </View>
+              </View>
+            </Dialog.Content>
+          </Dialog>
         </Portal>
       </>
     );
@@ -735,99 +764,107 @@ const DataCollectionScreen: React.FC = () => {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          {currentQuestion ? (
-            <Card style={styles.questionCard}>
-              <Card.Content>
-                {/* Follow-up Question Indicator */}
-                {currentQuestion.is_follow_up && (
-                  <View style={styles.followUpIndicator}>
-                    <Text style={styles.followUpIcon}>↳</Text>
-                    <Text style={styles.followUpText}>Follow-up question</Text>
-                  </View>
-                )}
+        <SwipeableQuestionView
+          onSwipeLeft={responses.handleNext}
+          onSwipeRight={responses.handlePrevious}
+          canSwipeLeft={responses.currentQuestionIndex < responses.visibleQuestions.length - 1}
+          canSwipeRight={responses.currentQuestionIndex > 0}
+          enabled={!responses.submitting}
+        >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}>
+            {currentQuestion ? (
+              <Card style={styles.questionCard}>
+                <Card.Content>
+                  {/* Follow-up Question Indicator */}
+                  {currentQuestion.is_follow_up && (
+                    <View style={styles.followUpIndicator}>
+                      <Text style={styles.followUpIcon}>↳</Text>
+                      <Text style={styles.followUpText}>Follow-up question</Text>
+                    </View>
+                  )}
 
-                {/* Section Header and Preamble */}
-                {currentQuestion.section_header && (
-                  <>
-                    {/* Show section header */}
-                    <View style={styles.sectionHeaderContainer}>
-                      <Text style={styles.sectionHeaderText}>
-                        {currentQuestion.section_header}
+                  {/* Section Header and Preamble */}
+                  {currentQuestion.section_header && (
+                    <>
+                      {/* Show section header */}
+                      <View style={styles.sectionHeaderContainer}>
+                        <Text style={styles.sectionHeaderText}>
+                          {currentQuestion.section_header}
+                        </Text>
+                      </View>
+
+                      {/* Show preamble only for first question in section */}
+                      {currentQuestion.section_preamble && (
+                        (() => {
+                          const prevQuestion = questions.questions[responses.currentQuestionIndex - 1];
+                          const isFirstInSection = !prevQuestion || prevQuestion.section_header !== currentQuestion.section_header;
+                          return isFirstInSection ? (
+                            <View style={styles.sectionPreambleContainer}>
+                              <Text style={styles.sectionPreambleText}>
+                                {currentQuestion.section_preamble}
+                              </Text>
+                            </View>
+                          ) : null;
+                        })()
+                      )}
+                    </>
+                  )}
+
+                  {/* Question Number and Type */}
+                  <View style={styles.questionHeader}>
+                    <View style={styles.questionBadge}>
+                      <Text style={styles.questionBadgeText}>
+                        Q{responses.currentQuestionIndex + 1}
                       </Text>
                     </View>
-
-                    {/* Show preamble only for first question in section */}
-                    {currentQuestion.section_preamble && (
-                      (() => {
-                        const prevQuestion = questions.questions[responses.currentQuestionIndex - 1];
-                        const isFirstInSection = !prevQuestion || prevQuestion.section_header !== currentQuestion.section_header;
-                        return isFirstInSection ? (
-                          <View style={styles.sectionPreambleContainer}>
-                            <Text style={styles.sectionPreambleText}>
-                              {currentQuestion.section_preamble}
-                            </Text>
-                          </View>
-                        ) : null;
-                      })()
+                    {currentQuestion.question_category && (
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryBadgeText}>
+                          {currentQuestion.question_category}
+                        </Text>
+                      </View>
                     )}
-                  </>
-                )}
-
-                {/* Question Number and Type */}
-                <View style={styles.questionHeader}>
-                  <View style={styles.questionBadge}>
-                    <Text style={styles.questionBadgeText}>
-                      Q{responses.currentQuestionIndex + 1}
-                    </Text>
-                  </View>
-                  {currentQuestion.question_category && (
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {currentQuestion.question_category}
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeBadgeText}>
+                        {currentQuestion.response_type.replace(/_/g, ' ')}
                       </Text>
                     </View>
-                  )}
-                  <View style={styles.typeBadge}>
-                    <Text style={styles.typeBadgeText}>
-                      {currentQuestion.response_type.replace(/_/g, ' ')}
-                    </Text>
+                    {currentQuestion.is_required && (
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredBadgeText}>Required</Text>
+                      </View>
+                    )}
                   </View>
-                  {currentQuestion.is_required && (
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredBadgeText}>Required</Text>
-                    </View>
-                  )}
-                </View>
 
-                {/* Question Text */}
-                <Text variant="headlineSmall" style={[
-                  styles.questionText,
-                  currentQuestion.is_follow_up && styles.followUpQuestionText
-                ]}>
-                  {currentQuestion.question_text}
-                </Text>
+                  {/* Question Text */}
+                  <Text variant="headlineSmall" style={[
+                    styles.questionText,
+                    currentQuestion.is_follow_up && styles.followUpQuestionText
+                  ]}>
+                    {currentQuestion.question_text}
+                  </Text>
 
-                {/* Question Input */}
-                <View style={styles.inputContainer}>
-                  <QuestionInput
-                    question={currentQuestion}
-                    value={responses.responses[currentQuestion.id]}
-                    onChange={responses.handleResponseChange}
-                  />
-                </View>
-              </Card.Content>
-            </Card>
-          ) : (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#64c8ff" />
-              <Text style={styles.loadingText}>Loading question...</Text>
-            </View>
-          )}
-        </ScrollView>
+                  {/* Question Input */}
+                  <View style={styles.inputContainer}>
+                    <QuestionInput
+                      question={currentQuestion}
+                      value={responses.responses[currentQuestion.id]}
+                      onChange={responses.handleResponseChange}
+                    />
+                  </View>
+                </Card.Content>
+              </Card>
+            ) : (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#64c8ff" />
+                <Text style={styles.loadingText}>Loading question...</Text>
+              </View>
+            )}
+          </ScrollView>
+        </SwipeableQuestionView>
 
         {/* Navigation Controls */}
         {currentQuestion && (
