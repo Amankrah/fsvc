@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image, Pressable } from 'react-native';
 import { Text, TextInput, RadioButton, Checkbox, Button } from 'react-native-paper';
 import { Question } from '../../types';
 import { DatePickerDialog } from './DatePickerDialog';
@@ -153,10 +153,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         <RadioButton.Group value={value as string || ''} onValueChange={handleValueChange}>
           <View style={styles.scaleButtons}>
             {scaleOptions.map((option) => (
-              <View key={option} style={styles.scaleOption}>
+              <Pressable
+                key={option}
+                onPress={() => handleValueChange(option)}
+                style={({ pressed }) => [styles.scaleOption, pressed && styles.optionPressed]}
+              >
                 <RadioButton value={option} color="#64c8ff" />
                 <Text style={styles.scaleOptionText}>{option}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </RadioButton.Group>
@@ -193,10 +197,13 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         <RadioButton.Group value={displayValue} onValueChange={handleRadioChange}>
           {question.options?.map((option) => (
             <View key={option}>
-              <View style={styles.radioOption}>
+              <Pressable
+                onPress={() => handleRadioChange(option)}
+                style={({ pressed }) => [styles.radioOption, pressed && styles.optionPressed]}
+              >
                 <RadioButton value={option} color="#64c8ff" />
                 <Text style={styles.optionText}>{option}</Text>
-              </View>
+              </Pressable>
               {/* Show text input if this "Other" option is selected */}
               {isOtherOption(option) && displayValue === option && (
                 <View style={styles.otherInputContainer}>
@@ -277,14 +284,17 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
       <View>
         {question.options?.map((option) => (
           <View key={option}>
-            <View style={styles.checkboxOption}>
+            <Pressable
+              onPress={() => toggleOption(option)}
+              style={({ pressed }) => [styles.checkboxOption, pressed && styles.optionPressed]}
+            >
               <Checkbox
                 status={isOptionChecked(option) ? 'checked' : 'unchecked'}
                 onPress={() => toggleOption(option)}
                 color="#64c8ff"
               />
               <Text style={styles.optionText}>{option}</Text>
-            </View>
+            </Pressable>
             {/* Show text input if this "Other" option is checked */}
             {isOtherOption(option) && isOptionChecked(option) && (
               <View style={styles.otherInputContainer}>
@@ -528,5 +538,9 @@ const styles = StyleSheet.create({
   unsupportedText: {
     color: 'rgba(255, 255, 255, 0.5)',
     fontStyle: 'italic',
+  },
+  optionPressed: {
+    opacity: 0.7,
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
   },
 });

@@ -9,9 +9,9 @@
  * - Full Django backend compatibility
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch } from 'react-native-paper';
+import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch, Snackbar } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { showAlert, showError, showInfo } from '../utils/alert';
@@ -59,6 +59,12 @@ const DataCollectionScreen: React.FC = () => {
   const [resumedDraftDatabaseId, setResumedDraftDatabaseId] = useState<string | null>(null);
   const [preExistingResponseQuestionIds, setPreExistingResponseQuestionIds] = useState<Set<string>>(new Set());
   const [isResumingDraft, setIsResumingDraft] = useState(false);
+
+  // Scroll & navigation feedback
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [navSnackVisible, setNavSnackVisible] = useState(false);
+  const [navSnackMessage, setNavSnackMessage] = useState('');
+  const prevQuestionIndexRef = useRef<number | null>(null);
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -108,6 +114,16 @@ const DataCollectionScreen: React.FC = () => {
     questions.resetQuestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Scroll to top and show navigation toast when question changes
+  useEffect(() => {
+    if (prevQuestionIndexRef.current !== null && prevQuestionIndexRef.current !== responses.currentQuestionIndex) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      setNavSnackMessage(`Question ${responses.currentQuestionIndex + 1} of ${responses.visibleQuestions.length}`);
+      setNavSnackVisible(true);
+    }
+    prevQuestionIndexRef.current = responses.currentQuestionIndex;
+  }, [responses.currentQuestionIndex, responses.visibleQuestions.length]);
 
   // Handle Load Drafts
   const handleLoadDrafts = async () => {
@@ -772,6 +788,7 @@ const DataCollectionScreen: React.FC = () => {
           enabled={!responses.submitting}
         >
           <ScrollView
+            ref={scrollViewRef}
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}>
@@ -884,6 +901,17 @@ const DataCollectionScreen: React.FC = () => {
           />
         )}
       </KeyboardAvoidingView>
+
+      {/* Navigation Toast */}
+      <Snackbar
+        visible={navSnackVisible}
+        onDismiss={() => setNavSnackVisible(false)}
+        duration={1500}
+        wrapperStyle={styles.snackbarWrapper}
+        style={styles.snackbar}
+      >
+        {navSnackMessage}
+      </Snackbar>
     </View>
   );
 };
@@ -1095,6 +1123,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.5)',
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  snackbarWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  snackbar: {
+    backgroundColor: 'rgba(75, 30, 133, 0.9)',
   },
 });
 
