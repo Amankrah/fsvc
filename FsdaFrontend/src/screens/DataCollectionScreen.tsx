@@ -83,6 +83,7 @@ const DataCollectionScreen: React.FC = () => {
     selectedCommodities: respondent.selectedCommodities,
     selectedCountry: respondent.selectedCountry,
     useProjectBankOnly,
+    isSurveyRunning: !showRespondentForm, // Pass survey state to control auto-reloading
   });
 
   // Response State Hook
@@ -654,6 +655,7 @@ const DataCollectionScreen: React.FC = () => {
           loadingOptions={questions.loadingOptions}
           generatingQuestions={questions.generatingQuestions}
           questionsGenerated={questions.questionsGenerated}
+          loadingQuestions={questions.loadingQuestions}
           cachingForOffline={questions.cachingForOffline}
           cachedOfflineCount={questions.cachedOfflineCount}
           onGenerateQuestions={handleGenerateQuestions}

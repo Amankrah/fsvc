@@ -41,6 +41,7 @@ interface RespondentFormProps {
   questionsGenerated: boolean;
   cachingForOffline?: boolean;
   cachedOfflineCount?: number;
+  loadingQuestions?: boolean; // New prop for visual feedback
 
   // Actions
   onGenerateQuestions: () => void;
@@ -68,6 +69,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
   questionsGenerated,
   cachingForOffline = false,
   cachedOfflineCount = 0,
+  loadingQuestions = false,
   onGenerateQuestions,
   onStartSurvey,
   onCacheForOffline,
@@ -233,7 +235,14 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
             </View>
           )}
 
-          {questionsGenerated && (
+          {loadingQuestions && (
+            <View style={styles.loadingBanner}>
+              <ActivityIndicator size="small" color={colors.primary.main} />
+              <Text style={styles.loadingText}>Updating questions for new selection...</Text>
+            </View>
+          )}
+
+          {!loadingQuestions && questionsGenerated && (
             <View style={styles.successBanner}>
               <Text style={styles.successText}>✅ Questions are ready!</Text>
               <Text style={styles.successSubtext}>
@@ -374,5 +383,16 @@ const styles = StyleSheet.create({
   successSubtext: {
     color: colors.text.primary,
     fontSize: 13,
+  },
+  loadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.3)',
   },
 });
