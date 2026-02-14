@@ -7,6 +7,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { Question, ResponseType, ResponseTypeInfo } from '../../types';
+import { colors } from '../../constants/theme';
 
 interface QuestionCardProps {
   question: Question;
@@ -79,13 +80,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             </View>
             <View style={styles.actions}>
               <TouchableOpacity style={styles.actionButton} onPress={() => onEdit(question)}>
-                <IconButton icon="pencil" size={18} iconColor="#ffffff" />
+                <IconButton icon="pencil" size={18} iconColor={colors.text.primary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton} onPress={() => onDuplicate(question.id)}>
-                <IconButton icon="content-copy" size={18} iconColor="#ffffff" />
+                <IconButton icon="content-copy" size={18} iconColor={colors.text.primary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(question.id)}>
-                <IconButton icon="delete" size={18} iconColor="#ffffff" />
+                <IconButton icon="delete" size={18} iconColor={colors.text.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -131,8 +132,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           {/* Targeted/Assigned Information */}
           {/* Show assigned fields for generated questions, targeted fields for question bank */}
           {(question as any).assigned_respondent_type ||
-          (question as any).assigned_commodity ||
-          (question as any).assigned_country ? (
+            (question as any).assigned_commodity ||
+            (question as any).assigned_country ? (
             /* Generated Question - Show Assigned Fields */
             <View style={styles.targetedInfoSection}>
               {(question as any).assigned_respondent_type && (
@@ -226,11 +227,11 @@ const styles = StyleSheet.create({
   },
   card: {
     position: 'relative',
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   cardOverlay: {
     position: 'absolute',
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: 'transparent',
   },
   content: {
     padding: 16,
@@ -262,10 +263,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: colors.primary.muted,
   },
   modernChipText: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(156, 39, 176, 0.4)',
   },
   typeChipText: {
-    color: '#ce93d8',
+    color: colors.text.primary,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(76, 175, 80, 0.4)',
   },
   categoryChipDisplayText: {
-    color: '#81c784',
+    color: colors.status.success,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 193, 7, 0.4)',
   },
   priorityChipText: {
-    color: '#ffd54f',
+    color: colors.status.warning,
     fontSize: 11,
   },
   responseCountChip: {
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(76, 175, 80, 0.4)',
   },
   responseCountChipText: {
-    color: '#81c784',
+    color: colors.status.success,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   actionButton: {
-    backgroundColor: 'rgba(75, 30, 133, 0.4)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 20,
     width: 36,
     height: 36,
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButton: {
-    backgroundColor: 'rgba(244, 67, 54, 0.4)',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
     borderRadius: 20,
     width: 36,
     height: 36,
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   questionText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 12,
@@ -362,7 +363,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(33, 150, 243, 0.4)',
   },
   dataSourceBadgeText: {
-    color: '#64b5f6',
+    color: colors.status.info,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 152, 0, 0.4)',
   },
   workPackageBadgeText: {
-    color: '#ffb74d',
+    color: colors.status.warning,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -386,55 +387,55 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metaChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.light,
   },
   metaChipText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.primary,
     fontSize: 11,
     fontWeight: '600',
   },
   targetedInfoSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 12,
     padding: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   targetedRow: {
     flexDirection: 'row',
     marginBottom: 4,
   },
   targetedLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '600',
     marginRight: 6,
   },
   targetedValue: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.text.primary,
     fontSize: 12,
     flex: 1,
   },
   optionsPreview: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   optionText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.primary,
     fontSize: 13,
     marginBottom: 4,
   },
   moreOptions: {
-    color: '#64c8ff',
+    color: colors.text.secondary,
     fontSize: 12,
     fontStyle: 'italic',
     marginTop: 4,

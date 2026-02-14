@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Text, TextInput, IconButton, Chip } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface SearchFilterBarProps {
   isExpanded: boolean;
@@ -53,7 +54,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
           <IconButton
             icon={isExpanded ? 'chevron-up' : 'chevron-down'}
             size={20}
-            iconColor="#64c8ff"
+            iconColor={colors.primary.main}
           />
           <Text style={styles.filterToggleText}>
             {isExpanded ? 'Hide Filters' : 'Show Filters & Search'}
@@ -81,13 +82,13 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               ) : undefined
             }
             style={styles.searchBar}
-            textColor="#ffffff"
+            textColor={colors.text.primary}
             placeholderTextColor="rgba(255, 255, 255, 0.5)"
             theme={{
               colors: {
-                primary: '#64c8ff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                outline: 'rgba(100, 200, 255, 0.5)',
+                primary: colors.primary.main,
+                onSurfaceVariant: colors.text.secondary,
+                outline: 'transparent',
               },
             }}
           />
@@ -208,12 +209,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterToggleText: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
   },
   activeFilterBadge: {
-    backgroundColor: '#64c8ff',
+    backgroundColor: colors.primary.main,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -221,7 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeFilterBadgeText: {
-    color: '#0f0f23',
+    color: colors.background.default,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -231,13 +232,13 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.paper,
   },
   filterSection: {
     marginBottom: 16,
   },
   filterSectionTitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
@@ -247,32 +248,34 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     marginRight: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.subtle,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.light,
   },
   selectedFilterChip: {
     backgroundColor: 'rgba(100, 200, 255, 0.3)',
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   filterChipText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 12,
   },
   activeFiltersContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: colors.border.light,
+    marginTop: 12,
   },
   activeFiltersText: {
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 13,
   },
   clearFiltersText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -287,14 +290,14 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: 'rgba(100, 200, 255, 0.2)',
     borderWidth: 1,
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   compactFilterText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 11,
   },
   compactResultsText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '600',
   },

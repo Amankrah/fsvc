@@ -8,6 +8,7 @@ import { View, StyleSheet } from 'react-native';
 import { Card, Text, Chip } from 'react-native-paper';
 import { ResponseDetail } from '../../hooks/responses';
 import { ResponseFormatter } from './ResponseFormatter';
+import { colors } from '../../constants/theme';
 
 interface ResponseCardProps {
   response: ResponseDetail;
@@ -59,9 +60,9 @@ export const ResponseCard: React.FC<ResponseCardProps> = ({ response }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
     marginBottom: 12,
   },
   header: {
@@ -71,25 +72,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   questionLabel: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     flex: 1,
     marginRight: 8,
   },
   validatedChip: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.3)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     height: 28,
   },
   validatedChipText: {
-    color: '#4caf50',
+    color: colors.status.success,
     fontSize: 11,
   },
   valueContainer: {
     marginBottom: 8,
   },
   timestamp: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: colors.text.disabled,
     fontSize: 12,
   },
   metadataContainer: {
@@ -97,13 +98,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
     alignSelf: 'flex-start',
   },
   categoryChipText: {
-    color: '#ff9800',
+    color: colors.status.warning,
     fontSize: 11,
     fontWeight: '600',
   },

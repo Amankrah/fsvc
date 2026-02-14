@@ -1,6 +1,8 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Button, Text, Surface, Avatar } from 'react-native-paper';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { colors } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
@@ -43,64 +45,66 @@ const HomeScreen: React.FC = () => {
   }, [user]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Surface style={styles.surface} elevation={4}>
-        <View style={styles.header}>
-          <Avatar.Text
-            size={80}
-            label={getInitials()}
-            style={styles.avatar}
-          />
-          <Text variant="headlineMedium" style={styles.welcomeText}>
-            Welcome Back!
-          </Text>
-          {(user?.first_name || user?.last_name) && (
-            <Text variant="titleLarge" style={styles.nameText}>
-              {`${user.first_name || ''} ${user.last_name || ''}`.trim()}
+    <ScreenWrapper style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Surface style={styles.surface} elevation={4}>
+          <View style={styles.header}>
+            <Avatar.Text
+              size={80}
+              label={getInitials()}
+              style={styles.avatar}
+            />
+            <Text variant="headlineMedium" style={styles.welcomeText}>
+              Welcome Back!
             </Text>
-          )}
-          {user?.username && (
-            <Text variant="bodyMedium" style={styles.emailText}>
-              @{user.username}
-            </Text>
-          )}
-          {user?.email && (
-            <Text variant="bodySmall" style={styles.emailText}>
-              {user.email}
-            </Text>
-          )}
-        </View>
+            {(user?.first_name || user?.last_name) && (
+              <Text variant="titleLarge" style={styles.nameText}>
+                {`${user.first_name || ''} ${user.last_name || ''}`.trim()}
+              </Text>
+            )}
+            {user?.username && (
+              <Text variant="bodyMedium" style={styles.emailText}>
+                @{user.username}
+              </Text>
+            )}
+            {user?.email && (
+              <Text variant="bodySmall" style={styles.emailText}>
+                {user.email}
+              </Text>
+            )}
+          </View>
 
-        <View style={styles.infoContainer}>
-          <Text variant="titleMedium" style={styles.infoTitle}>
-            Dashboard
-          </Text>
-          <Text variant="bodyMedium" style={styles.infoText}>
-            You are successfully authenticated with the backend.
-          </Text>
-          <Text variant="bodySmall" style={styles.infoSubtext}>
-            This is your protected home screen. Only authenticated users can access
-            this page.
-          </Text>
-        </View>
+          <View style={styles.infoContainer}>
+            <Text variant="titleMedium" style={styles.infoTitle}>
+              Dashboard
+            </Text>
+            <Text variant="bodyMedium" style={styles.infoText}>
+              You are successfully authenticated with the backend.
+            </Text>
+            <Text variant="bodySmall" style={styles.infoSubtext}>
+              This is your protected home screen. Only authenticated users can access
+              this page.
+            </Text>
+          </View>
 
-        <Button
-          mode="contained"
-          onPress={handleLogout}
-          style={styles.logoutButton}
-          icon="logout"
-        >
-          Logout
-        </Button>
-      </Surface>
-    </ScrollView>
+          <Button
+            mode="contained"
+            onPress={handleLogout}
+            style={styles.logoutButton}
+            icon="logout"
+          >
+            Logout
+          </Button>
+        </Surface>
+      </ScrollView>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   content: {
     flexGrow: 1,
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
   },
   nameText: {
     marginBottom: 4,
-    color: '#6200ee',
+    color: colors.primary.main,
   },
   emailText: {
     opacity: 0.7,

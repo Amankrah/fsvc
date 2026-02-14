@@ -15,6 +15,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
 import { Project } from '../types';
 import { offlineProjectCache, networkMonitor } from '../services';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -101,9 +103,9 @@ const ProjectDetailsScreen: React.FC = () => {
 
   if (isLoading || !project) {
     return (
-      <View style={styles.container}>
+      <ScreenWrapper style={styles.container}>
         <Text>Loading...</Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
@@ -123,14 +125,14 @@ const ProjectDetailsScreen: React.FC = () => {
       description: 'Create and manage data collection forms',
       icon: 'file-document-edit-outline',
       route: 'Forms' as keyof RootStackParamList,
-      color: '#6200ee',
+      color: colors.primary.main,
     },
     {
       title: 'Collect Data',
       description: 'Fill out survey forms and collect responses',
       icon: 'clipboard-text-outline',
       route: 'DataCollection' as keyof RootStackParamList,
-      color: '#4caf50',
+      color: colors.visualization.green,
       requiresName: true,
     },
     {
@@ -138,7 +140,7 @@ const ProjectDetailsScreen: React.FC = () => {
       description: 'Review submitted responses and export data',
       icon: 'table-eye',
       route: 'Responses' as keyof RootStackParamList,
-      color: '#ff9800',
+      color: colors.visualization.orange,
       requiresName: true,
     },
     {
@@ -146,7 +148,7 @@ const ProjectDetailsScreen: React.FC = () => {
       description: 'Share surveys via web links and track submissions',
       icon: 'link-variant',
       route: 'ResponseLinks' as keyof RootStackParamList,
-      color: '#9c27b0',
+      color: colors.visualization.indigo,
       requiresName: true,
     },
     {
@@ -154,7 +156,7 @@ const ProjectDetailsScreen: React.FC = () => {
       description: 'Track completion rates for question bundles',
       icon: 'checkbox-multiple-marked-outline',
       route: 'BundleCompletion' as keyof RootStackParamList,
-      color: '#4CAF50',
+      color: colors.visualization.teal,
       requiresName: true,
     },
     {
@@ -162,21 +164,21 @@ const ProjectDetailsScreen: React.FC = () => {
       description: 'View descriptive statistics and data insights',
       icon: 'chart-box-outline',
       route: 'Analytics' as keyof RootStackParamList,
-      color: '#03dac6',
+      color: colors.visualization.cyan,
     },
     {
       title: 'Project Members',
       description: 'Manage team members and collaborators',
       icon: 'account-group-outline',
       route: 'Members' as keyof RootStackParamList,
-      color: '#00bcd4',
+      color: colors.visualization.blue,
     },
     {
       title: 'Sync & Backup',
       description: 'Sync data with cloud and manage offline access',
       icon: 'cloud-sync-outline',
       route: 'Sync' as keyof RootStackParamList,
-      color: '#ff6f00',
+      color: colors.visualization.amber,
     },
   ];
 
@@ -185,122 +187,124 @@ const ProjectDetailsScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Card style={styles.headerCard}>
-        <Card.Content>
-          <View style={styles.headerContent}>
-            <Avatar.Text
-              size={64}
-              label={project.name.substring(0, 2).toUpperCase()}
-              style={{ backgroundColor: '#6200ee' }}
-            />
-            <View style={styles.headerText}>
-              <Text variant="headlineMedium" style={styles.projectName}>
-                {project.name}
-              </Text>
-              {project.description && (
-                <Text variant="bodyMedium" style={styles.description}>
-                  {project.description}
+    <ScreenWrapper style={styles.container}>
+      <ScrollView>
+        <Card style={styles.headerCard}>
+          <Card.Content>
+            <View style={styles.headerContent}>
+              <Avatar.Text
+                size={64}
+                label={project.name.substring(0, 2).toUpperCase()}
+                style={{ backgroundColor: colors.primary.main }}
+              />
+              <View style={styles.headerText}>
+                <Text variant="headlineMedium" style={styles.projectName}>
+                  {project.name}
                 </Text>
-              )}
+                {project.description && (
+                  <Text variant="bodyMedium" style={styles.description}>
+                    {project.description}
+                  </Text>
+                )}
+              </View>
+              <IconButton
+                icon="pencil"
+                size={24}
+                onPress={handleEditProject}
+                style={styles.editIconButton}
+              />
             </View>
-            <IconButton
-              icon="pencil"
-              size={24}
-              onPress={handleEditProject}
-              style={styles.editIconButton}
-            />
-          </View>
 
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Text variant="titleLarge">{project.question_count || 0}</Text>
-              <Text variant="bodySmall" style={styles.statLabel}>
-                Questions
-              </Text>
+            <View style={styles.statsRow}>
+              <View style={styles.stat}>
+                <Text variant="titleLarge">{project.question_count || 0}</Text>
+                <Text variant="bodySmall" style={styles.statLabel}>
+                  Questions
+                </Text>
+              </View>
+              <Divider style={styles.divider} />
+              <View style={styles.stat}>
+                <Text variant="titleLarge">{project.response_count || 0}</Text>
+                <Text variant="bodySmall" style={styles.statLabel}>
+                  Respondents
+                </Text>
+              </View>
+              <Divider style={styles.divider} />
+              <View style={styles.stat}>
+                <Text variant="titleLarge">{project.team_members_count || 1}</Text>
+                <Text variant="bodySmall" style={styles.statLabel}>
+                  Members
+                </Text>
+              </View>
             </View>
-            <Divider style={styles.divider} />
-            <View style={styles.stat}>
-              <Text variant="titleLarge">{project.response_count || 0}</Text>
-              <Text variant="bodySmall" style={styles.statLabel}>
-                Respondents
-              </Text>
-            </View>
-            <Divider style={styles.divider} />
-            <View style={styles.stat}>
-              <Text variant="titleLarge">{project.team_members_count || 1}</Text>
-              <Text variant="bodySmall" style={styles.statLabel}>
-                Members
-              </Text>
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
-
-      {isOfflineMode && (
-        <Card style={styles.offlineBanner}>
-          <Card.Content style={styles.offlineBannerContent}>
-            <IconButton icon="wifi-off" size={20} iconColor="#ff9800" />
-            <Text variant="bodyMedium" style={styles.offlineBannerText}>
-              Offline Mode - Showing cached data
-            </Text>
           </Card.Content>
         </Card>
-      )}
 
-      <View style={styles.menuSection}>
-        <Text variant="titleLarge" style={styles.sectionTitle}>
-          Project Tools
-        </Text>
+        {isOfflineMode && (
+          <Card style={styles.offlineBanner}>
+            <Card.Content style={styles.offlineBannerContent}>
+              <IconButton icon="wifi-off" size={20} iconColor={colors.status.warning} />
+              <Text variant="bodyMedium" style={styles.offlineBannerText}>
+                Offline Mode - Showing cached data
+              </Text>
+            </Card.Content>
+          </Card>
+        )}
 
-        {menuItems.map((item, index) => (
-          <Card
-            key={index}
-            style={[styles.menuCard, item.disabled && styles.disabledCard]}
-            onPress={
-              item.disabled
-                ? undefined
-                : () => {
+        <View style={styles.menuSection}>
+          <Text variant="titleLarge" style={styles.sectionTitle}>
+            Project Tools
+          </Text>
+
+          {menuItems.map((item, index) => (
+            <Card
+              key={index}
+              style={[styles.menuCard, item.disabled && styles.disabledCard]}
+              onPress={
+                item.disabled
+                  ? undefined
+                  : () => {
                     const params: any = { projectId };
                     if (item.requiresName) {
                       params.projectName = project.name;
                     }
                     navigation.navigate(item.route, params);
                   }
-            }
-          >
-            <Card.Content style={styles.menuCardContent}>
-              <IconButton icon={item.icon} size={40} iconColor={item.color} />
-              <View style={styles.menuText}>
-                <Text variant="titleMedium" style={styles.menuTitle}>
-                  {item.title}
-                </Text>
-                <Text variant="bodySmall" style={styles.menuDescription}>
-                  {item.description}
-                </Text>
-              </View>
-              <IconButton icon="chevron-right" />
-            </Card.Content>
-          </Card>
-        ))}
-      </View>
+              }
+            >
+              <Card.Content style={styles.menuCardContent}>
+                <IconButton icon={item.icon} size={40} iconColor={item.color} />
+                <View style={styles.menuText}>
+                  <Text variant="titleMedium" style={styles.menuTitle}>
+                    {item.title}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.menuDescription}>
+                    {item.description}
+                  </Text>
+                </View>
+                <IconButton icon="chevron-right" />
+              </Card.Content>
+            </Card>
+          ))}
+        </View>
 
-      <Button
-        mode="outlined"
-        icon="arrow-left"
-        onPress={() => navigation.goBack()}
-        style={styles.backButton}
-      >
-        Back to Dashboard
-      </Button>
-    </ScrollView>
+        <Button
+          mode="outlined"
+          icon="arrow-left"
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          Back to Dashboard
+        </Button>
+      </ScrollView>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   headerCard: {
     margin: 16,
@@ -319,7 +323,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   description: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   statsRow: {
@@ -331,7 +335,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   divider: {
@@ -343,7 +347,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#fff3e0',
     borderLeftWidth: 4,
-    borderLeftColor: '#ff9800',
+    borderLeftColor: colors.status.warning,
   },
   offlineBannerContent: {
     flexDirection: 'row',
@@ -352,7 +356,7 @@ const styles = StyleSheet.create({
   },
   offlineBannerText: {
     flex: 1,
-    color: '#e65100',
+    color: colors.accent.darkOrange,
     marginLeft: 8,
   },
   menuSection: {
@@ -382,7 +386,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   menuDescription: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   backButton: {
     margin: 16,

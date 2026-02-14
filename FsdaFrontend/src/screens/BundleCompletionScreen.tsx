@@ -7,10 +7,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton, Chip } from 'react-native-paper';
+import { Text, Card, ActivityIndicator, IconButton, Chip, SegmentedButtons } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import apiService from '../services/api';
 import { showAlert } from '../utils/alert';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type RootStackParamList = {
   BundleCompletion: { projectId: string; projectName: string; mode?: 'project' | 'user' };
@@ -31,15 +34,18 @@ interface BundleStats {
 const BundleCompletionScreen: React.FC = () => {
   const route = useRoute<BundleCompletionRouteProp>();
   const navigation = useNavigation();
-  const { projectId, projectName, mode = 'project' } = route.params;
+  const { projectId, projectName, mode: initialMode = 'project' } = route.params;
+  const insets = useSafeAreaInsets();
 
+  const [viewMode, setViewMode] = useState<'project' | 'user'>(initialMode);
   const [bundles, setBundles] = useState<BundleStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadBundleStats = async () => {
     try {
-      const data = mode === 'user'
+      setLoading(true); // Ensure loading state is shown when switching modes
+      const data = viewMode === 'user'
         ? await apiService.getMyCollectionStats(projectId)
         : await apiService.getBundleCompletionStats(projectId);
 
@@ -61,7 +67,7 @@ const BundleCompletionScreen: React.FC = () => {
 
   useEffect(() => {
     loadBundleStats();
-  }, [projectId]);
+  }, [projectId, viewMode]);
 
   const renderBundleCard = ({ item }: { item: BundleStats }) => {
     const completionPercentage = item.total_respondents > 0
@@ -125,31 +131,50 @@ const BundleCompletionScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4b1e85" />
+      <ScreenWrapper style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary.main} />
         <Text style={styles.loadingText}>Loading completion stats...</Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <IconButton
           icon="arrow-left"
-          iconColor="#ffffff"
+          iconColor={colors.text.primary}
           size={24}
           onPress={() => navigation.goBack()}
         />
         <View style={styles.headerContent}>
           <Text variant="headlineSmall" style={styles.title}>
-            {mode === 'user' ? 'My Collection Stats' : 'Bundle Completion Stats'}
+            {viewMode === 'user' ? 'My Collection Stats' : 'Bundle Completion Stats'}
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             {projectName}
           </Text>
         </View>
+      </View>
+
+      <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+        <SegmentedButtons
+          value={viewMode}
+          onValueChange={value => setViewMode(value as 'project' | 'user')}
+          buttons={[
+            {
+              value: 'project',
+              label: 'Project Stats',
+              icon: 'chart-bar',
+            },
+            {
+              value: 'user',
+              label: 'My Stats',
+              icon: 'account',
+            },
+          ]}
+        />
       </View>
 
       {/* Summary Card */}
@@ -180,10 +205,10 @@ const BundleCompletionScreen: React.FC = () => {
       {bundles.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            {mode === 'user' ? 'No collections found' : 'No question bundles found'}
+            {viewMode === 'user' ? 'No collections found' : 'No question bundles found'}
           </Text>
           <Text style={styles.emptySubtext}>
-            {mode === 'user'
+            {viewMode === 'user'
               ? 'You haven\'t collected any data yet.'
               : 'Generate questions with respondent type, commodity, and country to see completion stats'}
           </Text>
@@ -195,52 +220,52 @@ const BundleCompletionScreen: React.FC = () => {
           keyExtractor={(item, index) => `${item.respondent_type}-${item.commodity}-${item.country}-${index}`}
           contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#4b1e85']} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary.main]} />
           }
         />
       )}
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a1a',
+    backgroundColor: colors.background.default,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0a0a1a',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#ffffff',
+    color: colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+    borderBottomColor: colors.border.light,
   },
   headerContent: {
     flex: 1,
   },
   title: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 14,
   },
   summaryCard: {
     margin: 16,
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     borderRadius: 16,
     elevation: 4,
   },
@@ -254,15 +279,15 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   summaryLabel: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   completedValue: {
-    color: '#4CAF50',
+    color: colors.status.success,
   },
   listContent: {
     padding: 16,
@@ -270,7 +295,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 16,
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     borderRadius: 16,
     elevation: 2,
   },
@@ -284,7 +309,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   respondentType: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
     fontSize: 18,
     marginBottom: 8,
@@ -295,17 +320,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   commodityChip: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   countryChip: {
-    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(33, 150, 243, 0.4)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   chipText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 12,
   },
   statsContainer: {
@@ -315,7 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   statBox: {
     alignItems: 'center',
@@ -323,23 +348,23 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   completionBar: {
     height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.border.light,
     borderRadius: 4,
     overflow: 'hidden',
     marginTop: 8,
   },
   completionFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.status.success,
     borderRadius: 4,
   },
   emptyContainer: {
@@ -350,12 +375,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
 });

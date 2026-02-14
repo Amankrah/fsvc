@@ -10,7 +10,8 @@
  */
 
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Platform, RefreshControl } from 'react-native';
+import { colors } from '../constants/theme';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import {
   Text,
   ActivityIndicator,
@@ -19,8 +20,11 @@ import {
   IconButton,
   Chip,
   Button,
+  SegmentedButtons,
 } from 'react-native-paper';
 import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Custom Hooks
 import {
@@ -29,6 +33,7 @@ import {
   useSearch,
   useExport,
 } from '../hooks/responses';
+import { useAuthStore } from '../store/authStore';
 
 // Components
 import {
@@ -44,6 +49,7 @@ type ResponsesRouteProp = RouteProp<RootStackParamList, 'Responses'>;
 const ResponsesScreen: React.FC = () => {
   const route = useRoute<ResponsesRouteProp>();
   const { projectId, projectName } = route.params;
+  const insets = useSafeAreaInsets();
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
@@ -52,6 +58,7 @@ const ResponsesScreen: React.FC = () => {
     commodity?: string;
     country?: string;
   }>({});
+  const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
   const [filterMenusVisible, setFilterMenusVisible] = useState({
     respondent_type: false,
     commodity: false,
@@ -63,6 +70,7 @@ const ResponsesScreen: React.FC = () => {
   const searchHook = useSearch(respondentsHook.respondents);
   const detailsHook = useRespondentDetails();
   const exportHook = useExport(projectId, projectName);
+  const { user } = useAuthStore();
 
   // Load data on focus
   useFocusEffect(
@@ -131,8 +139,14 @@ const ResponsesScreen: React.FC = () => {
       filtered = filtered.filter(r => r.country === selectedFilters.country);
     }
 
+    if (filterMode === 'mine' && user?.id) {
+      // The user.id from auth store is a string or number, created_by is a number. 
+      // Safely compare them.
+      filtered = filtered.filter(r => String(r.created_by) === String(user.id));
+    }
+
     return filtered;
-  }, [searchHook.filteredRespondents, selectedFilters]);
+  }, [searchHook.filteredRespondents, selectedFilters, filterMode, user?.id]);
 
   // Toggle filter selection
   const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
@@ -177,12 +191,12 @@ const ResponsesScreen: React.FC = () => {
   // Loading state
   if (respondentsHook.loading && respondentsHook.respondents.length === 0) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <ActivityIndicator size="large" />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading responses...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
@@ -196,14 +210,35 @@ const ResponsesScreen: React.FC = () => {
         <RefreshControl
           refreshing={respondentsHook.refreshing}
           onRefresh={respondentsHook.handleRefresh}
-          tintColor="#4b1e85"
-          colors={['#4b1e85']}
+          tintColor={colors.primary.main}
+          colors={[colors.primary.main]}
         />
       }>
       <StatsCards
         totalRespondents={respondentsHook.respondents.length}
         totalResponses={totalResponses}
       />
+
+      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+        <SegmentedButtons
+          value={filterMode}
+          onValueChange={value => setFilterMode(value as 'all' | 'mine')}
+          buttons={[
+            {
+              value: 'all',
+              label: 'All Responses',
+              icon: 'account-group',
+            },
+            {
+              value: 'mine',
+              label: 'My Responses',
+              icon: 'account',
+            },
+          ]}
+          style={{ marginBottom: 8 }}
+        />
+      </View>
+
       <RespondentsTable
         respondents={filteredRespondents}
         onRespondentPress={handleRespondentPress}
@@ -221,12 +256,14 @@ const ResponsesScreen: React.FC = () => {
           <IconButton
             icon="arrow-left"
             size={24}
-            iconColor="#ffffff"
+            iconColor={colors.text.primary}
             onPress={handleBack}
           />
           <View style={styles.detailHeaderInfo}>
             <Text variant="titleLarge" style={styles.detailTitle}>
-              {detailsHook.selectedRespondent.name || 'Anonymous'}
+              {detailsHook.selectedRespondent.created_by_details?.first_name
+                ? `${detailsHook.selectedRespondent.created_by_details.first_name} ${detailsHook.selectedRespondent.created_by_details.last_name || ''}`.trim()
+                : 'Anonymous'}
             </Text>
             <Text variant="bodyMedium" style={styles.detailSubtitle}>
               ID: {detailsHook.selectedRespondent.respondent_id}
@@ -266,8 +303,8 @@ const ResponsesScreen: React.FC = () => {
             <RefreshControl
               refreshing={respondentsHook.refreshing}
               onRefresh={respondentsHook.handleRefresh}
-              tintColor="#4b1e85"
-              colors={['#4b1e85']}
+              tintColor={colors.primary.main}
+              colors={[colors.primary.main]}
             />
           }>
           {detailsHook.respondentResponses.map((response) => (
@@ -279,9 +316,9 @@ const ResponsesScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerContent}>
           <Text variant="headlineSmall" style={styles.title}>
             {viewMode === 'list' ? 'Responses' : 'Response Details'}
@@ -299,7 +336,7 @@ const ResponsesScreen: React.FC = () => {
               <IconButton
                 icon="dots-vertical"
                 size={24}
-                iconColor="#ffffff"
+                iconColor={colors.text.primary}
                 onPress={() => setMenuVisible(true)}
               />
             }
@@ -345,14 +382,14 @@ const ResponsesScreen: React.FC = () => {
               value={searchHook.searchQuery}
               style={styles.searchBar}
               inputStyle={styles.searchInput}
-              iconColor="#64c8ff"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              iconColor={colors.primary.light}
+              placeholderTextColor={colors.text.hint}
               theme={{
                 colors: {
-                  onSurface: '#ffffff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                  onSurface: colors.text.primary,
+                  onSurfaceVariant: colors.text.secondary,
                   elevation: {
-                    level3: 'rgba(75, 30, 133, 0.3)',
+                    level3: 'white',
                   },
                 },
               }}
@@ -495,72 +532,72 @@ const ResponsesScreen: React.FC = () => {
       {/* Export Loading Overlay */}
       {exportHook.exporting && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#ffffff" />
+          <ActivityIndicator size="large" color={colors.primary.main} />
           <Text variant="bodyLarge" style={styles.loadingText}>
             Exporting...
           </Text>
         </View>
       )}
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#ffffff',
+    color: colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1a1a3a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: 'white',
     paddingBottom: 20,
     paddingHorizontal: 20,
-    borderBottomWidth: 3,
-    borderBottomColor: '#4b1e85',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
   },
   headerContent: {
     flex: 1,
   },
   title: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 28,
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginTop: 4,
     fontSize: 16,
   },
   menuContent: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
   },
   menuItemText: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   searchContainer: {
     padding: 16,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   searchBar: {
-    backgroundColor: 'rgba(75, 30, 133, 0.2)',
+    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
+    elevation: 0,
   },
   searchInput: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   content: {
     flex: 1,
@@ -580,11 +617,11 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   detailTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
   },
   detailSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   detailStats: {
@@ -595,21 +632,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   detailChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
   },
   chipText: {
-    color: '#64c8ff',
+    color: colors.text.primary,
   },
   filterChipSmall: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.25)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
     height: 28,
   },
   filterChipTextSmall: {
-    color: '#64c8ff',
+    color: colors.text.secondary,
     fontSize: 11,
   },
   loadingOverlay: {
@@ -618,7 +655,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
@@ -629,33 +666,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
     flexWrap: 'wrap',
   },
   filterButton: {
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.medium,
     borderWidth: 1,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    backgroundColor: 'white',
     minWidth: 140,
+    flexShrink: 1,
   },
   filterButtonActive: {
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
     borderWidth: 2,
-    backgroundColor: 'rgba(100, 200, 255, 0.25)',
+    backgroundColor: colors.primary.faint,
   },
   filterButtonLabel: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 13,
+    flexShrink: 1,
   },
   menuItemTextSelected: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontWeight: '600',
   },
   clearButton: {
     marginLeft: 'auto',
   },
   clearButtonLabel: {
-    color: '#f44336',
+    color: colors.status.error,
     fontSize: 12,
   },
 });

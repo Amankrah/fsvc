@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  StatusBar,
 } from 'react-native';
 import {
   Text,
@@ -15,14 +16,17 @@ import {
   Card,
   IconButton,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
 import { Project, UserNotification } from '../types';
+import { colors } from '../constants/theme';
 
 type RootStackParamList = {
-  AcceptInvitation: { 
-    projectId: string; 
+  AcceptInvitation: {
+    projectId: string;
     notificationId: string;
   };
   Dashboard: undefined;
@@ -44,17 +48,18 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: '#6200ee',
-  member: '#03dac6',
-  analyst: '#ff6f00',
-  collaborator: '#00bcd4',
-  viewer: '#9e9e9e',
+  owner: colors.roles.owner,
+  member: colors.roles.member,
+  analyst: colors.visualization.amber,
+  collaborator: colors.visualization.cyan,
+  viewer: colors.text.disabled,
 };
 
 const AcceptInvitationScreen: React.FC = () => {
   const route = useRoute<AcceptInvitationScreenRouteProp>();
   const navigation = useNavigation<AcceptInvitationScreenNavigationProp>();
   const { projectId, notificationId } = route.params;
+  const insets = useSafeAreaInsets();
 
   const [project, setProject] = useState<Project | null>(null);
   const [notification, setNotification] = useState<UserNotification | null>(null);
@@ -66,17 +71,17 @@ const AcceptInvitationScreen: React.FC = () => {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Load project details
         const projectData = await apiService.getProject(projectId);
         setProject(projectData);
-        
+
         // Load user notifications to find the specific invitation
         const notificationsData = await apiService.getNotifications();
         const inviteNotification = notificationsData.notifications.find(
           (n: UserNotification) => n.id === notificationId && n.type === 'team_invitation'
         );
-        
+
         if (!inviteNotification) {
           Alert.alert(
             'Invitation Not Found',
@@ -90,7 +95,7 @@ const AcceptInvitationScreen: React.FC = () => {
           );
           return;
         }
-        
+
         if (inviteNotification.is_expired) {
           Alert.alert(
             'Invitation Expired',
@@ -104,9 +109,9 @@ const AcceptInvitationScreen: React.FC = () => {
           );
           return;
         }
-        
+
         setNotification(inviteNotification);
-        
+
       } catch (error: any) {
         console.error('Error loading invitation data:', error);
         Alert.alert(
@@ -134,7 +139,7 @@ const AcceptInvitationScreen: React.FC = () => {
 
       // Auto-redirect to dashboard after successful acceptance
       navigation.navigate('Dashboard');
-      
+
       // Show success message briefly
       Alert.alert('Success', `Welcome to ${project?.name}! You've successfully joined the project.`);
     } catch (error: any) {
@@ -161,7 +166,7 @@ const AcceptInvitationScreen: React.FC = () => {
 
               // Auto-redirect to dashboard after successful decline
               navigation.navigate('Dashboard');
-              
+
               // Show brief confirmation
               Alert.alert('Invitation Declined', 'You have declined the project invitation.');
             } catch (error: any) {
@@ -178,18 +183,18 @@ const AcceptInvitationScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6200ee" />
+      <ScreenWrapper style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary.main} />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading invitation details...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   if (!project || !notification) {
     return (
-      <View style={styles.errorContainer}>
+      <ScreenWrapper style={styles.errorContainer}>
         <Text variant="headlineSmall" style={styles.errorTitle}>
           Invitation Not Available
         </Text>
@@ -199,7 +204,7 @@ const AcceptInvitationScreen: React.FC = () => {
         <Button mode="contained" onPress={() => navigation.navigate('Dashboard')}>
           Go to Dashboard
         </Button>
-      </View>
+      </ScreenWrapper>
     );
   }
 
@@ -213,15 +218,17 @@ const AcceptInvitationScreen: React.FC = () => {
   const userRole = extractedRole.toLowerCase(); // Ensure lowercase to match ROLE_COLORS keys
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Surface style={styles.surface} elevation={2}>
-          <View style={styles.headerSection}>
+          <View style={[styles.headerSection, { paddingTop: insets.top + 20 }]}>
             <IconButton
               icon="arrow-left"
               size={24}
               onPress={() => navigation.navigate('Dashboard')}
               style={styles.backButton}
+              iconColor="white"
             />
             <Text variant="headlineMedium" style={styles.title}>
               Project Invitation
@@ -257,9 +264,9 @@ const AcceptInvitationScreen: React.FC = () => {
                     mode="flat"
                     style={[
                       styles.roleChip,
-                      { backgroundColor: (ROLE_COLORS[userRole] || '#6200ee') + '20' },
+                      { backgroundColor: (ROLE_COLORS[userRole] || colors.primary.main) + '20' },
                     ]}
-                    textStyle={{ color: ROLE_COLORS[userRole] || '#6200ee', fontWeight: 'bold' }}
+                    textStyle={{ color: ROLE_COLORS[userRole] || colors.primary.main, fontWeight: 'bold' }}
                   >
                     {ROLE_DISPLAY_NAMES[userRole] || extractedRole || 'Member'}
                   </Chip>
@@ -308,7 +315,7 @@ const AcceptInvitationScreen: React.FC = () => {
             <Text variant="titleMedium" style={styles.actionsTitle}>
               What would you like to do?
             </Text>
-            
+
             <View style={styles.actionButtons}>
               <Button
                 mode="contained"
@@ -338,14 +345,14 @@ const AcceptInvitationScreen: React.FC = () => {
           </View>
         </Surface>
       </ScrollView>
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.default,
   },
   scrollContent: {
     flexGrow: 1,
@@ -354,7 +361,7 @@ const styles = StyleSheet.create({
   surface: {
     padding: 0,
     borderRadius: 16,
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -368,18 +375,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#666',
+    color: colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.default,
   },
   errorTitle: {
     fontWeight: 'bold',
@@ -388,7 +395,7 @@ const styles = StyleSheet.create({
     color: '#212529',
   },
   errorText: {
-    color: '#666',
+    color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -396,9 +403,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 16,
-    backgroundColor: '#6200ee',
+    backgroundColor: colors.primary.main,
   },
   backButton: {
     marginRight: 8,
@@ -417,21 +423,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   invitedText: {
-    color: '#666',
+    color: colors.text.secondary,
     lineHeight: 22,
   },
   boldText: {
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text.primary,
   },
   projectName: {
     fontWeight: 'bold',
     marginBottom: 12,
-    color: '#6200ee',
+    color: colors.primary.main,
     fontSize: 24,
   },
   projectDescription: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 16,
     lineHeight: 22,
   },
@@ -449,17 +455,17 @@ const styles = StyleSheet.create({
     minWidth: '45%',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.default,
     borderRadius: 8,
   },
   detailLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 4,
     textAlign: 'center',
   },
   detailValue: {
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text.primary,
     fontSize: 18,
   },
   roleChip: {
@@ -468,10 +474,10 @@ const styles = StyleSheet.create({
   projectMeta: {
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
+    borderTopColor: colors.border.light,
   },
   metaText: {
-    color: '#999',
+    color: colors.text.disabled,
     marginBottom: 4,
   },
   actionsSection: {
@@ -481,22 +487,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
-    color: '#333',
+    color: colors.text.primary,
   },
   actionButtons: {
     gap: 12,
     marginBottom: 16,
   },
   acceptButton: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.status.success,
     paddingVertical: 8,
   },
   declineButton: {
-    borderColor: '#d32f2f',
+    borderColor: colors.status.error,
     paddingVertical: 8,
   },
   helpText: {
-    color: '#999',
+    color: colors.text.disabled,
     textAlign: 'center',
     fontStyle: 'italic',
   },

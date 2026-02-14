@@ -4,8 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 
 export interface Respondent {
@@ -20,6 +19,13 @@ export interface Respondent {
   respondent_type?: string;
   commodity?: string;
   country?: string;
+  created_by?: number;
+  created_by_details?: {
+    id: number;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+  };
 }
 
 export const useRespondents = (projectId: string) => {

@@ -8,6 +8,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { DataTable, Chip } from 'react-native-paper';
 import { Respondent } from '../../hooks/responses';
 import { ITEMS_PER_PAGE } from '../../constants/responses';
+import { colors } from '../../constants/theme';
 
 interface RespondentsTableProps {
   respondents: Respondent[];
@@ -28,7 +29,7 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
     <DataTable style={styles.dataTable}>
       <DataTable.Header style={styles.tableHeader}>
         <DataTable.Title textStyle={styles.headerText}>Respondent ID</DataTable.Title>
-        <DataTable.Title textStyle={styles.headerText}>Name</DataTable.Title>
+        <DataTable.Title textStyle={styles.headerText}>Submitted By</DataTable.Title>
         <DataTable.Title textStyle={styles.headerText}>Filters</DataTable.Title>
         <DataTable.Title textStyle={styles.headerText} numeric>
           Responses
@@ -43,7 +44,9 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
           <DataTable.Row style={styles.tableRow}>
             <DataTable.Cell textStyle={styles.cellText}>{respondent.respondent_id}</DataTable.Cell>
             <DataTable.Cell textStyle={styles.cellText}>
-              {respondent.name || 'Anonymous'}
+              {respondent.created_by_details?.first_name
+                ? `${respondent.created_by_details.first_name} ${respondent.created_by_details.last_name || ''}`.trim()
+                : 'Anonymous'}
             </DataTable.Cell>
             <DataTable.Cell>
               <View style={styles.filtersCell}>
@@ -81,8 +84,8 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
         style={styles.pagination}
         theme={{
           colors: {
-            onSurface: '#ffffff',
-            onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+            onSurface: colors.text.primary,
+            onSurfaceVariant: colors.text.secondary,
           },
         }}
       />
@@ -92,28 +95,31 @@ export const RespondentsTable: React.FC<RespondentsTableProps> = ({
 
 const styles = StyleSheet.create({
   dataTable: {
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
+    backgroundColor: 'white',
     borderRadius: 12,
     overflow: 'hidden',
   },
   tableHeader: {
-    backgroundColor: 'rgba(75, 30, 133, 0.3)',
+    backgroundColor: colors.background.subtle,
   },
   headerText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
     fontSize: 14,
+    flexShrink: 1,
   },
   tableRow: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(75, 30, 133, 0.2)',
+    borderBottomColor: colors.border.light,
   },
   cellText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   pagination: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: 'white',
   },
   filtersCell: {
     flexDirection: 'row',
@@ -122,13 +128,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   filterChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.25)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
     height: 24,
   },
   filterChipText: {
-    color: '#64c8ff',
+    color: colors.text.secondary,
     fontSize: 9,
   },
 });

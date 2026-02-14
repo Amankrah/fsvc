@@ -340,6 +340,14 @@ class Respondent(models.Model):
         help_text="Status of response collection for this respondent"
     )
 
+    # Draft identification
+    draft_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="User-assigned name for easy draft identification"
+    )
+
     # Sync and tracking
     sync_status = models.CharField(max_length=20, default='pending')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_respondents')

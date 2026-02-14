@@ -21,6 +21,9 @@ import { networkMonitor } from '../services/networkMonitor';
 import { offlineStorage, SyncQueueItem } from '../services/offlineStorage';
 import { syncApi } from '../services/syncApi';
 import apiService from '../services/api';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Project {
   id: string;
@@ -29,6 +32,7 @@ interface Project {
 
 const SyncScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   // State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -202,15 +206,15 @@ const SyncScreen: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return '#ff9800';
+        return colors.status.warning;
       case 'syncing':
-        return '#2196f3';
+        return colors.visualization.blue;
       case 'completed':
-        return '#4caf50';
+        return colors.status.success;
       case 'failed':
-        return '#f44336';
+        return colors.status.error;
       default:
-        return '#757575';
+        return colors.text.secondary;
     }
   };
 
@@ -243,19 +247,19 @@ const SyncScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <ActivityIndicator size="large" />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading sync status...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerLeft}>
           <Text variant="headlineMedium" style={styles.title}>
             Sync & Offline
@@ -323,7 +327,7 @@ const SyncScreen: React.FC = () => {
           <Card.Content>
             <View style={styles.statusRow}>
               <View style={styles.statusIndicator}>
-                <View style={[styles.dot, { backgroundColor: isOnline ? '#4caf50' : '#f44336' }]} />
+                <View style={[styles.dot, { backgroundColor: isOnline ? colors.status.success : colors.status.error }]} />
                 <Text variant="titleMedium">{isOnline ? 'Online' : 'Offline'}</Text>
               </View>
               {lastSync && (
@@ -343,7 +347,7 @@ const SyncScreen: React.FC = () => {
 
             {isOnline && autoSync && (
               <View style={[styles.offlineNotice, { backgroundColor: '#e8f5e9' }]}>
-                <Text variant="bodyMedium" style={{ color: '#2e7d32' }}>
+                <Text variant="bodyMedium" style={{ color: colors.status.success }}>
                   ✓ Auto-sync enabled. Offline data syncs and processes automatically when online.
                 </Text>
               </View>
@@ -361,25 +365,25 @@ const SyncScreen: React.FC = () => {
             <Card.Content>
               <View style={styles.statsGrid}>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#ff9800' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.warning }}>
                     {localStats.pending}
                   </Text>
                   <Text variant="bodySmall">Pending</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#2196f3' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.visualization.blue }}>
                     {localStats.syncing}
                   </Text>
                   <Text variant="bodySmall">Syncing</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#f44336' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.error }}>
                     {localStats.failed}
                   </Text>
                   <Text variant="bodySmall">Failed</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#4caf50' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.success }}>
                     {localStats.completed}
                   </Text>
                   <Text variant="bodySmall">Local Done</Text>
@@ -395,37 +399,37 @@ const SyncScreen: React.FC = () => {
             <Card.Title title="Backend Queue (Server)" titleVariant="titleMedium" />
             <Card.Content>
               {selectedProjectId && (
-                <Text variant="bodySmall" style={{ marginBottom: 12, color: '#ff9800', fontStyle: 'italic' }}>
+                <Text variant="bodySmall" style={{ marginBottom: 12, color: colors.status.warning, fontStyle: 'italic' }}>
                   Note: Backend stats show all projects (project filtering not yet supported on server)
                 </Text>
               )}
               <View style={styles.statsGrid}>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#ff9800' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.warning }}>
                     {backendStats.pending || 0}
                   </Text>
                   <Text variant="bodySmall">Pending</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#2196f3' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.visualization.blue }}>
                     {backendStats.syncing || 0}
                   </Text>
                   <Text variant="bodySmall">Processing</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#f44336' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.error }}>
                     {backendStats.failed || 0}
                   </Text>
                   <Text variant="bodySmall">Failed</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text variant="headlineSmall" style={{ color: '#4caf50' }}>
+                  <Text variant="headlineSmall" style={{ color: colors.status.success }}>
                     {backendStats.completed || 0}
                   </Text>
                   <Text variant="bodySmall">Completed</Text>
                 </View>
               </View>
-              <Text variant="bodySmall" style={{ marginTop: 12, color: '#666', textAlign: 'center' }}>
+              <Text variant="bodySmall" style={{ marginTop: 12, color: colors.text.secondary, textAlign: 'center' }}>
                 Total: {backendStats.total || 0} items processed on server
               </Text>
             </Card.Content>
@@ -496,7 +500,7 @@ const SyncScreen: React.FC = () => {
               <Text variant="titleMedium" style={styles.syncingText}>
                 Syncing data...
               </Text>
-              <ProgressBar indeterminate color="#2196f3" style={styles.progressBar} />
+              <ProgressBar indeterminate color={colors.visualization.blue} style={styles.progressBar} />
             </Card.Content>
           </Card>
         )}
@@ -586,14 +590,14 @@ const SyncScreen: React.FC = () => {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   centerContainer: {
     flex: 1,
@@ -606,7 +610,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
     elevation: 2,
   },
   headerLeft: {
@@ -616,7 +620,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   subtitle: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   projectSelectorContainer: {
@@ -625,30 +629,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   projectLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     fontWeight: '500',
   },
   projectButton: {
     minWidth: 200,
-    borderColor: '#2196f3',
+    borderColor: colors.visualization.blue,
   },
   projectButtonContent: {
     flexDirection: 'row-reverse',
   },
   menuContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
     maxHeight: 400,
   },
   menuItemText: {
     fontSize: 14,
   },
   selectedMenuItemText: {
-    color: '#2196f3',
+    color: colors.visualization.blue,
     fontWeight: 'bold',
   },
   scrollView: {
@@ -678,7 +682,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   lastSyncText: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   offlineNotice: {
     marginTop: 12,
@@ -687,7 +691,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   offlineText: {
-    color: '#e65100',
+    color: colors.accent.darkOrange,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -703,7 +707,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   controlDescription: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   divider: {
@@ -734,13 +738,13 @@ const styles = StyleSheet.create({
     height: 24,
   },
   queueItemTime: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   queueItemText: {
     marginBottom: 4,
   },
   queueItemId: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   errorText: {
     color: '#f44336',
@@ -752,7 +756,7 @@ const styles = StyleSheet.create({
   },
   moreItems: {
     textAlign: 'center',
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 12,
   },
   emptyState: {
@@ -768,7 +772,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyText: {
-    color: '#666',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   loadingText: {

@@ -7,6 +7,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Button, ProgressBar, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '../../constants/theme';
 
 interface NavigationControlsProps {
   currentIndex: number;
@@ -42,7 +43,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
         <Text style={styles.progressText}>
           Question {currentIndex + 1} of {totalQuestions}
         </Text>
-        <ProgressBar progress={progress} color="#64c8ff" style={styles.progressBar} />
+        <ProgressBar progress={progress} color={colors.primary.main} style={styles.progressBar} />
         <Text style={styles.progressPercentage}>{Math.round(progress * 100)}% Complete</Text>
       </View>
 
@@ -54,7 +55,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           disabled={submitting}
           icon="content-save-outline"
           style={styles.saveDraftButton}
-          textColor="#FFA500"
+          textColor={colors.status.warning}
           labelStyle={styles.saveDraftLabel}>
           Save for Later
         </Button>
@@ -68,7 +69,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           disabled={!canGoBack || submitting}
           icon="arrow-left"
           style={[styles.button, styles.previousButton]}
-          textColor="#64c8ff">
+          textColor={colors.primary.main}>
           Previous
         </Button>
 
@@ -79,7 +80,8 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
             loading={submitting}
             disabled={submitting}
             icon="check-circle"
-            style={[styles.button, styles.submitButton]}>
+            style={[styles.button, styles.submitButton]}
+            textColor="#FFFFFF">
             Submit
           </Button>
         ) : (
@@ -89,7 +91,8 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
             disabled={submitting}
             icon="arrow-right"
             style={[styles.button, styles.nextButton]}
-            contentStyle={styles.nextButtonContent}>
+            contentStyle={styles.nextButtonContent}
+            textColor="#FFFFFF">
             Next
           </Button>
         )}
@@ -110,7 +113,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   progressText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
@@ -119,11 +122,11 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.paper,
     marginBottom: 8,
   },
   progressPercentage: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -143,15 +146,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   previousButton: {
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   nextButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   nextButtonContent: {
     flexDirection: 'row-reverse',
   },
   submitButton: {
-    backgroundColor: '#1976d2',
+    backgroundColor: colors.primary.main,
   },
 });

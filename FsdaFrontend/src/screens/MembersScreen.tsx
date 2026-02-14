@@ -34,6 +34,8 @@ import {
   SearchedUser,
   UserSearchResponse,
 } from '../types';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 
 type RootStackParamList = {
   Members: { projectId: string };
@@ -49,9 +51,9 @@ const ROLE_DISPLAY_NAMES: Record<ProjectMemberRole, string> = {
 };
 
 const ROLE_COLORS: Record<ProjectMemberRole, string> = {
-  owner: '#6200ee',
-  member: '#03dac6',
-  partner: '#9c27b0',
+  owner: colors.roles.owner,
+  member: colors.roles.member,
+  partner: colors.roles.partner,
 };
 
 const PERMISSION_DISPLAY_NAMES: Record<ProjectPermission, string> = {
@@ -135,7 +137,7 @@ const MembersScreen: React.FC = () => {
 
   const handleUserSearch = useCallback(async (query: string) => {
     setUserSearchQuery(query);
-    
+
     if (query.trim().length < 2) {
       setSearchedUsers([]);
       return;
@@ -144,11 +146,11 @@ const MembersScreen: React.FC = () => {
     setIsSearching(true);
     try {
       const response: UserSearchResponse = await apiService.searchUsers(query);
-      
+
       // Filter out users who are already members of this project
       const memberEmails = members.map(m => m.email);
       const filteredUsers = response.users.filter(user => !memberEmails.includes(user.email));
-      
+
       setSearchedUsers(filteredUsers);
     } catch (error: any) {
       console.error('Error searching users:', error);
@@ -294,7 +296,7 @@ const MembersScreen: React.FC = () => {
       <Surface style={styles.memberCard} elevation={1}>
         <View style={styles.memberHeader}>
           <View style={styles.memberAvatar}>
-            <IconButton icon="account" size={32} iconColor="#6200ee" />
+            <IconButton icon="account" size={32} iconColor={colors.primary.main} />
           </View>
 
           <View style={styles.memberInfo}>
@@ -343,7 +345,7 @@ const MembersScreen: React.FC = () => {
                 leadingIcon="account-remove"
                 onPress={() => handleRemoveMember(item)}
                 title="Remove from Project"
-                titleStyle={{ color: '#d32f2f' }}
+                titleStyle={{ color: colors.status.error }}
               />
             </Menu>
           )}
@@ -389,169 +391,169 @@ const MembersScreen: React.FC = () => {
       <Dialog.Title>Invite Team Member</Dialog.Title>
       <Dialog.ScrollArea style={styles.inviteDialogScrollArea}>
         <ScrollView showsVerticalScrollIndicator={true}>
-        <View style={styles.dialogContentContainer}>
-        <Text variant="bodyMedium" style={styles.inviteHelpText}>
-          Search for a registered user to invite to this project. They will receive a notification to accept the invitation.
-        </Text>
-        
-        <TextInput
-          label="Search Users (name, email, username)"
-          value={userSearchQuery}
-          onChangeText={handleUserSearch}
-          mode="outlined"
-          style={styles.dialogInput}
-          autoFocus
-          right={isSearching ? <TextInput.Icon icon="loading" /> : undefined}
-        />
-        
-        {/* User search results */}
-        {searchedUsers.length > 0 && (
-          <View style={styles.searchResults}>
-            <Text variant="labelMedium" style={styles.searchResultsLabel}>
-              Select a user to invite:
+          <View style={styles.dialogContentContainer}>
+            <Text variant="bodyMedium" style={styles.inviteHelpText}>
+              Search for a registered user to invite to this project. They will receive a notification to accept the invitation.
             </Text>
-            {searchedUsers.map((user) => (
-              <TouchableOpacity
-                key={user.id}
-                onPress={() => handleUserSelect(user)}
-                activeOpacity={0.7}
-              >
-                <Surface
-                  style={[
-                    styles.userSearchItem,
-                    selectedUser?.id === user.id && styles.userSearchItemSelected
-                  ]}
-                >
-                  <View style={styles.userSearchInfo}>
-                    <Text variant="titleMedium" style={styles.userSearchName}>
-                      {user.full_name || user.username}
-                    </Text>
-                    <Text variant="bodySmall" style={styles.userSearchEmail}>
-                      {user.email}
-                    </Text>
-                    {user.institution && (
-                      <Text variant="bodySmall" style={styles.userSearchInstitution}>
-                        {user.institution}
-                      </Text>
-                    )}
-                  </View>
-                  <Chip
-                    mode="outlined"
-                    style={styles.userRoleChip}
-                    textStyle={styles.userRoleChipText}
-                    compact
-                  >
-                    {user.role}
-                  </Chip>
-                </Surface>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        
-        {selectedUser && (
-          <View style={styles.selectedUserContainer}>
-            <Text variant="labelMedium" style={styles.selectedUserLabel}>
-              Selected User:
-            </Text>
-            <Surface style={styles.selectedUserCard}>
-              <Text variant="titleMedium">{selectedUser.full_name || selectedUser.username}</Text>
-              <Text variant="bodySmall" style={styles.selectedUserEmail}>{selectedUser.email}</Text>
-            </Surface>
-          </View>
-        )}
 
-        <Text variant="labelMedium" style={styles.sectionLabel}>
-          Role
-        </Text>
-        <Menu
-          visible={showRoleMenu}
-          onDismiss={() => setShowRoleMenu(false)}
-          anchor={
-            <Button
+            <TextInput
+              label="Search Users (name, email, username)"
+              value={userSearchQuery}
+              onChangeText={handleUserSearch}
               mode="outlined"
-              onPress={() => setShowRoleMenu(true)}
-              style={styles.roleButton}
-              icon="chevron-down"
-              contentStyle={styles.roleButtonContent}
-            >
-              {ROLE_DISPLAY_NAMES[inviteRole]}
-            </Button>
-          }
-        >
-          {(Object.keys(ROLE_DISPLAY_NAMES) as ProjectMemberRole[])
-            .filter((role) => role !== 'owner')
-            .map((role) => (
-              <Menu.Item
-                key={role}
-                onPress={() => handleRoleChange(role, false)}
-                title={ROLE_DISPLAY_NAMES[role]}
-              />
-            ))}
-        </Menu>
+              style={styles.dialogInput}
+              autoFocus
+              right={isSearching ? <TextInput.Icon icon="loading" /> : undefined}
+            />
 
-        {inviteRole === 'partner' && project?.partner_organizations && project.partner_organizations.length > 0 && (
-          <>
+            {/* User search results */}
+            {searchedUsers.length > 0 && (
+              <View style={styles.searchResults}>
+                <Text variant="labelMedium" style={styles.searchResultsLabel}>
+                  Select a user to invite:
+                </Text>
+                {searchedUsers.map((user) => (
+                  <TouchableOpacity
+                    key={user.id}
+                    onPress={() => handleUserSelect(user)}
+                    activeOpacity={0.7}
+                  >
+                    <Surface
+                      style={[
+                        styles.userSearchItem,
+                        selectedUser?.id === user.id && styles.userSearchItemSelected
+                      ]}
+                    >
+                      <View style={styles.userSearchInfo}>
+                        <Text variant="titleMedium" style={styles.userSearchName}>
+                          {user.full_name || user.username}
+                        </Text>
+                        <Text variant="bodySmall" style={styles.userSearchEmail}>
+                          {user.email}
+                        </Text>
+                        {user.institution && (
+                          <Text variant="bodySmall" style={styles.userSearchInstitution}>
+                            {user.institution}
+                          </Text>
+                        )}
+                      </View>
+                      <Chip
+                        mode="outlined"
+                        style={styles.userRoleChip}
+                        textStyle={styles.userRoleChipText}
+                        compact
+                      >
+                        {user.role}
+                      </Chip>
+                    </Surface>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {selectedUser && (
+              <View style={styles.selectedUserContainer}>
+                <Text variant="labelMedium" style={styles.selectedUserLabel}>
+                  Selected User:
+                </Text>
+                <Surface style={styles.selectedUserCard}>
+                  <Text variant="titleMedium">{selectedUser.full_name || selectedUser.username}</Text>
+                  <Text variant="bodySmall" style={styles.selectedUserEmail}>{selectedUser.email}</Text>
+                </Surface>
+              </View>
+            )}
+
             <Text variant="labelMedium" style={styles.sectionLabel}>
-              Partner Organization *
+              Role
             </Text>
             <Menu
-              visible={showPartnerMenu}
-              onDismiss={() => setShowPartnerMenu(false)}
+              visible={showRoleMenu}
+              onDismiss={() => setShowRoleMenu(false)}
               anchor={
                 <Button
                   mode="outlined"
-                  onPress={() => setShowPartnerMenu(true)}
+                  onPress={() => setShowRoleMenu(true)}
                   style={styles.roleButton}
                   icon="chevron-down"
                   contentStyle={styles.roleButtonContent}
                 >
-                  {invitePartnerOrg || 'Select Partner Organization'}
+                  {ROLE_DISPLAY_NAMES[inviteRole]}
                 </Button>
               }
             >
-              {project.partner_organizations.map((partner: any) => (
-                <Menu.Item
-                  key={partner.name}
-                  onPress={() => {
-                    setInvitePartnerOrg(partner.name);
-                    setShowPartnerMenu(false);
-                  }}
-                  title={partner.name}
-                />
-              ))}
+              {(Object.keys(ROLE_DISPLAY_NAMES) as ProjectMemberRole[])
+                .filter((role) => role !== 'owner')
+                .map((role) => (
+                  <Menu.Item
+                    key={role}
+                    onPress={() => handleRoleChange(role, false)}
+                    title={ROLE_DISPLAY_NAMES[role]}
+                  />
+                ))}
             </Menu>
-            <Text variant="bodySmall" style={styles.helperText}>
-              This member will only see questions and responses for {invitePartnerOrg || 'the selected partner'}
-            </Text>
-          </>
-        )}
 
-        {inviteRole === 'partner' && (!project?.partner_organizations || project.partner_organizations.length === 0) && (
-          <View style={styles.warningBox}>
-            <Text variant="bodySmall" style={styles.warningText}>
-              ⚠️ No partner organizations configured for this project. Please add partner organizations in project settings before inviting partner members.
-            </Text>
-          </View>
-        )}
+            {inviteRole === 'partner' && project?.partner_organizations && project.partner_organizations.length > 0 && (
+              <>
+                <Text variant="labelMedium" style={styles.sectionLabel}>
+                  Partner Organization *
+                </Text>
+                <Menu
+                  visible={showPartnerMenu}
+                  onDismiss={() => setShowPartnerMenu(false)}
+                  anchor={
+                    <Button
+                      mode="outlined"
+                      onPress={() => setShowPartnerMenu(true)}
+                      style={styles.roleButton}
+                      icon="chevron-down"
+                      contentStyle={styles.roleButtonContent}
+                    >
+                      {invitePartnerOrg || 'Select Partner Organization'}
+                    </Button>
+                  }
+                >
+                  {project.partner_organizations.map((partner: any) => (
+                    <Menu.Item
+                      key={partner.name}
+                      onPress={() => {
+                        setInvitePartnerOrg(partner.name);
+                        setShowPartnerMenu(false);
+                      }}
+                      title={partner.name}
+                    />
+                  ))}
+                </Menu>
+                <Text variant="bodySmall" style={styles.helperText}>
+                  This member will only see questions and responses for {invitePartnerOrg || 'the selected partner'}
+                </Text>
+              </>
+            )}
 
-        <Text variant="labelMedium" style={styles.sectionLabel}>
-          Member Permissions
-        </Text>
-        <View style={styles.infoBox}>
-          <Text variant="bodySmall" style={styles.infoText}>
-            All members have the same fixed permissions:
-          </Text>
-          {FIXED_MEMBER_PERMISSIONS.map((permission) => (
-            <View key={permission} style={styles.permissionInfoRow}>
-              <IconButton icon="check-circle" size={16} iconColor="#4caf50" style={styles.permissionIcon} />
-              <Text variant="bodySmall" style={styles.permissionInfoText}>
-                {PERMISSION_DISPLAY_NAMES[permission]}
+            {inviteRole === 'partner' && (!project?.partner_organizations || project.partner_organizations.length === 0) && (
+              <View style={styles.warningBox}>
+                <Text variant="bodySmall" style={styles.warningText}>
+                  ⚠️ No partner organizations configured for this project. Please add partner organizations in project settings before inviting partner members.
+                </Text>
+              </View>
+            )}
+
+            <Text variant="labelMedium" style={styles.sectionLabel}>
+              Member Permissions
+            </Text>
+            <View style={styles.infoBox}>
+              <Text variant="bodySmall" style={styles.infoText}>
+                All members have the same fixed permissions:
               </Text>
+              {FIXED_MEMBER_PERMISSIONS.map((permission) => (
+                <View key={permission} style={styles.permissionInfoRow}>
+                  <IconButton icon="check-circle" size={16} iconColor={colors.status.success} style={styles.permissionIcon} />
+                  <Text variant="bodySmall" style={styles.permissionInfoText}>
+                    {PERMISSION_DISPLAY_NAMES[permission]}
+                  </Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-        </View>
+          </View>
         </ScrollView>
       </Dialog.ScrollArea>
       <Dialog.Actions>
@@ -615,7 +617,7 @@ const MembersScreen: React.FC = () => {
           </Text>
           {FIXED_MEMBER_PERMISSIONS.map((permission) => (
             <View key={permission} style={styles.permissionInfoRow}>
-              <IconButton icon="check-circle" size={16} iconColor="#4caf50" style={styles.permissionIcon} />
+              <IconButton icon="check-circle" size={16} iconColor={colors.status.success} style={styles.permissionIcon} />
               <Text variant="bodySmall" style={styles.permissionInfoText}>
                 {PERMISSION_DISPLAY_NAMES[permission]}
               </Text>
@@ -647,7 +649,7 @@ const MembersScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <IconButton icon="account-group-outline" size={80} iconColor="#ccc" />
+      <IconButton icon="account-group-outline" size={80} iconColor={colors.border.medium} />
       <Text variant="titleLarge" style={styles.emptyTitle}>
         No Team Members
       </Text>
@@ -669,12 +671,12 @@ const MembersScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6200ee" />
+      <ScreenWrapper style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary.main} />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading team members...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
@@ -703,7 +705,7 @@ const MembersScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
         contentContainerStyle={styles.scrollContent}
@@ -725,28 +727,28 @@ const MembersScreen: React.FC = () => {
         {renderInviteDialog()}
         {renderEditDialog()}
       </Portal>
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#666',
+    color: colors.text.secondary,
   },
   header: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
     marginBottom: 8,
   },
   headerTitle: {
@@ -754,28 +756,29 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   scrollContent: {
     flexGrow: 1,
   },
   listContent: {
     padding: 16,
+    paddingBottom: 80,
   },
   sectionHeader: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
     marginBottom: 8,
   },
   sectionHeaderText: {
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text.primary,
   },
   memberCard: {
     marginBottom: 12,
     borderRadius: 12,
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: {
@@ -794,7 +797,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -816,7 +819,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   memberEmail: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   memberMeta: {
@@ -828,7 +831,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   joinedText: {
-    color: '#999',
+    color: colors.text.disabled,
   },
   permissionsSection: {
     borderTopWidth: 1,
@@ -836,7 +839,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   permissionsLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
@@ -863,7 +866,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyText: {
-    color: '#666',
+    color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -876,7 +879,7 @@ const styles = StyleSheet.create({
     bottom: 16,
   },
   inviteHelpText: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 16,
     fontSize: 14,
     lineHeight: 20,
@@ -889,23 +892,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   searchResultsLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   userSearchItem: {
     padding: 12,
     marginBottom: 8,
     borderRadius: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.subtle,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: colors.border.light,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   userSearchItemSelected: {
     backgroundColor: '#e3f2fd',
-    borderColor: '#6200ee',
+    borderColor: colors.primary.main,
   },
   userSearchInfo: {
     flex: 1,
@@ -915,11 +918,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   userSearchEmail: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 2,
   },
   userSearchInstitution: {
-    color: '#999',
+    color: colors.text.disabled,
     fontStyle: 'italic',
   },
   userRoleChip: {
@@ -932,7 +935,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   selectedUserLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   selectedUserCard: {
@@ -940,15 +943,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f5e8',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4caf50',
+    borderColor: colors.status.success,
   },
   selectedUserEmail: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   sectionLabel: {
     marginTop: 16,
     marginBottom: 8,
-    color: '#666',
+    color: colors.text.secondary,
   },
   roleButton: {
     marginBottom: 8,
@@ -973,7 +976,7 @@ const styles = StyleSheet.create({
   warningBox: {
     backgroundColor: '#fff3cd',
     borderLeftWidth: 4,
-    borderLeftColor: '#ff9800',
+    borderLeftColor: colors.status.warning,
     padding: 12,
     marginVertical: 12,
     borderRadius: 4,
@@ -984,7 +987,7 @@ const styles = StyleSheet.create({
   infoBox: {
     backgroundColor: '#e8f5e9',
     borderLeftWidth: 4,
-    borderLeftColor: '#4caf50',
+    borderLeftColor: colors.status.success,
     padding: 12,
     marginVertical: 8,
     borderRadius: 4,

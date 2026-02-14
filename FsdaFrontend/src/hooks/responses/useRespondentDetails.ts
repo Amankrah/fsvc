@@ -4,8 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { showshowConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 import { Respondent } from './useRespondents';
 

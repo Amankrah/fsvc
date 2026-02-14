@@ -8,6 +8,7 @@ import { View, Image, StyleSheet, Alert } from 'react-native';
 import { Button, IconButton } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { IMAGE_QUALITY, IMAGE_PREVIEW_HEIGHT } from '../../constants/dataCollection';
+import { colors } from '../../constants/theme';
 
 interface ImagePickerComponentProps {
   value: string | undefined;
@@ -95,21 +96,21 @@ export const ImagePickerComponent: React.FC<ImagePickerComponentProps> = ({ valu
           <IconButton
             icon="delete"
             size={24}
-            iconColor="#ff6b6b"
+            iconColor={colors.status.error}
             onPress={handleRemovePhoto}
             style={styles.actionButton}
           />
           <IconButton
             icon="camera"
             size={24}
-            iconColor="#64c8ff"
+            iconColor={colors.primary.main}
             onPress={handleTakePhoto}
             style={styles.actionButton}
           />
           <IconButton
             icon="image"
             size={24}
-            iconColor="#64c8ff"
+            iconColor={colors.primary.main}
             onPress={handleSelectPhoto}
             style={styles.actionButton}
           />
@@ -136,7 +137,7 @@ export const ImagePickerComponent: React.FC<ImagePickerComponentProps> = ({ valu
         loading={loading}
         disabled={loading}
         style={styles.outlineButton}
-        textColor="#64c8ff">
+        textColor={colors.primary.main}>
         Select from Gallery
       </Button>
     </View>
@@ -149,10 +150,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   outlineButton: {
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   previewContainer: {
     marginBottom: 16,
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: IMAGE_PREVIEW_HEIGHT,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.primary.faint,
   },
   previewActions: {
     flexDirection: 'row',
@@ -170,6 +171,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.paper,
   },
 });

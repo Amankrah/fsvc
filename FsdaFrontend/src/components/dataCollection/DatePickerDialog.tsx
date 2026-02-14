@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Portal, Dialog, Button, TextInput, Text } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface DatePickerDialogProps {
   visible: boolean;
@@ -86,15 +87,15 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
               keyboardType="numeric"
               mode="outlined"
               style={[styles.input, styles.yearInput]}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="YYYY"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.disabled}
               maxLength={4}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -105,15 +106,15 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
               keyboardType="numeric"
               mode="outlined"
               style={[styles.input, styles.monthInput]}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="MM"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.disabled}
               maxLength={2}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -124,15 +125,15 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
               keyboardType="numeric"
               mode="outlined"
               style={[styles.input, styles.dayInput]}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="DD"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.disabled}
               maxLength={2}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -149,15 +150,15 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
                   keyboardType="numeric"
                   mode="outlined"
                   style={[styles.input, styles.timeInput]}
-                  textColor="#ffffff"
+                  textColor={colors.text.primary}
                   placeholder="HH"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  placeholderTextColor={colors.text.disabled}
                   maxLength={2}
                   theme={{
                     colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
+                      primary: colors.primary.main,
+                      onSurfaceVariant: colors.text.secondary,
+                      outline: colors.border.light,
                     },
                   }}
                 />
@@ -169,15 +170,15 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
                   keyboardType="numeric"
                   mode="outlined"
                   style={[styles.input, styles.timeInput]}
-                  textColor="#ffffff"
+                  textColor={colors.text.primary}
                   placeholder="MM"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  placeholderTextColor={colors.text.disabled}
                   maxLength={2}
                   theme={{
                     colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
+                      primary: colors.primary.main,
+                      onSurfaceVariant: colors.text.secondary,
+                      outline: colors.border.light,
                     },
                   }}
                 />
@@ -196,11 +197,11 @@ export const DatePickerDialog: React.FC<DatePickerDialogProps> = ({
 
 const styles = StyleSheet.create({
   dialog: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.default,
     borderRadius: 20,
   },
   dialogTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   label: {
     color: 'rgba(255, 255, 255, 0.9)',
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   timeSeparator: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: 'bold',
   },

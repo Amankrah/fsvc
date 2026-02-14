@@ -23,6 +23,8 @@ import {
   Switch,
   Divider,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
@@ -50,6 +52,7 @@ const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<DashboardNavigationProp>();
   const route = useRoute<DashboardRouteProp>();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
@@ -470,7 +473,7 @@ const DashboardScreen: React.FC = () => {
   );
 
   const renderHeader = () => (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerTop}>
         <View style={styles.welcomeSection}>
           <Text variant="headlineMedium" style={styles.welcomeText}>
@@ -597,7 +600,7 @@ const DashboardScreen: React.FC = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       <FlatList
         data={filteredProjects}
         keyExtractor={(item) => item.id}
@@ -867,7 +870,7 @@ const DashboardScreen: React.FC = () => {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </View>
+    </ScreenWrapper >
   );
 };
 
@@ -878,10 +881,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.background.paper,
-    borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
     padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     shadowColor: colors.neutral.black,
     shadowOffset: {
       width: 0,
