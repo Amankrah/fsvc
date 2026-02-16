@@ -166,7 +166,9 @@ class ApiService {
   }
 
   async removeMember(projectId: string, userId: string) {
-    return await this.delete(`/projects/projects/${projectId}/remove_member/?user_id=${userId}`);
+    // Send user_id in both query and body so backend receives it even if one is stripped (e.g. some proxies on DELETE)
+    const url = `/projects/projects/${projectId}/remove_member/?user_id=${encodeURIComponent(userId)}`;
+    return await this.delete(url, { data: { user_id: userId } });
   }
 
   async getAvailableUsers() {
