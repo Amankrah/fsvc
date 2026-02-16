@@ -17,6 +17,8 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Text,
   FAB,
@@ -49,6 +51,7 @@ import { showAlert } from '../utils/alert';
 
 // Constants
 import { getCategorySortIndex } from '../constants/formBuilder';
+import { colors } from '../constants/theme';
 
 // Components
 import { QuestionCard, SearchFilterBar, QuestionFormDialog } from '../components/formBuilder';
@@ -70,6 +73,7 @@ type FormBuilderRouteProp = RouteProp<RootStackParamList, 'FormBuilder'>;
 const FormBuilderScreen: React.FC = () => {
   const route = useRoute<FormBuilderRouteProp>();
   const { projectId } = route.params;
+  const insets = useSafeAreaInsets();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'bank' | 'generated'>('bank');
@@ -356,8 +360,8 @@ const FormBuilderScreen: React.FC = () => {
   const displayQuestions = activeTab === 'generated' && generatedQuestionsHook.isReorderMode
     ? generatedQuestionsHook.reorderedQuestions
     : activeTab === 'generated'
-    ? filteredGeneratedQuestions
-    : filteredQuestions;
+      ? filteredGeneratedQuestions
+      : filteredQuestions;
 
   // Render individual question item
   const renderQuestionItem = useCallback(({ item: question, index }: { item: Question; index: number }) => (
@@ -368,7 +372,7 @@ const FormBuilderScreen: React.FC = () => {
           <IconButton
             icon="arrow-up"
             size={20}
-            iconColor="#64c8ff"
+            iconColor={colors.primary.light}
             disabled={index === 0}
             onPress={() => generatedQuestionsHook.moveQuestionUp(index)}
             style={[
@@ -380,13 +384,13 @@ const FormBuilderScreen: React.FC = () => {
           <IconButton
             icon="arrow-down"
             size={20}
-            iconColor="#64c8ff"
+            iconColor={colors.primary.light}
             disabled={index === generatedQuestionsHook.reorderedQuestions.length - 1}
             onPress={() => generatedQuestionsHook.moveQuestionDown(index)}
             style={[
               styles.reorderButton,
               index === generatedQuestionsHook.reorderedQuestions.length - 1 &&
-                styles.reorderButtonDisabled,
+              styles.reorderButtonDisabled,
             ]}
           />
         </View>
@@ -398,8 +402,8 @@ const FormBuilderScreen: React.FC = () => {
           index={index}
           responseTypes={responseTypes}
           questionBankChoices={questionBankChoices}
-          onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => {}}
-          onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => {}}
+          onEdit={activeTab === 'bank' ? handleOpenEditDialog : () => { }}
+          onDuplicate={activeTab === 'bank' ? duplicateQuestion : () => { }}
           onDelete={
             activeTab === 'bank'
               ? deleteQuestion
@@ -425,7 +429,7 @@ const FormBuilderScreen: React.FC = () => {
           <Button
             mode="outlined"
             onPress={generatedQuestionsHook.cancelReorderMode}
-            textColor="#fff"
+            textColor={colors.primary.main}
             style={styles.reorderButton}>
             Cancel
           </Button>
@@ -468,19 +472,19 @@ const FormBuilderScreen: React.FC = () => {
   // Loading state - placed after all hooks to comply with Rules of Hooks
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <ActivityIndicator size="large" />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading form...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false, bottom: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
             <Text variant="headlineSmall" style={styles.title}>
@@ -495,10 +499,10 @@ const FormBuilderScreen: React.FC = () => {
                 icon={isOnline ? 'wifi' : 'wifi-off'}
                 compact
                 style={{
-                  backgroundColor: isOnline ? '#4CAF50' : '#FF9800',
+                  backgroundColor: isOnline ? colors.status.success : colors.status.warning,
                   height: 24,
                 }}>
-                <Text style={{ color: '#fff', fontSize: 11 }}>
+                <Text style={{ color: colors.primary.contrast, fontSize: 11 }}>
                   {isOnline ? 'Online' : 'Offline'}
                 </Text>
               </Chip>
@@ -506,10 +510,10 @@ const FormBuilderScreen: React.FC = () => {
                 icon="database"
                 compact
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  backgroundColor: colors.primary.faint,
                   height: 24,
                 }}>
-                <Text style={{ color: '#fff', fontSize: 11 }}>
+                <Text style={{ color: colors.text.primary, fontSize: 11 }}>
                   {cacheStats.questionBanksCount + cacheStats.generatedQuestionsCount} cached
                 </Text>
               </Chip>
@@ -537,19 +541,19 @@ const FormBuilderScreen: React.FC = () => {
               value: 'bank',
               label: 'Question Bank',
               icon: 'database',
-              checkedColor: '#ffffff',
-              uncheckedColor: 'rgba(255, 255, 255, 0.6)',
+              checkedColor: colors.primary.contrast,
+              uncheckedColor: colors.text.secondary,
             },
             {
               value: 'generated',
               label: 'Generated Questions',
               icon: 'file-document-multiple',
-              checkedColor: '#ffffff',
-              uncheckedColor: 'rgba(255, 255, 255, 0.6)',
+              checkedColor: colors.primary.contrast,
+              uncheckedColor: colors.text.secondary,
             },
           ]}
           style={styles.segmentedButtons}
-          theme={{ colors: { secondaryContainer: '#4b1e85', onSecondaryContainer: '#ffffff' } }}
+          theme={{ colors: { secondaryContainer: colors.primary.dark, onSecondaryContainer: colors.primary.contrast } }}
         />
       </View>
 
@@ -591,7 +595,7 @@ const FormBuilderScreen: React.FC = () => {
                     mode="outlined"
                     onPress={() => setShowRespondentMenu(true)}
                     style={styles.filterButton}
-                    textColor="#fff">
+                    textColor={colors.primary.main}>
                     {selectedGeneratedRespondentType || 'All'}
                   </Button>
                 }>
@@ -628,7 +632,7 @@ const FormBuilderScreen: React.FC = () => {
                     mode="outlined"
                     onPress={() => setShowCommodityMenu(true)}
                     style={styles.filterButton}
-                    textColor="#fff">
+                    textColor={colors.primary.main}>
                     {selectedGeneratedCommodity || 'All'}
                   </Button>
                 }>
@@ -665,7 +669,7 @@ const FormBuilderScreen: React.FC = () => {
                     mode="outlined"
                     onPress={() => setShowCountryMenu(true)}
                     style={styles.filterButton}
-                    textColor="#fff">
+                    textColor={colors.primary.main}>
                     {selectedGeneratedCountry || 'All'}
                   </Button>
                 }>
@@ -693,18 +697,18 @@ const FormBuilderScreen: React.FC = () => {
             {(selectedGeneratedRespondentType ||
               selectedGeneratedCommodity ||
               selectedGeneratedCountry) && (
-              <Button
-                mode="text"
-                onPress={() => {
-                  setSelectedGeneratedRespondentType('');
-                  setSelectedGeneratedCommodity('');
-                  setSelectedGeneratedCountry('');
-                }}
-                textColor="#64c8ff"
-                style={styles.clearFiltersButton}>
-                Clear Filters
-              </Button>
-            )}
+                <Button
+                  mode="text"
+                  onPress={() => {
+                    setSelectedGeneratedRespondentType('');
+                    setSelectedGeneratedCommodity('');
+                    setSelectedGeneratedCountry('');
+                  }}
+                  textColor={colors.text.primary}
+                  style={styles.clearFiltersButton}>
+                  Clear Filters
+                </Button>
+              )}
           </View>
         </View>
       )}
@@ -716,14 +720,17 @@ const FormBuilderScreen: React.FC = () => {
         keyExtractor={keyExtractor}
         ListHeaderComponent={ListHeaderComponent}
         ListEmptyComponent={ListEmptyComponent}
-        contentContainerStyle={displayQuestions.length === 0 ? styles.emptyListContent : styles.listContent}
+        contentContainerStyle={[
+          displayQuestions.length === 0 ? styles.emptyListContent : styles.listContent,
+          { paddingBottom: insets.bottom + 100 }
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={activeRefreshing}
             onRefresh={activeHandleRefresh}
-            tintColor="#4b1e85"
-            colors={['#4b1e85']}
+            tintColor={colors.primary.dark}
+            colors={[colors.primary.dark]}
           />
         }
         // Pagination - Only for Question Bank tab
@@ -739,8 +746,8 @@ const FormBuilderScreen: React.FC = () => {
             if (loadingMore) {
               return (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <ActivityIndicator size="large" color="#4b1e85" />
-                  <Text style={{ marginTop: 10, color: '#666' }}>Loading more questions...</Text>
+                  <ActivityIndicator size="large" color={colors.primary.dark} />
+                  <Text style={{ marginTop: 10, color: colors.text.secondary }}>Loading more questions...</Text>
                 </View>
               );
             }
@@ -752,12 +759,12 @@ const FormBuilderScreen: React.FC = () => {
                     mode="outlined"
                     onPress={loadMore}
                     icon="chevron-down"
-                    style={{ borderColor: '#4b1e85', borderWidth: 2 }}
-                    labelStyle={{ color: '#4b1e85', fontWeight: 'bold' }}
+                    style={{ borderColor: colors.primary.dark, borderWidth: 2 }}
+                    labelStyle={{ color: colors.primary.dark, fontWeight: 'bold' }}
                   >
                     Load More Questions
                   </Button>
-                  <Text style={{ marginTop: 10, color: '#888', fontSize: 12 }}>
+                  <Text style={{ marginTop: 10, color: colors.text.secondary, fontSize: 12 }}>
                     Showing {displayQuestions.length} of {totalCount}
                   </Text>
                 </View>
@@ -781,7 +788,7 @@ const FormBuilderScreen: React.FC = () => {
       />
 
       {/* FAB Actions */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}>
         {activeTab === 'bank' ? (
           <>
             <FAB
@@ -789,7 +796,7 @@ const FormBuilderScreen: React.FC = () => {
               label="Delete All"
               style={[styles.fab, styles.fabDelete]}
               onPress={deleteAllQuestionBank}
-              theme={{ colors: { onPrimary: '#ffffff' } }}
+              theme={{ colors: { onPrimary: colors.primary.contrast } }}
             />
             <FAB
               icon="upload"
@@ -862,31 +869,31 @@ const FormBuilderScreen: React.FC = () => {
                 generatedQuestionsHook.isReorderMode
                   ? generatedQuestionsHook.saveQuestionOrder
                   : () => {
-                      // Only allow reorder if questions are filtered to a specific bundle
-                      if (filteredGeneratedQuestions.length === 0) {
-                        showAlert('No Questions', 'There are no questions to reorder.');
-                        return;
-                      }
-
-                      // Check if all filtered questions belong to the same bundle
-                      const first = filteredGeneratedQuestions[0];
-                      const allSameBundle = filteredGeneratedQuestions.every(
-                        (q) =>
-                          q.assigned_respondent_type === first.assigned_respondent_type &&
-                          q.assigned_commodity === first.assigned_commodity &&
-                          q.assigned_country === first.assigned_country
-                      );
-
-                      if (!allSameBundle) {
-                        showAlert(
-                          'Filter Required',
-                          'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
-                        );
-                        return;
-                      }
-
-                      generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                    // Only allow reorder if questions are filtered to a specific bundle
+                    if (filteredGeneratedQuestions.length === 0) {
+                      showAlert('No Questions', 'There are no questions to reorder.');
+                      return;
                     }
+
+                    // Check if all filtered questions belong to the same bundle
+                    const first = filteredGeneratedQuestions[0];
+                    const allSameBundle = filteredGeneratedQuestions.every(
+                      (q) =>
+                        q.assigned_respondent_type === first.assigned_respondent_type &&
+                        q.assigned_commodity === first.assigned_commodity &&
+                        q.assigned_country === first.assigned_country
+                    );
+
+                    if (!allSameBundle) {
+                      showAlert(
+                        'Filter Required',
+                        'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
+                      );
+                      return;
+                    }
+
+                    generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                  }
               }
               theme={{ colors: { onPrimary: '#ffffff' } }}
             />
@@ -905,7 +912,7 @@ const FormBuilderScreen: React.FC = () => {
             {importing ? (
               <View style={styles.importingContainer}>
                 <Text style={styles.importingText}>Importing questions...</Text>
-                <ProgressBar progress={importProgress} color="#64c8ff" style={styles.progressBar} />
+                <ProgressBar progress={importProgress} color={colors.primary.light} style={styles.progressBar} />
               </View>
             ) : (
               <View style={styles.importExportButtons}>
@@ -1040,30 +1047,29 @@ const FormBuilderScreen: React.FC = () => {
         questionBankChoices={questionBankChoices}
         questions={questions}
       />
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   header: {
     position: 'relative',
-    backgroundColor: '#1a1a3a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: colors.background.paper,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
@@ -1082,34 +1088,34 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   title: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 24,
     marginBottom: 4,
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 14,
   },
   questionCountContainer: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: colors.primary.muted,
     alignItems: 'center',
   },
   questionCount: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontWeight: 'bold',
     fontSize: 20,
   },
   questionCountLabel: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 11,
   },
   scrollView: {
@@ -1126,7 +1132,7 @@ const styles = StyleSheet.create({
     marginTop: 64,
   },
   emptyIconContainer: {
-    backgroundColor: 'rgba(75, 30, 133, 0.2)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 40,
     width: 80,
     height: 80,
@@ -1134,48 +1140,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
     borderWidth: 2,
-    borderColor: 'rgba(75, 30, 133, 0.4)',
+    borderColor: colors.primary.muted,
   },
   emptyIcon: {
     fontSize: 32,
   },
   emptyTitle: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   fabContainer: {
     position: 'absolute',
     right: 16,
-    bottom: 16,
     gap: 12,
   },
   fab: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   fabDelete: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: colors.status.error,
   },
   fabImport: {
-    backgroundColor: '#1976d2',
+    backgroundColor: colors.status.info,
   },
   dialog: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     borderRadius: 20,
   },
   dialogTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   importingContainer: {
     padding: 16,
   },
   importingText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1187,43 +1192,43 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   importExportButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   importButton: {
-    backgroundColor: '#1976d2',
+    backgroundColor: colors.status.info,
   },
   exportButton: {
-    backgroundColor: '#388e3c',
+    backgroundColor: colors.status.success,
   },
   sectionLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 8,
     fontWeight: 'bold',
   },
   tabContainer: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+    borderBottomColor: colors.border.light,
   },
   segmentedButtons: {
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.subtle,
   },
   segmentedButtonText: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   reorderBanner: {
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    backgroundColor: colors.primary.faint,
     borderLeftWidth: 4,
-    borderLeftColor: '#64c8ff',
+    borderLeftColor: colors.primary.light,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 8,
   },
   reorderBannerText: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     marginBottom: 12,
     fontWeight: '600',
   },
@@ -1233,10 +1238,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   reorderButton: {
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.light,
   },
   saveButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   questionCardWrapper: {
     flexDirection: 'row',
@@ -1248,18 +1253,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 4,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.primary.muted,
   },
   reorderButtonDisabled: {
     opacity: 0.3,
   },
   orderIndex: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: 'bold',
     marginVertical: 4,
@@ -1268,13 +1273,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   generatedFiltersContainer: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+    borderBottomColor: colors.border.light,
   },
   filterLabel: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     marginBottom: 12,
     fontWeight: '600',
   },
@@ -1289,11 +1294,11 @@ const styles = StyleSheet.create({
     minWidth: 120,
   },
   filterDropdownLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   filterButton: {
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: colors.border.medium,
   },
   clearFiltersButton: {
     alignSelf: 'flex-end',
@@ -1305,7 +1310,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 100, // Space for FAB
   },
 });
 

@@ -15,9 +15,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import apiService from '../services/api';
 import { ResponseLink } from '../types';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ResponseLinksScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const [links, setLinks] = useState<ResponseLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,9 +115,9 @@ const ResponseLinksScreen: React.FC = () => {
   };
 
   const getStatusColor = (link: ResponseLink) => {
-    if (!link.is_valid) return '#f44336';
-    if (link.statistics.days_until_expiration <= 1) return '#ff9800';
-    return '#4caf50';
+    if (!link.is_valid) return colors.status.error;
+    if (link.statistics.days_until_expiration <= 1) return colors.status.warning;
+    return colors.status.success;
   };
 
   const getStatusText = (link: ResponseLink) => {
@@ -125,20 +129,20 @@ const ResponseLinksScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <ActivityIndicator size="large" />
         <Text variant="bodyLarge" style={styles.loadingText}>Loading links...</Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <IconButton
           icon="arrow-left"
-          iconColor="#ffffff"
+          iconColor={colors.primary.contrast}
           size={24}
           onPress={() => navigation.goBack()}
         />
@@ -313,7 +317,7 @@ const ResponseLinksScreen: React.FC = () => {
                   )}
                   <IconButton
                     icon="delete"
-                    iconColor="#f44336"
+                    iconColor={colors.status.error}
                     size={20}
                     onPress={() => {
                       setSelectedLink(link);
@@ -348,7 +352,7 @@ const ResponseLinksScreen: React.FC = () => {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setShowDeleteDialog(false)}>Cancel</Button>
-            <Button onPress={() => selectedLink && handleDelete(selectedLink)} textColor="#f44336">
+            <Button onPress={() => selectedLink && handleDelete(selectedLink)} textColor={colors.status.error}>
               Delete
             </Button>
           </Dialog.Actions>
@@ -387,14 +391,14 @@ const ResponseLinksScreen: React.FC = () => {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
   },
   centerContainer: {
     flex: 1,
@@ -405,8 +409,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6200ea',
-    paddingTop: 40,
+    backgroundColor: colors.primary.main,
     paddingBottom: 16,
     paddingHorizontal: 8,
     elevation: 4,
@@ -416,7 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: '#ffffff',
+    color: colors.primary.contrast,
     fontWeight: 'bold',
   },
   subtitle: {
@@ -427,6 +430,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 80,
   },
   linkCard: {
     marginBottom: 16,
@@ -454,10 +458,10 @@ const styles = StyleSheet.create({
   },
   description: {
     marginBottom: 8,
-    color: '#666',
+    color: colors.text.secondary,
   },
   projectName: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   tagsContainer: {
@@ -467,10 +471,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tag: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: colors.primary.faint,
   },
   tagText: {
-    color: '#1976d2',
+    color: colors.primary.main,
     fontSize: 11,
   },
   divider: {
@@ -484,18 +488,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   statValue: {
     fontWeight: 'bold',
-    color: '#6200ea',
+    color: colors.primary.main,
   },
   timestampsRow: {
     gap: 4,
   },
   timestamp: {
-    color: '#999',
+    color: colors.text.disabled,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -518,7 +522,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#666',
+    color: colors.text.secondary,
   },
   loadingText: {
     marginTop: 16,
@@ -527,7 +531,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     bottom: 16,
-    backgroundColor: '#6200ea',
+    backgroundColor: colors.primary.main,
   },
 });
 

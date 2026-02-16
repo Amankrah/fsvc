@@ -9,6 +9,7 @@ import {
   IconButton,
   Surface,
 } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface AnalysisResultsProps {
   results: any;
@@ -378,7 +379,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontStyle: 'italic',
-    color: '#666',
+    color: colors.text.secondary,
   },
   scrollView: {
     flex: 1,
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     paddingLeft: 16,
     borderLeftWidth: 2,
-    borderLeftColor: '#e0e0e0',
+    borderLeftColor: colors.border.light,
   },
   nestedTitle: {
     fontWeight: '600',
@@ -442,10 +443,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   significantChip: {
-    backgroundColor: '#c8e6c9',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   notSignificantChip: {
-    backgroundColor: '#ffccbc',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
 });
 

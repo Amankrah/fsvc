@@ -29,8 +29,9 @@ if (__DEV__) {
 
 // Determine API URL based on environment
 const getApiUrl = (): string => {
-  // If explicitly set via environment variable, use it
-  if (ENV_API_URL) {
+  // If explicitly set via environment variable AND we are not on web (where localhost is preferred in dev), use it
+  // Or if it's production, always use the env var
+  if (ENV_API_URL && (Platform.OS !== 'web' || !__DEV__)) {
     return ENV_API_URL;
   }
 
@@ -38,13 +39,14 @@ const getApiUrl = (): string => {
   const isDevelopment = __DEV__ || ENV_ENVIRONMENT === 'development';
 
   if (Platform.OS === 'web') {
-    // Web: Use production URL by default, unless explicitly in development
-    return isDevelopment && ENV_ENVIRONMENT === 'development'
-      ? DEFAULT_DEV_API_URL
+    // Web: Use localhost in development for better reliability vs firewall
+    return isDevelopment
+      ? 'http://localhost:8000/api'
       : DEFAULT_PROD_API_URL;
   } else {
     // Mobile: Use __DEV__ flag to determine environment
-    return isDevelopment ? DEFAULT_DEV_API_URL : DEFAULT_PROD_API_URL;
+    // Use the explicitly provided IP if available, otherwise default to a known working IP or localhost (which won't work for Android)
+    return isDevelopment ? (ENV_API_URL || DEFAULT_DEV_API_URL) : DEFAULT_PROD_API_URL;
   }
 };
 

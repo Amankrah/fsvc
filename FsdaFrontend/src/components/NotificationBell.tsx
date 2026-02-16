@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import apiService from '../services/api';
 import { UserNotification, NotificationsResponse } from '../types';
+import { colors } from '../constants/theme';
 
 interface NotificationBellProps {
   onNavigateToProject?: (projectId: string) => void;
@@ -31,7 +32,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigateToProject
 
   const loadNotifications = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
       const response: NotificationsResponse = await apiService.getNotifications();
@@ -46,7 +47,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigateToProject
 
   useEffect(() => {
     loadNotifications();
-    
+
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
@@ -72,7 +73,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigateToProject
 
   const handleViewInvitation = async (notification: UserNotification) => {
     if (!notification.related_project_id) return;
-    
+
     // Navigate to AcceptInvitationScreen to see project details and accept/decline
     if (onNavigateToInvitation) {
       setShowDialog(false);
@@ -95,11 +96,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigateToProject
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return '#ff1744';
-      case 'high': return '#ff6f00';
-      case 'medium': return '#64c8ff';
-      case 'low': return '#9e9e9e';
-      default: return '#64c8ff';
+      case 'urgent': return colors.status.error;
+      case 'high': return colors.status.warning;
+      case 'medium': return colors.primary.light;
+      case 'low': return colors.text.disabled;
+      default: return colors.primary.light;
     }
   };
 
@@ -172,7 +173,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigateToProject
         <IconButton
           icon="bell"
           size={24}
-          iconColor="#6c757d"
+          iconColor={colors.text.secondary}
           onPress={() => setShowDialog(true)}
         />
         {unreadCount > 0 && (
@@ -236,17 +237,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: '#ff1744',
+    backgroundColor: colors.status.error,
   },
   dialog: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.elevated,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
     maxHeight: '80%',
   },
   dialogTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -255,16 +256,16 @@ const styles = StyleSheet.create({
     maxHeight: 500,
   },
   dialogActions: {
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
+    backgroundColor: colors.background.subtle,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(75, 30, 133, 0.3)',
+    borderTopColor: colors.border.light,
   },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
   },
   loadingText: {
-    color: '#ffffff',
+    color: colors.text.secondary,
     marginTop: 16,
   },
   emptyContainer: {
@@ -272,12 +273,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtext: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   notificationsList: {
@@ -289,12 +290,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   unreadCard: {
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    backgroundColor: colors.primary.faint,
+    borderColor: colors.border.light,
   },
   readCard: {
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
-    borderColor: 'rgba(75, 30, 133, 0.2)',
+    backgroundColor: colors.background.subtle,
+    borderColor: colors.border.light,
   },
   notificationHeader: {
     flexDirection: 'row',
@@ -311,21 +312,21 @@ const styles = StyleSheet.create({
     height: 24,
   },
   timeText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#64c8ff',
+    backgroundColor: colors.primary.light,
   },
   notificationTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: '600',
     marginBottom: 4,
   },
   notificationMessage: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.text.primary,
     marginBottom: 12,
   },
   invitationActions: {
@@ -333,10 +334,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   viewInvitationButton: {
-    backgroundColor: '#6200ee',
+    backgroundColor: colors.primary.main,
   },
   expiredText: {
-    color: '#ff9800',
+    color: colors.status.warning,
     fontStyle: 'italic',
     marginTop: 8,
   },

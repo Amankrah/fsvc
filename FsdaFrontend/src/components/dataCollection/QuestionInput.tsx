@@ -4,12 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image, Pressable } from 'react-native';
 import { Text, TextInput, RadioButton, Checkbox, Button } from 'react-native-paper';
 import { Question } from '../../types';
 import { DatePickerDialog } from './DatePickerDialog';
 import { LocationDialog } from './LocationDialog';
 import { ImagePickerComponent } from './ImagePickerComponent';
+import { colors } from '../../constants/theme';
 
 interface QuestionInputProps {
   question: Question;
@@ -50,14 +51,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         onChangeText={handleValueChange}
         mode="outlined"
         style={styles.input}
-        textColor="#ffffff"
+        textColor={colors.text.primary}
         placeholder="Enter your answer"
-        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        placeholderTextColor={colors.text.disabled}
         theme={{
           colors: {
-            primary: '#64c8ff',
-            onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-            outline: 'rgba(100, 200, 255, 0.5)',
+            primary: colors.primary.main,
+            onSurfaceVariant: colors.text.secondary,
+            outline: colors.border.light,
           },
         }}
       />
@@ -75,14 +76,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         multiline
         numberOfLines={4}
         style={[styles.input, styles.textArea]}
-        textColor="#ffffff"
+        textColor={colors.text.primary}
         placeholder="Enter your detailed answer"
-        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        placeholderTextColor={colors.text.disabled}
         theme={{
           colors: {
-            primary: '#64c8ff',
-            onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-            outline: 'rgba(100, 200, 255, 0.5)',
+            primary: colors.primary.main,
+            onSurfaceVariant: colors.text.secondary,
+            outline: colors.border.light,
           },
         }}
       />
@@ -99,14 +100,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         mode="outlined"
         keyboardType="numeric"
         style={styles.input}
-        textColor="#ffffff"
+        textColor={colors.text.primary}
         placeholder="0"
-        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        placeholderTextColor={colors.text.disabled}
         theme={{
           colors: {
-            primary: '#64c8ff',
-            onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-            outline: 'rgba(100, 200, 255, 0.5)',
+            primary: colors.primary.main,
+            onSurfaceVariant: colors.text.secondary,
+            outline: colors.border.light,
           },
         }}
       />
@@ -123,14 +124,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         mode="outlined"
         keyboardType="decimal-pad"
         style={styles.input}
-        textColor="#ffffff"
+        textColor={colors.text.primary}
         placeholder="0.00"
-        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        placeholderTextColor={colors.text.disabled}
         theme={{
           colors: {
-            primary: '#64c8ff',
-            onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-            outline: 'rgba(100, 200, 255, 0.5)',
+            primary: colors.primary.main,
+            onSurfaceVariant: colors.text.secondary,
+            outline: colors.border.light,
           },
         }}
       />
@@ -153,10 +154,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         <RadioButton.Group value={value as string || ''} onValueChange={handleValueChange}>
           <View style={styles.scaleButtons}>
             {scaleOptions.map((option) => (
-              <View key={option} style={styles.scaleOption}>
-                <RadioButton value={option} color="#64c8ff" />
+              <Pressable
+                key={option}
+                onPress={() => handleValueChange(option)}
+                style={({ pressed }) => [styles.scaleOption, pressed && styles.optionPressed]}
+              >
+                <RadioButton value={option} color={colors.primary.main} />
                 <Text style={styles.scaleOptionText}>{option}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </RadioButton.Group>
@@ -193,10 +198,13 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
         <RadioButton.Group value={displayValue} onValueChange={handleRadioChange}>
           {question.options?.map((option) => (
             <View key={option}>
-              <View style={styles.radioOption}>
-                <RadioButton value={option} color="#64c8ff" />
+              <Pressable
+                onPress={() => handleRadioChange(option)}
+                style={({ pressed }) => [styles.radioOption, pressed && styles.optionPressed]}
+              >
+                <RadioButton value={option} color={colors.primary.main} />
                 <Text style={styles.optionText}>{option}</Text>
-              </View>
+              </Pressable>
               {/* Show text input if this "Other" option is selected */}
               {isOtherOption(option) && displayValue === option && (
                 <View style={styles.otherInputContainer}>
@@ -206,14 +214,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
                     onChangeText={handleOtherTextChange}
                     mode="outlined"
                     style={styles.otherInput}
-                    textColor="#ffffff"
+                    textColor={colors.text.primary}
                     placeholder="Enter your answer..."
-                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                    placeholderTextColor={colors.text.disabled}
                     theme={{
                       colors: {
-                        primary: '#64c8ff',
-                        onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                        outline: 'rgba(100, 200, 255, 0.5)',
+                        primary: colors.primary.main,
+                        onSurfaceVariant: colors.text.secondary,
+                        outline: colors.border.light,
                       },
                     }}
                   />
@@ -277,14 +285,17 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
       <View>
         {question.options?.map((option) => (
           <View key={option}>
-            <View style={styles.checkboxOption}>
+            <Pressable
+              onPress={() => toggleOption(option)}
+              style={({ pressed }) => [styles.checkboxOption, pressed && styles.optionPressed]}
+            >
               <Checkbox
                 status={isOptionChecked(option) ? 'checked' : 'unchecked'}
                 onPress={() => toggleOption(option)}
-                color="#64c8ff"
+                color={colors.primary.main}
               />
               <Text style={styles.optionText}>{option}</Text>
-            </View>
+            </Pressable>
             {/* Show text input if this "Other" option is checked */}
             {isOtherOption(option) && isOptionChecked(option) && (
               <View style={styles.otherInputContainer}>
@@ -294,14 +305,14 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
                   onChangeText={handleOtherTextChange}
                   mode="outlined"
                   style={styles.otherInput}
-                  textColor="#ffffff"
+                  textColor={colors.text.primary}
                   placeholder="Enter your answer..."
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  placeholderTextColor={colors.text.disabled}
                   theme={{
                     colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
+                      primary: colors.primary.main,
+                      onSurfaceVariant: colors.text.secondary,
+                      outline: colors.border.light,
                     },
                   }}
                 />
@@ -322,7 +333,7 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
           onPress={() => setShowDatePicker(true)}
           icon="calendar"
           style={styles.dateButton}
-          textColor="#64c8ff">
+          textColor={colors.primary.light}>
           {value ? (value as string) : 'Select Date'}
         </Button>
         <DatePickerDialog
@@ -347,7 +358,7 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
           onPress={() => setShowDatePicker(true)}
           icon="calendar-clock"
           style={styles.dateButton}
-          textColor="#64c8ff">
+          textColor={colors.primary.light}>
           {value ? (value as string) : 'Select Date & Time'}
         </Button>
         <DatePickerDialog
@@ -372,7 +383,7 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
           onPress={() => setShowLocationDialog(true)}
           icon="map-marker"
           style={styles.locationButton}
-          textColor="#64c8ff">
+          textColor={colors.primary.light}>
           {value ? 'Location Captured' : 'Capture Location'}
         </Button>
         {value && (
@@ -400,7 +411,7 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
           onPress={() => setShowLocationDialog(true)}
           icon="home-map-marker"
           style={styles.locationButton}
-          textColor="#64c8ff">
+          textColor={colors.primary.light}>
           {value ? 'Address Entered' : 'Enter Address'}
         </Button>
         {value && (
@@ -440,7 +451,7 @@ export const QuestionInput: React.FC<QuestionInputProps> = ({ question, value, o
 const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.primary.faint,
   },
   textArea: {
     minHeight: 120,
@@ -454,7 +465,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scaleLabel: {
-    color: '#64c8ff',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -466,38 +477,38 @@ const styles = StyleSheet.create({
   scaleOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.paper,
     borderRadius: 8,
     paddingRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.light,
   },
   scaleOptionText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
   },
   radioOption: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
     padding: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   checkboxOption: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
     padding: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   optionText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
     flex: 1,
   },
@@ -507,26 +518,30 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   otherInput: {
-    backgroundColor: 'rgba(100, 200, 255, 0.05)',
+    backgroundColor: colors.background.paper,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.light,
   },
   dateButton: {
     marginBottom: 16,
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   locationButton: {
     marginBottom: 16,
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   locationPreview: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.disabled,
     fontSize: 14,
     marginTop: -8,
     marginBottom: 16,
   },
   unsupportedText: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: colors.text.disabled,
     fontStyle: 'italic',
+  },
+  optionPressed: {
+    opacity: 0.7,
+    backgroundColor: 'rgba(100, 200, 255, 0.1)',
   },
 });

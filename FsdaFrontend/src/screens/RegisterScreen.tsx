@@ -8,6 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { TextInput, Button, Text, Surface, HelperText } from 'react-native-paper';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { colors } from '../constants/theme';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -150,244 +152,246 @@ const RegisterScreen: React.FC = () => {
   }, []);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <ScreenWrapper style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Surface style={styles.surface} elevation={4}>
-          <Text variant="headlineLarge" style={styles.title}>
-            Create Account
-          </Text>
-          <Text variant="bodyLarge" style={styles.subtitle}>
-            Sign up to get started
-          </Text>
-
-          <View style={styles.form}>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Email"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.email}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    style={styles.input}
-                    disabled={isLoading}
-                  />
-                  {errors.email && (
-                    <HelperText type="error" visible={!!errors.email}>
-                      {errors.email.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="username"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Username"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.username}
-                    autoCapitalize="none"
-                    autoComplete="username"
-                    style={styles.input}
-                    disabled={isLoading}
-                  />
-                  {errors.username && (
-                    <HelperText type="error" visible={!!errors.username}>
-                      {errors.username.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="firstName"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="First Name"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.firstName}
-                    autoCapitalize="words"
-                    style={styles.input}
-                    disabled={isLoading}
-                  />
-                  {errors.firstName && (
-                    <HelperText type="error" visible={!!errors.firstName}>
-                      {errors.firstName.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="lastName"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Last Name"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.lastName}
-                    autoCapitalize="words"
-                    style={styles.input}
-                    disabled={isLoading}
-                  />
-                  {errors.lastName && (
-                    <HelperText type="error" visible={!!errors.lastName}>
-                      {errors.lastName.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="institution"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Institution (Optional)"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.institution}
-                    autoCapitalize="words"
-                    style={styles.input}
-                    disabled={isLoading}
-                  />
-                  {errors.institution && (
-                    <HelperText type="error" visible={!!errors.institution}>
-                      {errors.institution.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Password"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.password}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoComplete="password-new"
-                    style={styles.input}
-                    disabled={isLoading}
-                    right={
-                      <TextInput.Icon
-                        icon={showPassword ? 'eye-off' : 'eye'}
-                        onPress={toggleShowPassword}
-                      />
-                    }
-                  />
-                  {errors.password && (
-                    <HelperText type="error" visible={!!errors.password}>
-                      {errors.password.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="confirmPassword"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    label="Confirm Password"
-                    mode="outlined"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={!!errors.confirmPassword}
-                    secureTextEntry={!showConfirmPassword}
-                    autoCapitalize="none"
-                    autoComplete="password-new"
-                    style={styles.input}
-                    disabled={isLoading}
-                    right={
-                      <TextInput.Icon
-                        icon={showConfirmPassword ? 'eye-off' : 'eye'}
-                        onPress={toggleShowConfirmPassword}
-                      />
-                    }
-                  />
-                  {errors.confirmPassword && (
-                    <HelperText type="error" visible={!!errors.confirmPassword}>
-                      {errors.confirmPassword.message}
-                    </HelperText>
-                  )}
-                </View>
-              )}
-            />
-
-            <Button
-              mode="contained"
-              onPress={handleSubmit(onSubmit)}
-              loading={isLoading}
-              disabled={isLoading}
-              style={styles.button}
-            >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Surface style={styles.surface} elevation={4}>
+            <Text variant="headlineLarge" style={styles.title}>
               Create Account
-            </Button>
+            </Text>
+            <Text variant="bodyLarge" style={styles.subtitle}>
+              Sign up to get started
+            </Text>
 
-            <View style={styles.loginContainer}>
-              <Text variant="bodyMedium">Already have an account? </Text>
-              <Button mode="text" onPress={handleLoginPress} disabled={isLoading} compact>
-                Sign In
+            <View style={styles.form}>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Email"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.email}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      style={styles.input}
+                      disabled={isLoading}
+                    />
+                    {errors.email && (
+                      <HelperText type="error" visible={!!errors.email}>
+                        {errors.email.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="username"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Username"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.username}
+                      autoCapitalize="none"
+                      autoComplete="username"
+                      style={styles.input}
+                      disabled={isLoading}
+                    />
+                    {errors.username && (
+                      <HelperText type="error" visible={!!errors.username}>
+                        {errors.username.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="firstName"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="First Name"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.firstName}
+                      autoCapitalize="words"
+                      style={styles.input}
+                      disabled={isLoading}
+                    />
+                    {errors.firstName && (
+                      <HelperText type="error" visible={!!errors.firstName}>
+                        {errors.firstName.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="lastName"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Last Name"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.lastName}
+                      autoCapitalize="words"
+                      style={styles.input}
+                      disabled={isLoading}
+                    />
+                    {errors.lastName && (
+                      <HelperText type="error" visible={!!errors.lastName}>
+                        {errors.lastName.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="institution"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Institution (Optional)"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.institution}
+                      autoCapitalize="words"
+                      style={styles.input}
+                      disabled={isLoading}
+                    />
+                    {errors.institution && (
+                      <HelperText type="error" visible={!!errors.institution}>
+                        {errors.institution.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Password"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.password}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoComplete="password-new"
+                      style={styles.input}
+                      disabled={isLoading}
+                      right={
+                        <TextInput.Icon
+                          icon={showPassword ? 'eye-off' : 'eye'}
+                          onPress={toggleShowPassword}
+                        />
+                      }
+                    />
+                    {errors.password && (
+                      <HelperText type="error" visible={!!errors.password}>
+                        {errors.password.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="confirmPassword"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      label="Confirm Password"
+                      mode="outlined"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      error={!!errors.confirmPassword}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                      autoComplete="password-new"
+                      style={styles.input}
+                      disabled={isLoading}
+                      right={
+                        <TextInput.Icon
+                          icon={showConfirmPassword ? 'eye-off' : 'eye'}
+                          onPress={toggleShowConfirmPassword}
+                        />
+                      }
+                    />
+                    {errors.confirmPassword && (
+                      <HelperText type="error" visible={!!errors.confirmPassword}>
+                        {errors.confirmPassword.message}
+                      </HelperText>
+                    )}
+                  </View>
+                )}
+              />
+
+              <Button
+                mode="contained"
+                onPress={handleSubmit(onSubmit)}
+                loading={isLoading}
+                disabled={isLoading}
+                style={styles.button}
+              >
+                Create Account
               </Button>
+
+              <View style={styles.loginContainer}>
+                <Text variant="bodyMedium">Already have an account? </Text>
+                <Button mode="text" onPress={handleLoginPress} disabled={isLoading} compact>
+                  Sign In
+                </Button>
+              </View>
             </View>
-          </View>
-        </Surface>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </Surface>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   scrollContent: {
     flexGrow: 1,
@@ -418,7 +422,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
   },
   button: {
     marginTop: 8,

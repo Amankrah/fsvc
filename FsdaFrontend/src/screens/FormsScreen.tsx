@@ -20,9 +20,13 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
 import { Project, Question } from '../types';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FormsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const insets = useSafeAreaInsets();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
@@ -91,8 +95,8 @@ const FormsScreen: React.FC = () => {
 
       const message = questionList.length > 0
         ? `Total: ${questionList.length} question${questionList.length !== 1 ? 's' : ''}\n` +
-          `Owner: ${ownerQuestions.length}\n` +
-          `Partner: ${partnerQuestions.length}`
+        `Owner: ${ownerQuestions.length}\n` +
+        `Partner: ${partnerQuestions.length}`
         : 'This form has no questions yet';
 
       Alert.alert('Form Questions', message, [{ text: 'OK' }]);
@@ -111,8 +115,8 @@ const FormsScreen: React.FC = () => {
   };
 
   const renderProjectCard = ({ item }: { item: Project }) => (
-    <TouchableOpacity 
-      style={styles.cardWrapper} 
+    <TouchableOpacity
+      style={styles.cardWrapper}
       activeOpacity={0.95}
       onPress={() => handleEditForm(item)}>
       <View style={styles.card}>
@@ -152,7 +156,7 @@ const FormsScreen: React.FC = () => {
                   <IconButton
                     icon="dots-vertical"
                     size={20}
-                    iconColor="#ffffff"
+                    iconColor={colors.text.primary}
                   />
                 </TouchableOpacity>
               }>
@@ -204,7 +208,7 @@ const FormsScreen: React.FC = () => {
           <View style={styles.stats}>
             <View style={styles.statItem}>
               <View style={styles.statIconContainer}>
-                <IconButton icon="file-document-outline" size={16} iconColor="#64c8ff" />
+                <IconButton icon="file-document-outline" size={16} iconColor={colors.primary.light} />
               </View>
               <View style={styles.statTextContainer}>
                 <Text style={styles.statNumber}>{item.question_count || 0}</Text>
@@ -236,7 +240,7 @@ const FormsScreen: React.FC = () => {
               style={styles.primaryButton}
               onPress={() => handleEditForm(item)}>
               <Text style={styles.primaryButtonText}>Build Form</Text>
-              <IconButton icon="arrow-right" size={16} iconColor="#ffffff" />
+              <IconButton icon="arrow-right" size={16} iconColor={colors.text.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -246,18 +250,18 @@ const FormsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4b1e85" />
+      <ScreenWrapper style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary.main} />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading projects...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerContent}>
           <Text variant="headlineMedium" style={styles.title}>
             Forms & Questionnaires
@@ -276,13 +280,13 @@ const FormsScreen: React.FC = () => {
           value={searchQuery}
           style={styles.searchbar}
           inputStyle={styles.searchInput}
-          iconColor="#64c8ff"
+          iconColor={colors.primary.light}
           placeholderTextColor="rgba(255, 255, 255, 0.5)"
           theme={{
             colors: {
-              primary: '#4b1e85',
-              onSurface: '#ffffff',
-              outline: 'rgba(75, 30, 133, 0.5)',
+              primary: colors.primary.main,
+              onSurface: colors.text.primary,
+              outline: colors.border.medium,
             },
           }}
         />
@@ -295,11 +299,11 @@ const FormsScreen: React.FC = () => {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#4b1e85"
-            colors={["#4b1e85"]}
+            tintColor={colors.primary.main}
+            colors={[colors.primary.main]}
           />
         }
         ListEmptyComponent={
@@ -318,31 +322,30 @@ const FormsScreen: React.FC = () => {
           </View>
         }
       />
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   loadingText: {
     marginTop: 16,
-    color: '#ffffff',
+    color: colors.text.secondary,
   },
   // Header Styles
   header: {
     position: 'relative',
-    backgroundColor: '#1a1a3a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: colors.background.paper,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
@@ -355,16 +358,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.main,
   },
   title: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 28,
     marginBottom: 8,
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontSize: 16,
   },
   // Search Styles
@@ -374,14 +377,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   searchbar: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
     elevation: 0,
   },
   searchInput: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   // List Styles
   listContainer: {
@@ -394,11 +397,11 @@ const styles = StyleSheet.create({
   },
   card: {
     position: 'relative',
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   cardOverlay: {
     position: 'absolute',
@@ -406,7 +409,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
     borderRadius: 24,
   },
   cardContent: {
@@ -424,7 +427,7 @@ const styles = StyleSheet.create({
   },
   projectName: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 20,
     marginBottom: 8,
   },
@@ -434,68 +437,68 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   syncedChip: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   syncedChipText: {
-    color: '#4caf50',
+    color: colors.status.success,
     fontSize: 11,
     fontWeight: '600',
   },
   pendingChip: {
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.4)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   pendingChipText: {
-    color: '#ff9800',
+    color: colors.status.warning,
     fontSize: 11,
     fontWeight: '600',
   },
   partnersChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
   },
   partnersChipText: {
-    color: '#64c8ff',
+    color: colors.primary.light,
     fontSize: 11,
     fontWeight: '600',
   },
   targetingInfo: {
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   targetingRow: {
     flexDirection: 'row',
     marginBottom: 4,
   },
   targetingLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     fontWeight: '600',
     marginRight: 8,
   },
   targetingValue: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.text.primary,
     flex: 1,
   },
   menuButton: {
-    backgroundColor: 'rgba(75, 30, 133, 0.6)',
+    backgroundColor: colors.primary.muted,
     borderRadius: 20,
     width: 40,
     height: 40,
@@ -503,19 +506,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuContent: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.paper,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   menuItemText: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   menuDivider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.border.light,
   },
   description: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginBottom: 16,
     fontSize: 15,
     lineHeight: 22,
@@ -527,14 +530,14 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: colors.border.light,
   },
   statItem: {
     alignItems: 'center',
     flex: 1,
   },
   statIconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 20,
     width: 40,
     height: 40,
@@ -546,12 +549,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: 'bold',
   },
   statLabel: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -560,10 +563,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: colors.border.light,
   },
   primaryButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.main,
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -572,7 +575,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: colors.primary.contrast,
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -585,7 +588,7 @@ const styles = StyleSheet.create({
     marginTop: 64,
   },
   emptyIconContainer: {
-    backgroundColor: 'rgba(75, 30, 133, 0.2)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 40,
     width: 80,
     height: 80,
@@ -593,20 +596,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
     borderWidth: 2,
-    borderColor: 'rgba(75, 30, 133, 0.4)',
+    borderColor: colors.primary.muted,
   },
   emptyIcon: {
     fontSize: 32,
   },
   emptyTitle: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
     fontSize: 24,
   },
   emptySubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,

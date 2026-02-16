@@ -16,6 +16,7 @@ import {
   Divider,
 } from 'react-native-paper';
 import { RespondentType, CommodityType } from '../../types';
+import { colors } from '../../constants/theme';
 
 interface RespondentFormProps {
   // Respondent state
@@ -40,6 +41,7 @@ interface RespondentFormProps {
   questionsGenerated: boolean;
   cachingForOffline?: boolean;
   cachedOfflineCount?: number;
+  loadingQuestions?: boolean; // New prop for visual feedback
 
   // Actions
   onGenerateQuestions: () => void;
@@ -67,6 +69,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
   questionsGenerated,
   cachingForOffline = false,
   cachedOfflineCount = 0,
+  loadingQuestions = false,
   onGenerateQuestions,
   onStartSurvey,
   onCacheForOffline,
@@ -82,7 +85,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Auto-generate Respondent ID</Text>
-            <Switch value={useAutoId} onValueChange={handleToggleAutoId} color="#64c8ff" />
+            <Switch value={useAutoId} onValueChange={handleToggleAutoId} color={colors.primary.main} />
           </View>
 
           <TextInput
@@ -92,11 +95,11 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
             disabled={useAutoId}
             mode="outlined"
             style={styles.input}
-            textColor="#ffffff"
+            textColor={colors.text.primary}
             theme={{
               colors: {
-                primary: '#64c8ff',
-                onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
+                primary: colors.primary.main,
+                onSurfaceVariant: colors.text.secondary,
                 outline: 'rgba(100, 200, 255, 0.5)',
               },
             }}
@@ -116,7 +119,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
 
           {loadingOptions ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#64c8ff" />
+              <ActivityIndicator size="small" color={colors.primary.main} />
               <Text style={styles.loadingText}>Loading available options...</Text>
             </View>
           ) : (
@@ -154,7 +157,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
                     style={[
                       styles.chip,
                       selectedCommodities.includes(commodity.value as CommodityType) &&
-                        styles.selectedChip,
+                      styles.selectedChip,
                     ]}
                     textStyle={styles.chipText}>
                     {commodity.display}
@@ -189,6 +192,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
               loading={generatingQuestions}
               disabled={!selectedRespondentType || generatingQuestions || loadingOptions}
               style={styles.generateButton}
+              textColor="#FFFFFF"
               icon="auto-fix">
               {questionsGenerated ? 'Regenerate Questions' : 'Generate Questions'}
             </Button>
@@ -201,7 +205,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
                 disabled={!selectedRespondentType || cachingForOffline || generatingQuestions}
                 style={styles.cacheButton}
                 icon="download-circle"
-                textColor="#64c8ff">
+                textColor={colors.primary.main}>
                 {cachedOfflineCount > 0 ? 'Update Offline Cache' : 'Cache for Offline'}
               </Button>
             )}
@@ -212,6 +216,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
                 onPress={onStartSurvey}
                 disabled={!respondentId}
                 style={styles.startButton}
+                textColor="#FFFFFF"
                 icon="play-circle">
                 Start Survey
               </Button>
@@ -230,7 +235,14 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
             </View>
           )}
 
-          {questionsGenerated && (
+          {loadingQuestions && (
+            <View style={styles.loadingBanner}>
+              <ActivityIndicator size="small" color={colors.primary.main} />
+              <Text style={styles.loadingText}>Updating questions for new selection...</Text>
+            </View>
+          )}
+
+          {!loadingQuestions && questionsGenerated && (
             <View style={styles.successBanner}>
               <Text style={styles.successText}>✅ Questions are ready!</Text>
               <Text style={styles.successSubtext}>
@@ -249,7 +261,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   card: {
     margin: 16,
@@ -259,7 +271,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(75, 30, 133, 0.3)',
   },
   sectionTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
     marginBottom: 16,
   },
@@ -271,7 +283,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   switchLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
   },
   input: {
@@ -283,7 +295,7 @@ const styles = StyleSheet.create({
     marginVertical: 24,
   },
   label: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 12,
@@ -298,16 +310,18 @@ const styles = StyleSheet.create({
   chip: {
     marginRight: 8,
     marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.background.paper,
+    borderRadius: 8,
+    borderColor: colors.border.light,
   },
   selectedChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.3)',
-    borderColor: '#64c8ff',
+    backgroundColor: colors.primary.faint,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 12,
   },
   loadingContainer: {
@@ -317,7 +331,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginLeft: 12,
   },
   buttonContainer: {
@@ -325,14 +339,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   generateButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
   },
   cacheButton: {
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
     borderWidth: 1,
   },
   startButton: {
-    backgroundColor: '#1976d2',
+    backgroundColor: colors.primary.main,
   },
   offlineBanner: {
     backgroundColor: 'rgba(100, 200, 255, 0.15)',
@@ -343,13 +357,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(100, 200, 255, 0.4)',
   },
   offlineText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   offlineSubtext: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.primary,
     fontSize: 13,
   },
   successBanner: {
@@ -361,13 +375,24 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(76, 175, 80, 0.4)',
   },
   successText: {
-    color: '#81c784',
+    color: colors.status.success,
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   successSubtext: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.primary,
     fontSize: 13,
+  },
+  loadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.3)',
   },
 });

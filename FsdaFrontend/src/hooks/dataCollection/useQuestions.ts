@@ -27,6 +27,7 @@ interface UseQuestionsProps {
   selectedCommodities: CommodityType[];
   selectedCountry: string;
   useProjectBankOnly?: boolean;
+  isSurveyRunning?: boolean; // New prop to indicate if survey is active
 }
 
 export const useQuestions = ({
@@ -35,6 +36,7 @@ export const useQuestions = ({
   selectedCommodities,
   selectedCountry,
   useProjectBankOnly = true,
+  isSurveyRunning = false, // Default to false
 }: UseQuestionsProps) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
@@ -445,7 +447,7 @@ export const useQuestions = ({
                   {
                     text: 'Cancel',
                     style: 'cancel',
-                    onPress: () => {},
+                    onPress: () => { },
                   },
                   {
                     text: 'Regenerate (Replace All)',
@@ -472,9 +474,8 @@ export const useQuestions = ({
           country: selectedCountry || undefined,
           use_project_bank_only: useProjectBankOnly,
           replace_existing: forceRegenerate, // Use forceRegenerate to control replace_existing
-          notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesForNotes}${
-            selectedCountry ? `, ${selectedCountry}` : ''
-          }`,
+          notes: `Dynamic generation for ${selectedRespondentType} respondent, ${commoditiesForNotes}${selectedCountry ? `, ${selectedCountry}` : ''
+            }`,
         };
 
         const result: DynamicQuestionGenerationResult = await apiService.generateDynamicQuestions(
@@ -511,8 +512,7 @@ export const useQuestions = ({
             `• Respondent Type: ${selectedRespondentType}\n` +
             `• Commodities: ${commoditiesText}\n` +
             `• Country: ${countryText}\n\n` +
-            `Found ${allContextQuestions.length} existing question${
-              allContextQuestions.length !== 1 ? 's' : ''
+            `Found ${allContextQuestions.length} existing question${allContextQuestions.length !== 1 ? 's' : ''
             }.\n\n` +
             `Click OK to REGENERATE and replace all questions.\n` +
             `Click Cancel to keep the existing questions.`;
@@ -525,7 +525,7 @@ export const useQuestions = ({
                 {
                   text: 'Cancel',
                   style: 'cancel',
-                  onPress: () => {},
+                  onPress: () => { },
                 },
                 {
                   text: 'Regenerate (Replace All)',
@@ -538,8 +538,7 @@ export const useQuestions = ({
         } else {
           // New questions were generated
           const message =
-            `Successfully generated ${result.summary.questions_generated} new question${
-              result.summary.questions_generated !== 1 ? 's' : ''
+            `Successfully generated ${result.summary.questions_generated} new question${result.summary.questions_generated !== 1 ? 's' : ''
             } for:\n\n` +
             `• Respondent Type: ${selectedRespondentType}\n` +
             `• Commodities: ${commoditiesText}\n` +
@@ -588,25 +587,27 @@ export const useQuestions = ({
         questionsCount: questions.length,
         generatingQuestions,
         loadedWithFilters,
+        isSurveyRunning,
       });
 
-      // CRITICAL: Don't reload if questions are already generated (prevents mid-survey reloads)
-      // This check prevents the bug where commodity filter gets cleared and loads all questions
-      if (questionsGenerated && questions.length > 0) {
-        console.log('✋ Survey already started with generated questions, skipping auto-reload to prevent filter glitch');
+      // CRITICAL: Don't reload if questions are already generated AND survey is running
+      // This prevents mid-survey reloads while allowing updates during setup
+      if (questionsGenerated && questions.length > 0 && isSurveyRunning) {
+        console.log('✋ Survey is running with generated questions, skipping auto-reload');
         return;
       }
 
       // Additional safeguard: If we've already loaded questions with specific filters,
       // don't reload with different/empty filters (prevents race condition bug)
-      if (loadedWithFilters && questions.length > 0) {
+      // BUT only if survey is running - otherwise let the user change filters freely
+      if (loadedWithFilters && questions.length > 0 && isSurveyRunning) {
         const filtersChanged =
           loadedWithFilters.respondentType !== selectedRespondentType ||
           JSON.stringify(loadedWithFilters.commodities) !== JSON.stringify(selectedCommodities) ||
           loadedWithFilters.country !== selectedCountry;
 
         if (filtersChanged) {
-          console.log('⚠️ Filters changed after questions were loaded, ignoring to prevent unwanted reload:', {
+          console.log('⚠️ Filters changed during active survey, ignoring to prevent unwanted reload:', {
             loaded: loadedWithFilters,
             current: { selectedRespondentType, selectedCommodities, selectedCountry }
           });
@@ -616,9 +617,9 @@ export const useQuestions = ({
 
       // STRICT REQUIREMENT: Only auto-load when ALL 3 filters are provided
       if (selectedRespondentType &&
-          selectedCommodities.length > 0 &&
-          selectedCountry &&
-          !generatingQuestions) {
+        selectedCommodities.length > 0 &&
+        selectedCountry &&
+        !generatingQuestions) {
         setCurrentPage(1); // Reset to first page
         // Pass current filter values explicitly to ensure correct filters are used
         const existingQuestions = await loadExistingQuestions(1, 100, false, {
@@ -650,7 +651,7 @@ export const useQuestions = ({
 
     autoLoadQuestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRespondentType, selectedCommodities, selectedCountry, generatingQuestions]);
+  }, [selectedRespondentType, selectedCommodities, selectedCountry, generatingQuestions, isSurveyRunning]);
   // Note: loadExistingQuestions removed from deps to prevent mid-survey reloads (it's stable via useCallback)
 
   const resetQuestions = useCallback(() => {
@@ -708,8 +709,7 @@ export const useQuestions = ({
       if (existingQuestions.length > 0) {
         showAlert(
           'Already Cached',
-          `${existingQuestions.length} questions for this combination (${selectedRespondentType}${
-            commodityStr ? `, ${commodityStr}` : ''
+          `${existingQuestions.length} questions for this combination (${selectedRespondentType}${commodityStr ? `, ${commodityStr}` : ''
           }${selectedCountry ? `, ${selectedCountry}` : ''}) are already cached for offline use.\n\nYou can use these questions even without internet connection.`
         );
         setCachedOfflineCount(existingQuestions.length);
@@ -751,8 +751,7 @@ export const useQuestions = ({
 
       showAlert(
         'Cached for Offline!',
-        `Successfully cached ${questionsToCache.length} questions for offline use.\n\nCombination: ${selectedRespondentType}${
-          commodityStr ? `, ${commodityStr}` : ''
+        `Successfully cached ${questionsToCache.length} questions for offline use.\n\nCombination: ${selectedRespondentType}${commodityStr ? `, ${commodityStr}` : ''
         }${selectedCountry ? `, ${selectedCountry}` : ''}\n\nYou can now collect data with these questions even without internet connection.`,
         [{ text: 'OK' }]
       );

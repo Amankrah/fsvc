@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, Button, ActivityIndicator, IconButton } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface AnalysisCardProps {
   title: string;
@@ -85,13 +86,13 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: colors.text.secondary,
   },
   errorContainer: {
     paddingVertical: 16,
   },
   errorText: {
-    color: '#d32f2f',
+    color: colors.status.error,
     marginBottom: 12,
   },
   retryButton: {

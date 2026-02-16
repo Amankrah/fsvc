@@ -4,6 +4,7 @@ import { Text, Portal, Modal, Button, Chip, Divider, TextInput, List } from 'rea
 import { analyticsService } from '../../services/analyticsService';
 import { AnalysisCard } from './AnalysisCard';
 import { StatisticDisplay, StatisticsGrid } from './StatisticDisplay';
+import { colors } from '../../constants/theme';
 
 interface InferentialAnalyticsProps {
   projectId: string;
@@ -63,10 +64,10 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
                         {
                           backgroundColor:
                             Math.abs(corr) > 0.7
-                              ? '#e3f2fd'
+                              ? colors.primary.faint
                               : Math.abs(corr) > 0.4
-                              ? '#f3e5f5'
-                              : '#f5f5f5',
+                                ? colors.primary.muted
+                                : colors.background.subtle,
                         },
                       ]}
                     >
@@ -107,7 +108,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? '#e8f5e9' : '#ffebee'}
+          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
         />
         {data.confidence_interval && (
           <View style={styles.ciContainer}>
@@ -139,7 +140,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? '#e8f5e9' : '#ffebee'}
+          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
         />
         {data.eta_squared && <StatisticDisplay label="Eta Squared (η²)" value={(data.eta_squared || 0).toFixed(3)} />}
         {data.post_hoc_results && (
@@ -170,12 +171,12 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
     return (
       <View>
         <StatisticsGrid>
-          <StatisticDisplay label="R²" value={(data.r_squared || 0).toFixed(4)} variant="highlight" color="#2196f3" />
+          <StatisticDisplay label="R²" value={(data.r_squared || 0).toFixed(4)} variant="highlight" color={colors.status.info} />
           <StatisticDisplay
             label="Adjusted R²"
             value={(data.adjusted_r_squared || 0).toFixed(4)}
             variant="highlight"
-            color="#4caf50"
+            color={colors.status.success}
           />
         </StatisticsGrid>
         <Divider style={styles.divider} />
@@ -228,7 +229,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? '#e8f5e9' : '#ffebee'}
+          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
         />
         {data.cramers_v && (
           <StatisticDisplay label="Cramér's V (Effect Size)" value={(data.cramers_v || 0).toFixed(3)} />
@@ -262,7 +263,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? '#e8f5e9' : '#ffebee'}
+          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
         />
         <StatisticDisplay label="Test Type" value={data.test_type || 'N/A'} variant="chip" />
         {data.interpretation && (
@@ -438,10 +439,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sigChip: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   notSigChip: {
-    backgroundColor: '#ffebee',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
   coefficientsTitle: {
     marginBottom: 8,
@@ -453,7 +454,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border.light,
   },
   coefficientVar: {
     fontWeight: '500',
@@ -474,21 +475,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tableNote: {
-    color: '#666',
+    color: colors.text.secondary,
     fontStyle: 'italic',
   },
   interpretation: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
   },
   interpretationText: {
     marginTop: 4,
-    color: '#666',
+    color: colors.text.secondary,
   },
   configNote: {
-    color: '#666',
+    color: colors.text.secondary,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 16,

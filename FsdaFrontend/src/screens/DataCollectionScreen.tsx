@@ -9,9 +9,10 @@
  * - Full Django backend compatibility
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch } from 'react-native-paper';
+import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch, Snackbar } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { showAlert, showError, showInfo } from '../utils/alert';
@@ -24,13 +25,16 @@ import {
   RespondentForm,
   QuestionInput,
   NavigationControls,
+  SwipeableQuestionView,
 } from '../components/dataCollection';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 
 // Services
 import apiService from '../services/api';
 
 // Constants
 import { getCategorySortIndex } from '../constants/formBuilder';
+import { colors } from '../constants/theme';
 
 // Types
 type RootStackParamList = {
@@ -43,6 +47,7 @@ const DataCollectionScreen: React.FC = () => {
   const route = useRoute<DataCollectionRouteProp>();
   const navigation = useNavigation();
   const { projectId, projectName } = route.params;
+  const insets = useSafeAreaInsets();
 
   const [showRespondentForm, setShowRespondentForm] = useState(true);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -57,6 +62,16 @@ const DataCollectionScreen: React.FC = () => {
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [resumedDraftDatabaseId, setResumedDraftDatabaseId] = useState<string | null>(null);
   const [preExistingResponseQuestionIds, setPreExistingResponseQuestionIds] = useState<Set<string>>(new Set());
+  const [isResumingDraft, setIsResumingDraft] = useState(false);
+  const [showDraftNameDialog, setShowDraftNameDialog] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftsLoadedOffline, setDraftsLoadedOffline] = useState(false);
+
+  // Scroll & navigation feedback
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [navSnackVisible, setNavSnackVisible] = useState(false);
+  const [navSnackMessage, setNavSnackMessage] = useState('');
+  const prevQuestionIndexRef = useRef<number | null>(null);
 
   // Respondent Hook
   const respondent = useRespondent(projectId);
@@ -68,6 +83,7 @@ const DataCollectionScreen: React.FC = () => {
     selectedCommodities: respondent.selectedCommodities,
     selectedCountry: respondent.selectedCountry,
     useProjectBankOnly,
+    isSurveyRunning: !showRespondentForm, // Pass survey state to control auto-reloading
   });
 
   // Response State Hook
@@ -107,22 +123,72 @@ const DataCollectionScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  // Handle Load Drafts
+  // Scroll to top and show navigation toast when question changes
+  useEffect(() => {
+    if (prevQuestionIndexRef.current !== null && prevQuestionIndexRef.current !== responses.currentQuestionIndex) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      setNavSnackMessage(`Question ${responses.currentQuestionIndex + 1} of ${responses.visibleQuestions.length}`);
+      setNavSnackVisible(true);
+    }
+    prevQuestionIndexRef.current = responses.currentQuestionIndex;
+  }, [responses.currentQuestionIndex, responses.visibleQuestions.length]);
+
+  // Handle Load Drafts — with offline fallback
   const handleLoadDrafts = async () => {
     try {
       setLoadingDrafts(true);
+      setDraftsLoadedOffline(false);
       console.log(`Loading drafts for project: ${projectId}`);
-      const result = await apiService.getDraftResponses(projectId);
-      console.log(`Received ${result.count || 0} drafts from backend:`, result);
 
-      // Log each draft's status
-      if (result.drafts && result.drafts.length > 0) {
-        result.drafts.forEach((draft: any, index: number) => {
-          console.log(`Draft ${index + 1}: ID=${draft.id}, Status=${draft.completion_status}, Respondent=${draft.respondent_id}`);
-        });
+      try {
+        const result = await apiService.getDraftResponses(projectId);
+        console.log(`Received ${result.count || 0} drafts from backend:`, result);
+
+        // Log each draft's status
+        if (result.drafts && result.drafts.length > 0) {
+          result.drafts.forEach((draft: any, index: number) => {
+            console.log(`Draft ${index + 1}: ID=${draft.id}, Status=${draft.completion_status}, Name=${draft.draft_name || '(none)'}, Respondent=${draft.respondent_id}`);
+          });
+        }
+
+        setDrafts(result.drafts || []);
+
+        // Sync server drafts to local cache for offline access
+        try {
+          const { offlineDraftCache } = require('../services/offlineDraftCache');
+          await offlineDraftCache.syncDraftsFromServer(projectId, (result.drafts || []).map((d: any) => ({
+            id: d.id,
+            respondent_id: d.respondent_id,
+            draft_name: d.draft_name || '',
+            project: projectId,
+            respondent_type: d.respondent_type,
+            commodity: d.commodity,
+            country: d.country,
+            responses: [],
+            completion_status: d.completion_status,
+            created_at: d.created_at,
+            last_response_at: d.last_response_at,
+          })));
+        } catch (cacheErr) {
+          console.warn('Failed to sync drafts to local cache:', cacheErr);
+        }
+      } catch (apiError: any) {
+        console.warn('API call failed, trying offline cache:', apiError.message);
+        // Fallback to offline cache
+        try {
+          const { offlineDraftCache } = require('../services/offlineDraftCache');
+          const cachedDrafts = await offlineDraftCache.getCachedDrafts(projectId);
+          setDrafts(cachedDrafts);
+          setDraftsLoadedOffline(true);
+          console.log(`Loaded ${cachedDrafts.length} drafts from offline cache`);
+        } catch (cacheErr) {
+          console.error('Offline cache also failed:', cacheErr);
+          showAlert('Error', 'Failed to load draft responses. No cached drafts available.');
+          setLoadingDrafts(false);
+          return;
+        }
       }
 
-      setDrafts(result.drafts || []);
       setShowDraftsDialog(true);
     } catch (error: any) {
       console.error('Error loading drafts:', error);
@@ -132,8 +198,21 @@ const DataCollectionScreen: React.FC = () => {
     }
   };
 
+  // Handle Save Draft with Name — shows the name dialog first
+  const handleSaveDraftWithName = () => {
+    setDraftName('');
+    setShowDraftNameDialog(true);
+  };
+
+  // Confirm draft save with the entered name
+  const confirmSaveDraft = () => {
+    setShowDraftNameDialog(false);
+    responses.handleSaveDraft(() => navigation.goBack(), draftName.trim() || undefined);
+  };
+
   // Handle Resume Draft - Optimized with cleaner flow
   const handleResumeDraft = async (draft: any) => {
+    setIsResumingDraft(true);
     try {
       setShowDraftsDialog(false);
 
@@ -252,6 +331,7 @@ const DataCollectionScreen: React.FC = () => {
       setTimeout(() => {
         console.log(`🎯 Setting question index to ${resumeIndex}`);
         responses.setQuestionIndex(resumeIndex);
+        setIsResumingDraft(false);
 
         // Show success alert
         setTimeout(() => {
@@ -266,6 +346,7 @@ const DataCollectionScreen: React.FC = () => {
       }, 500);
 
     } catch (error: any) {
+      setIsResumingDraft(false);
       console.error('❌ Error resuming draft:', error);
 
       // Provide more helpful error message
@@ -502,96 +583,105 @@ const DataCollectionScreen: React.FC = () => {
   // Show Respondent Form
   if (showRespondentForm) {
     return (
-      <>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <IconButton
-              icon="arrow-left"
-              iconColor="#ffffff"
-              size={24}
-              onPress={() => navigation.goBack()}
-            />
-            <View style={styles.headerContent}>
-              <Text variant="headlineSmall" style={styles.title}>
-                Data Collection
-              </Text>
-              <Text variant="bodyMedium" style={styles.subtitle}>
-                {projectName}
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row' }}>
-              <IconButton
-                icon="file-document-edit-outline"
-                iconColor="#FFA500"
-                size={24}
-                onPress={handleLoadDrafts}
-                disabled={loadingDrafts}
-              />
-              <IconButton
-                icon="download"
-                iconColor="#4CAF50"
-                size={24}
-                onPress={handleExportJSON}
-              />
-              <IconButton
-                icon="share-variant"
-                iconColor="#ffffff"
-                size={24}
-                onPress={handleOpenLinkDialog}
-              />
-            </View>
-          </View>
-
-          {/* Question Bank Scope Configuration */}
-          <Card style={styles.configCard}>
-            <Card.Content>
-              <View style={styles.scopeControl}>
-                <View style={styles.scopeTextContainer}>
-                  <Text variant="titleMedium" style={styles.scopeTitle}>
-                    Question Bank Scope
-                  </Text>
-                  <Text variant="bodySmall" style={styles.scopeDescription}>
-                    {useProjectBankOnly
-                      ? 'Using only questions from this project\'s question bank'
-                      : 'Using questions from all accessible question banks'}
-                  </Text>
-                </View>
-                <Switch
-                  value={useProjectBankOnly}
-                  onValueChange={setUseProjectBankOnly}
-                  color="#6200ee"
-                />
-              </View>
-              <Text variant="bodySmall" style={styles.scopeHelpText}>
-                Toggle to choose between project-specific questions or all accessible questions
-              </Text>
-            </Card.Content>
-          </Card>
-
-          {/* Respondent Form */}
-          <RespondentForm
-            {...respondent}
-            availableRespondentTypes={questions.availableRespondentTypes}
-            availableCommodities={questions.availableCommodities}
-            availableCountries={questions.availableCountries}
-            loadingOptions={questions.loadingOptions}
-            generatingQuestions={questions.generatingQuestions}
-            questionsGenerated={questions.questionsGenerated}
-            cachingForOffline={questions.cachingForOffline}
-            cachedOfflineCount={questions.cachedOfflineCount}
-            onGenerateQuestions={handleGenerateQuestions}
-            onStartSurvey={handleStartSurvey}
-            onCacheForOffline={questions.cacheForOffline}
+      <ScreenWrapper style={styles.container} edges={{ top: false }}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <IconButton
+            icon="arrow-left"
+            iconColor={colors.text.primary}
+            size={24}
+            onPress={() => navigation.goBack()}
           />
+          <View style={styles.headerContent}>
+            <Text variant="headlineSmall" style={styles.title}>
+              Data Collection
+            </Text>
+            <Text variant="bodyMedium" style={styles.subtitle}>
+              {projectName}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row' }}>
+            <IconButton
+              icon="chart-bar"
+              iconColor={colors.status.info}
+              size={24}
+              onPress={() => (navigation as any).navigate('BundleCompletion', {
+                projectId,
+                projectName,
+                mode: 'user'
+              })}
+            />
+            <IconButton
+              icon="file-document-edit-outline"
+              iconColor={colors.accent.orange}
+              size={24}
+              onPress={handleLoadDrafts}
+              disabled={loadingDrafts}
+            />
+            <IconButton
+              icon="download"
+              iconColor={colors.status.success}
+              size={24}
+              onPress={handleExportJSON}
+            />
+            <IconButton
+              icon="share-variant"
+              iconColor={colors.primary.main}
+              size={24}
+              onPress={handleOpenLinkDialog}
+            />
+          </View>
         </View>
+
+        {/* Question Bank Scope Configuration */}
+        <Card style={styles.configCard}>
+          <Card.Content>
+            <View style={styles.scopeControl}>
+              <View style={styles.scopeTextContainer}>
+                <Text variant="titleMedium" style={styles.scopeTitle}>
+                  Question Bank Scope
+                </Text>
+                <Text variant="bodySmall" style={styles.scopeDescription}>
+                  {useProjectBankOnly
+                    ? 'Using only questions from this project\'s question bank'
+                    : 'Using questions from all accessible question banks'}
+                </Text>
+              </View>
+              <Switch
+                value={useProjectBankOnly}
+                onValueChange={setUseProjectBankOnly}
+                color={colors.primary.main}
+              />
+            </View>
+            <Text variant="bodySmall" style={styles.scopeHelpText}>
+              Toggle to choose between project-specific questions or all accessible questions
+            </Text>
+          </Card.Content>
+        </Card>
+
+        {/* Respondent Form */}
+        <RespondentForm
+          {...respondent}
+          availableRespondentTypes={questions.availableRespondentTypes}
+          availableCommodities={questions.availableCommodities}
+          availableCountries={questions.availableCountries}
+          loadingOptions={questions.loadingOptions}
+          generatingQuestions={questions.generatingQuestions}
+          questionsGenerated={questions.questionsGenerated}
+          loadingQuestions={questions.loadingQuestions}
+          cachingForOffline={questions.cachingForOffline}
+          cachedOfflineCount={questions.cachedOfflineCount}
+          onGenerateQuestions={handleGenerateQuestions}
+          onStartSurvey={handleStartSurvey}
+          onCacheForOffline={questions.cacheForOffline}
+        />
 
         {/* Create Link Dialog */}
         <Portal>
           <Dialog visible={showLinkDialog} onDismiss={() => setShowLinkDialog(false)}>
             <Dialog.Title>Create Shareable Link</Dialog.Title>
             <Dialog.Content>
-              <Text variant="bodyMedium" style={{ marginBottom: 16, color: '#666' }}>
+              <Text variant="bodyMedium" style={{ marginBottom: 16, color: colors.text.secondary }}>
                 Create a link to share this survey. Respondents can complete it in their browser without the app.
               </Text>
 
@@ -631,7 +721,7 @@ const DataCollectionScreen: React.FC = () => {
                 style={{ marginBottom: 12 }}
               />
 
-              <Text variant="bodySmall" style={{ color: '#999', marginTop: 8 }}>
+              <Text variant="bodySmall" style={{ color: colors.text.disabled, marginTop: 8 }}>
                 {questions.questions.length} questions will be included in this survey
               </Text>
             </Dialog.Content>
@@ -657,52 +747,75 @@ const DataCollectionScreen: React.FC = () => {
             <Dialog.Content>
               {loadingDrafts ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <ActivityIndicator size="large" color="#4b1e85" />
-                  <Text style={{ marginTop: 12, color: '#666' }}>Loading drafts...</Text>
+                  <ActivityIndicator size="large" color={colors.primary.main} />
+                  <Text style={{ marginTop: 12, color: colors.text.secondary }}>Loading drafts...</Text>
                 </View>
               ) : drafts.length === 0 ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text variant="bodyMedium" style={{ color: '#666', textAlign: 'center' }}>
+                  <Text variant="bodyMedium" style={{ color: colors.text.secondary, textAlign: 'center' }}>
                     No draft responses found for this project.
                   </Text>
-                  <Text variant="bodySmall" style={{ color: '#999', textAlign: 'center', marginTop: 8 }}>
+                  <Text variant="bodySmall" style={{ color: colors.text.disabled, textAlign: 'center', marginTop: 8 }}>
                     Start a new survey and use "Save for Later" to create drafts.
                   </Text>
                 </View>
               ) : (
                 <ScrollView style={{ maxHeight: 400 }}>
+                  {draftsLoadedOffline && (
+                    <View style={{ backgroundColor: colors.accent.orange + '20', padding: 8, borderRadius: 8, marginBottom: 12 }}>
+                      <Text variant="bodySmall" style={{ color: colors.accent.orange, textAlign: 'center', fontWeight: '600' }}>
+                        ⚡ Loaded from offline cache
+                      </Text>
+                    </View>
+                  )}
                   {drafts.map((draft, index) => (
                     <Card
                       key={draft.id}
                       style={{
                         marginBottom: 12,
-                        backgroundColor: '#f5f5f5',
+                        backgroundColor: colors.background.subtle,
                       }}
                       onPress={() => handleResumeDraft(draft)}
                     >
                       <Card.Content>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <View style={{ flex: 1 }}>
-                            <Text variant="titleMedium" style={{ fontWeight: 'bold', color: '#333' }}>
-                              {draft.respondent_id}
-                            </Text>
-                            <Text variant="bodySmall" style={{ color: '#666', marginTop: 4 }}>
+                            {draft.draft_name ? (
+                              <>
+                                <Text variant="titleMedium" style={{ fontWeight: 'bold', color: colors.text.primary }}>
+                                  {draft.draft_name}
+                                </Text>
+                                <Text variant="bodySmall" style={{ color: colors.text.disabled, marginTop: 2 }}>
+                                  ID: {draft.respondent_id}
+                                </Text>
+                              </>
+                            ) : (
+                              <Text variant="titleMedium" style={{ fontWeight: 'bold', color: colors.text.primary }}>
+                                {draft.respondent_id}
+                              </Text>
+                            )}
+                            <Text variant="bodySmall" style={{ color: colors.text.secondary, marginTop: 4 }}>
                               {draft.respondent_type && `Type: ${draft.respondent_type}`}
                               {draft.commodity && ` • Commodity: ${draft.commodity}`}
                               {draft.country && ` • Country: ${draft.country}`}
                             </Text>
-                            <Text variant="bodySmall" style={{ color: '#999', marginTop: 4 }}>
+                            <Text variant="bodySmall" style={{ color: colors.text.disabled, marginTop: 4 }}>
                               Last updated: {new Date(draft.last_response_at || draft.created_at).toLocaleString()}
                             </Text>
                             {draft.response_count !== undefined && (
-                              <Text variant="bodySmall" style={{ color: '#4b1e85', marginTop: 4, fontWeight: '600' }}>
+                              <Text variant="bodySmall" style={{ color: colors.primary.main, marginTop: 4, fontWeight: '600' }}>
                                 {draft.response_count} response(s) saved
+                              </Text>
+                            )}
+                            {draft.is_offline && (
+                              <Text variant="bodySmall" style={{ color: colors.accent.orange, marginTop: 4, fontWeight: '600' }}>
+                                📱 Saved offline — will sync when connected
                               </Text>
                             )}
                           </View>
                           <IconButton
                             icon="arrow-right"
-                            iconColor="#4b1e85"
+                            iconColor={colors.primary.main}
                             size={24}
                             onPress={() => handleResumeDraft(draft)}
                           />
@@ -717,19 +830,56 @@ const DataCollectionScreen: React.FC = () => {
               <Button onPress={() => setShowDraftsDialog(false)}>Close</Button>
             </Dialog.Actions>
           </Dialog>
+
+          {/* Loading Draft Dialog */}
+          <Dialog visible={isResumingDraft} dismissable={false}>
+            <Dialog.Content>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
+                <ActivityIndicator size="large" color={colors.primary.main} style={{ marginRight: 20 }} />
+                <View>
+                  <Text variant="titleMedium">Resuming Draft</Text>
+                  <Text variant="bodySmall" style={{ color: colors.text.secondary }}>Please wait...</Text>
+                </View>
+              </View>
+            </Dialog.Content>
+          </Dialog>
+
+          {/* Draft Name Dialog */}
+          <Dialog visible={showDraftNameDialog} onDismiss={() => setShowDraftNameDialog(false)}>
+            <Dialog.Title>Name Your Draft</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium" style={{ marginBottom: 16, color: colors.text.secondary }}>
+                Give this draft a name so you can easily find it later. The respondent ID will not be affected.
+              </Text>
+              <PaperTextInput
+                label="Draft Name (optional)"
+                value={draftName}
+                onChangeText={setDraftName}
+                mode="outlined"
+                placeholder="e.g. John's Farm Visit, Morning Session"
+                autoFocus
+              />
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowDraftNameDialog(false)}>Cancel</Button>
+              <Button onPress={confirmSaveDraft} mode="contained">
+                Save Draft
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
         </Portal>
-      </>
+      </ScreenWrapper>
     );
   }
 
   // Show Question Form
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <IconButton
           icon="arrow-left"
-          iconColor="#ffffff"
+          iconColor={colors.text.primary}
           size={24}
           onPress={handleBackToForm}
         />
@@ -749,99 +899,108 @@ const DataCollectionScreen: React.FC = () => {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          {currentQuestion ? (
-            <Card style={styles.questionCard}>
-              <Card.Content>
-                {/* Follow-up Question Indicator */}
-                {currentQuestion.is_follow_up && (
-                  <View style={styles.followUpIndicator}>
-                    <Text style={styles.followUpIcon}>↳</Text>
-                    <Text style={styles.followUpText}>Follow-up question</Text>
-                  </View>
-                )}
+        <SwipeableQuestionView
+          onSwipeLeft={responses.handleNext}
+          onSwipeRight={responses.handlePrevious}
+          canSwipeLeft={responses.currentQuestionIndex < responses.visibleQuestions.length - 1}
+          canSwipeRight={responses.currentQuestionIndex > 0}
+          enabled={!responses.submitting}
+        >
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}>
+            {currentQuestion ? (
+              <Card style={styles.questionCard}>
+                <Card.Content>
+                  {/* Follow-up Question Indicator */}
+                  {currentQuestion.is_follow_up && (
+                    <View style={styles.followUpIndicator}>
+                      <Text style={styles.followUpIcon}>↳</Text>
+                      <Text style={styles.followUpText}>Follow-up question</Text>
+                    </View>
+                  )}
 
-                {/* Section Header and Preamble */}
-                {currentQuestion.section_header && (
-                  <>
-                    {/* Show section header */}
-                    <View style={styles.sectionHeaderContainer}>
-                      <Text style={styles.sectionHeaderText}>
-                        {currentQuestion.section_header}
+                  {/* Section Header and Preamble */}
+                  {currentQuestion.section_header && (
+                    <>
+                      {/* Show section header */}
+                      <View style={styles.sectionHeaderContainer}>
+                        <Text style={styles.sectionHeaderText}>
+                          {currentQuestion.section_header}
+                        </Text>
+                      </View>
+
+                      {/* Show preamble only for first question in section */}
+                      {currentQuestion.section_preamble && (
+                        (() => {
+                          const prevQuestion = questions.questions[responses.currentQuestionIndex - 1];
+                          const isFirstInSection = !prevQuestion || prevQuestion.section_header !== currentQuestion.section_header;
+                          return isFirstInSection ? (
+                            <View style={styles.sectionPreambleContainer}>
+                              <Text style={styles.sectionPreambleText}>
+                                {currentQuestion.section_preamble}
+                              </Text>
+                            </View>
+                          ) : null;
+                        })()
+                      )}
+                    </>
+                  )}
+
+                  {/* Question Number and Type */}
+                  <View style={styles.questionHeader}>
+                    <View style={styles.questionBadge}>
+                      <Text style={styles.questionBadgeText}>
+                        Q{responses.currentQuestionIndex + 1}
                       </Text>
                     </View>
-
-                    {/* Show preamble only for first question in section */}
-                    {currentQuestion.section_preamble && (
-                      (() => {
-                        const prevQuestion = questions.questions[responses.currentQuestionIndex - 1];
-                        const isFirstInSection = !prevQuestion || prevQuestion.section_header !== currentQuestion.section_header;
-                        return isFirstInSection ? (
-                          <View style={styles.sectionPreambleContainer}>
-                            <Text style={styles.sectionPreambleText}>
-                              {currentQuestion.section_preamble}
-                            </Text>
-                          </View>
-                        ) : null;
-                      })()
+                    {currentQuestion.question_category && (
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryBadgeText}>
+                          {currentQuestion.question_category}
+                        </Text>
+                      </View>
                     )}
-                  </>
-                )}
-
-                {/* Question Number and Type */}
-                <View style={styles.questionHeader}>
-                  <View style={styles.questionBadge}>
-                    <Text style={styles.questionBadgeText}>
-                      Q{responses.currentQuestionIndex + 1}
-                    </Text>
-                  </View>
-                  {currentQuestion.question_category && (
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {currentQuestion.question_category}
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeBadgeText}>
+                        {currentQuestion.response_type.replace(/_/g, ' ')}
                       </Text>
                     </View>
-                  )}
-                  <View style={styles.typeBadge}>
-                    <Text style={styles.typeBadgeText}>
-                      {currentQuestion.response_type.replace(/_/g, ' ')}
-                    </Text>
+                    {currentQuestion.is_required && (
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredBadgeText}>Required</Text>
+                      </View>
+                    )}
                   </View>
-                  {currentQuestion.is_required && (
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredBadgeText}>Required</Text>
-                    </View>
-                  )}
-                </View>
 
-                {/* Question Text */}
-                <Text variant="headlineSmall" style={[
-                  styles.questionText,
-                  currentQuestion.is_follow_up && styles.followUpQuestionText
-                ]}>
-                  {currentQuestion.question_text}
-                </Text>
+                  {/* Question Text */}
+                  <Text variant="headlineSmall" style={[
+                    styles.questionText,
+                    currentQuestion.is_follow_up && styles.followUpQuestionText
+                  ]}>
+                    {currentQuestion.question_text}
+                  </Text>
 
-                {/* Question Input */}
-                <View style={styles.inputContainer}>
-                  <QuestionInput
-                    question={currentQuestion}
-                    value={responses.responses[currentQuestion.id]}
-                    onChange={responses.handleResponseChange}
-                  />
-                </View>
-              </Card.Content>
-            </Card>
-          ) : (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#64c8ff" />
-              <Text style={styles.loadingText}>Loading question...</Text>
-            </View>
-          )}
-        </ScrollView>
+                  {/* Question Input */}
+                  <View style={styles.inputContainer}>
+                    <QuestionInput
+                      question={currentQuestion}
+                      value={responses.responses[currentQuestion.id]}
+                      onChange={responses.handleResponseChange}
+                    />
+                  </View>
+                </Card.Content>
+              </Card>
+            ) : (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={colors.primary.light} />
+                <Text style={styles.loadingText}>Loading question...</Text>
+              </View>
+            )}
+          </ScrollView>
+        </SwipeableQuestionView>
 
         {/* Navigation Controls */}
         {currentQuestion && (
@@ -852,7 +1011,7 @@ const DataCollectionScreen: React.FC = () => {
             onPrevious={responses.handlePrevious}
             onNext={responses.handleNext}
             onSubmit={() => responses.handleSubmit(handleSubmitSuccess, handleFinishAndGoBack)}
-            onSaveDraft={() => responses.handleSaveDraft(() => navigation.goBack())}
+            onSaveDraft={handleSaveDraftWithName}
             submitting={responses.submitting}
             canGoBack={responses.currentQuestionIndex > 0}
             isLastQuestion={
@@ -861,14 +1020,51 @@ const DataCollectionScreen: React.FC = () => {
           />
         )}
       </KeyboardAvoidingView>
-    </View>
+
+      {/* Navigation Toast */}
+      <Snackbar
+        visible={navSnackVisible}
+        onDismiss={() => setNavSnackVisible(false)}
+        duration={1500}
+        wrapperStyle={styles.snackbarWrapper}
+        style={styles.snackbar}
+      >
+        {navSnackMessage}
+      </Snackbar>
+
+      {/* Draft Name Dialog (must be in this view too for question form) */}
+      <Portal>
+        <Dialog visible={showDraftNameDialog} onDismiss={() => setShowDraftNameDialog(false)}>
+          <Dialog.Title>Name Your Draft</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ marginBottom: 16, color: colors.text.secondary }}>
+              Give this draft a name so you can easily find it later. The respondent ID will not be affected.
+            </Text>
+            <PaperTextInput
+              label="Draft Name (optional)"
+              value={draftName}
+              onChangeText={setDraftName}
+              mode="outlined"
+              placeholder="e.g. John's Farm Visit, Morning Session"
+              autoFocus
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowDraftNameDialog(false)}>Cancel</Button>
+            <Button onPress={confirmSaveDraft} mode="contained">
+              Save Draft
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.background.default,
   },
   flex: {
     flex: 1,
@@ -876,23 +1072,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a3a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: colors.background.paper,
     paddingBottom: 16,
     paddingHorizontal: 8,
     borderBottomWidth: 3,
-    borderBottomColor: '#4b1e85',
+    borderBottomColor: colors.primary.main,
   },
   headerContent: {
     flex: 1,
     alignItems: 'center',
   },
   title: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
   },
   scrollView: {
     flex: 1,
@@ -902,30 +1097,30 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   questionCard: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   followUpIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderLeftWidth: 3,
-    borderLeftColor: '#ff9800',
+    borderLeftColor: colors.status.warning,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 16,
     borderRadius: 6,
   },
   followUpIcon: {
-    color: '#ff9800',
+    color: colors.status.warning,
     fontSize: 20,
     fontWeight: 'bold',
     marginRight: 8,
   },
   followUpText: {
-    color: '#ffb74d',
+    color: colors.accent.orange,
     fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -934,34 +1129,34 @@ const styles = StyleSheet.create({
   followUpQuestionText: {
     paddingLeft: 8,
     borderLeftWidth: 2,
-    borderLeftColor: 'rgba(255, 152, 0, 0.3)',
+    borderLeftColor: colors.status.warning,
   },
   sectionHeaderContainer: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    backgroundColor: 'rgba(67, 56, 202, 0.06)',
     borderLeftWidth: 4,
-    borderLeftColor: '#64c8ff',
+    borderLeftColor: colors.primary.light,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 12,
     borderRadius: 8,
   },
   sectionHeaderText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   sectionPreambleContainer: {
-    backgroundColor: 'rgba(100, 200, 255, 0.05)',
+    backgroundColor: colors.primary.faint,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.2)',
+    borderColor: colors.border.light,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
     borderRadius: 8,
   },
   sectionPreambleText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.secondary,
     fontSize: 14,
     lineHeight: 22,
   },
@@ -972,60 +1167,60 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   questionBadge: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
   },
   questionBadgeText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 12,
     fontWeight: 'bold',
   },
   categoryBadge: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   categoryBadgeText: {
-    color: '#81c784',
+    color: colors.status.success,
     fontSize: 11,
     fontWeight: '600',
   },
   typeBadge: {
-    backgroundColor: 'rgba(156, 39, 176, 0.2)',
+    backgroundColor: 'rgba(67, 56, 202, 0.06)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(156, 39, 176, 0.4)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
   },
   typeBadgeText: {
-    color: '#ce93d8',
+    color: colors.primary.light,
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
   requiredBadge: {
-    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(244, 67, 54, 0.4)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   requiredBadgeText: {
-    color: '#ef5350',
+    color: colors.status.error,
     fontSize: 11,
     fontWeight: '600',
   },
   questionText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     marginBottom: 24,
     lineHeight: 32,
   },
@@ -1039,14 +1234,14 @@ const styles = StyleSheet.create({
     padding: 48,
   },
   loadingText: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginTop: 16,
   },
   configCard: {
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
     marginBottom: 16,
   },
   scopeControl: {
@@ -1060,18 +1255,27 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   scopeTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontWeight: '600',
     marginBottom: 4,
   },
   scopeDescription: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     lineHeight: 18,
   },
   scopeHelpText: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: colors.text.disabled,
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  snackbarWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  snackbar: {
+    backgroundColor: 'rgba(67, 56, 202, 0.85)',
   },
 });
 

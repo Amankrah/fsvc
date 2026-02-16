@@ -12,23 +12,12 @@ const CACHE_KEYS = {
   LAST_PROJECT_UPDATE: '@fsda/last_project_update',
 };
 
-export interface CachedProject {
-  id: string;
-  name: string;
-  description: string;
-  targeted_commodities: string[];
-  targeted_countries: string[];
-  targeted_respondents: string[];
-  created_by: string;
-  created_at: string;
-  updated_at: string;
+import { Project } from '../types';
+
+export type CachedProject = Project & {
   is_active?: boolean;
   status?: string;
-  sync_status?: 'pending' | 'synced' | 'error';
-  team_members_count?: number;
-  question_count?: number;
-  response_count?: number;
-}
+};
 
 class OfflineProjectCacheService {
   /**

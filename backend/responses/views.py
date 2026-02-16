@@ -235,6 +235,10 @@ class RespondentViewSet(BaseModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        """Ensure created_by is set to the current user"""
+        serializer.save(created_by=self.request.user)
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get summary statistics for respondents"""
@@ -493,6 +497,67 @@ class RespondentViewSet(BaseModelViewSet):
             logger.exception("Error in with_response_counts")
             return DRFResponse({
                 'error': f'Failed to get respondents with counts: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def my_stats(self, request):
+        """Get collection stats for the current user"""
+        try:
+            project_id = request.query_params.get('project_id')
+            if not project_id:
+                return DRFResponse({
+                    'error': 'project_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Filter respondents created by the current user
+            queryset = self.get_queryset().filter(
+                project_id=project_id,
+                created_by=request.user
+            )
+
+            # Group by criteria
+            stats = queryset.values(
+                'respondent_type', 
+                'commodity', 
+                'country'
+            ).annotate(
+                total_respondents=Count('id'),
+                completed_respondents_count=Count('id', filter=Q(completion_status='completed'))
+            ).order_by('respondent_type', 'commodity', 'country')
+
+            # Format results
+            bundles = []
+            
+            # We need Question model to get total questions for each group
+            from forms.models import Question
+            
+            for item in stats:
+                # Get question count for this criteria
+                question_count = Question.objects.filter(
+                    project_id=project_id,
+                    assigned_respondent_type=item['respondent_type'],
+                    assigned_commodity=item['commodity'] or '',
+                    assigned_country=item['country'] or ''
+                ).count()
+                
+                bundles.append({
+                    'respondent_type': item['respondent_type'],
+                    'commodity': item['commodity'],
+                    'country': item['country'],
+                    'total_questions': question_count,
+                    'total_respondents': item['total_respondents'],
+                    'completed_respondents_count': item['completed_respondents_count'],
+                    'completed_respondent_ids': [] # Information not needed for summary
+                })
+                
+            return DRFResponse({
+                'bundles': bundles,
+                'total_bundles': len(bundles)
+            })
+
+        except Exception as e:
+            return DRFResponse({
+                'error': f'Failed to get user stats: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def format_response_for_csv(self, response_value, question_type):
@@ -1065,6 +1130,7 @@ class RespondentViewSet(BaseModelViewSet):
             respondent_id = request.data.get('respondent_id')
             respondent_data = request.data.get('respondent_data', {})
             responses_data = request.data.get('responses', [])
+            draft_name = request.data.get('draft_name', '')
 
             if not project_id or not respondent_id:
                 return DRFResponse({
@@ -1082,6 +1148,7 @@ class RespondentViewSet(BaseModelViewSet):
                     'commodity': respondent_data.get('commodity'),
                     'country': respondent_data.get('country'),
                     'completion_status': 'draft',
+                    'draft_name': draft_name or None,
                     'created_by': request.user,
                 }
             )
@@ -1092,6 +1159,8 @@ class RespondentViewSet(BaseModelViewSet):
                 respondent.respondent_type = respondent_data.get('respondent_type') or respondent.respondent_type
                 respondent.commodity = respondent_data.get('commodity') or respondent.commodity
                 respondent.country = respondent_data.get('country') or respondent.country
+                if draft_name:
+                    respondent.draft_name = draft_name
                 respondent.save()
 
             # Save or update responses
@@ -1114,11 +1183,10 @@ class RespondentViewSet(BaseModelViewSet):
                     )
                     saved_count += 1
 
-            # Update last_response_at
+            # Update last_response_at — always keep as draft since user explicitly chose "Save for Later"
             respondent.last_response_at = timezone.now()
 
-            # Check if all questions are answered to determine completion status
-            # Get all generated questions for this respondent's criteria
+            # Count progress for informational purposes only
             from forms.models import Question
             generated_questions = Question.objects.filter(
                 project_id=project_id,
@@ -1130,18 +1198,16 @@ class RespondentViewSet(BaseModelViewSet):
             total_questions = generated_questions.count()
             answered_questions = respondent.responses.count()
 
-            # Only mark as draft if not all questions are answered
-            if total_questions > 0 and answered_questions >= total_questions:
-                respondent.completion_status = 'completed'
-            else:
-                respondent.completion_status = 'draft'
-
+            # IMPORTANT: Always keep as 'draft' when user explicitly saves as draft.
+            # The status only changes to 'completed' when user clicks Submit.
+            respondent.completion_status = 'draft'
             respondent.save()
 
             return DRFResponse({
                 'message': 'Draft saved successfully',
                 'respondent_id': str(respondent.id),
                 'respondent_identifier': respondent.respondent_id,
+                'draft_name': respondent.draft_name or '',
                 'responses_saved': saved_count,
                 'created': created,
                 'completion_status': respondent.completion_status,
@@ -1157,7 +1223,7 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_drafts(self, request):
-        """Get all draft respondents for a project"""
+        """Get draft respondents for the current user in a project"""
         try:
             project_id = request.query_params.get('project_id')
             if not project_id:
@@ -1165,9 +1231,11 @@ class RespondentViewSet(BaseModelViewSet):
                     'error': 'project_id parameter is required'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            # Filter drafts by the current user only
             drafts = Respondent.objects.filter(
                 project_id=project_id,
-                completion_status='draft'
+                completion_status='draft',
+                created_by=request.user,
             ).annotate(
                 response_count=Count('responses')
             ).order_by('-last_response_at')

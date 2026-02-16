@@ -127,8 +127,7 @@ export const useResponseState = (
           } catch (error: any) {
             console.error(`Error submitting response for question "${question?.question_text}":`, error);
             throw new Error(
-              `Failed to submit response for: "${question?.question_text}". ${
-                error.response?.data?.response_value?.[0] || error.message
+              `Failed to submit response for: "${question?.question_text}". ${error.response?.data?.response_value?.[0] || error.message
               }`
             );
           }
@@ -250,7 +249,7 @@ export const useResponseState = (
   );
 
   const handleSaveDraft = useCallback(
-    async (onSuccess?: () => void) => {
+    async (onSuccess?: () => void, draftName?: string) => {
       // Check if there are any responses to save
       if (Object.keys(responses).length === 0) {
         showAlert('No Responses', 'Please answer at least one question before saving.');
@@ -281,11 +280,32 @@ export const useResponseState = (
             country: respondentData.country || null,
           },
           responses: responsesData,
+          draft_name: draftName || '',
         });
+
+        // Cache draft locally for offline access
+        try {
+          const { offlineDraftCache } = require('../../services/offlineDraftCache');
+          await offlineDraftCache.cacheDraft({
+            id: result.respondent_id,
+            respondent_id: respondentData.respondentId,
+            draft_name: draftName || '',
+            project: projectId,
+            respondent_type: respondentData.respondentType || null,
+            commodity: respondentData.commodities.length > 0 ? respondentData.commodities.join(',') : null,
+            country: respondentData.country || null,
+            responses: responsesData,
+            completion_status: 'draft',
+            created_at: new Date().toISOString(),
+            last_response_at: new Date().toISOString(),
+          });
+        } catch (cacheErr) {
+          console.warn('Failed to cache draft locally:', cacheErr);
+        }
 
         showAlert(
           'Draft Saved',
-          `Progress saved successfully! You can continue this survey later.\n\nResponses saved: ${result.responses_saved}`,
+          `Progress saved successfully!${draftName ? ` Draft: "${draftName}"` : ''}\n\nResponses saved: ${result.responses_saved}`,
           [
             {
               text: 'OK',
@@ -318,6 +338,7 @@ export const useResponseState = (
                 };
               }),
               isDraft: true,
+              draftName: draftName || '',
               timestamp: new Date().toISOString(),
             };
 
@@ -328,6 +349,31 @@ export const useResponseState = (
               draftData,
               5 // Normal priority for drafts
             );
+
+            // Also cache locally for immediate offline access
+            try {
+              const { offlineDraftCache } = require('../../services/offlineDraftCache');
+              const responsesData = Object.entries(responses).map(([questionId, value]) => ({
+                question_id: questionId,
+                response_value: Array.isArray(value) ? JSON.stringify(value) : value,
+              }));
+              await offlineDraftCache.cacheDraft({
+                id: `offline_${Date.now()}`,
+                respondent_id: respondentData.respondentId,
+                draft_name: draftName || '',
+                project: projectId,
+                respondent_type: respondentData.respondentType || null,
+                commodity: respondentData.commodities.length > 0 ? respondentData.commodities.join(',') : null,
+                country: respondentData.country || null,
+                responses: responsesData,
+                completion_status: 'draft',
+                created_at: new Date().toISOString(),
+                last_response_at: new Date().toISOString(),
+                is_offline: true,
+              });
+            } catch (cacheErr) {
+              console.warn('Failed to cache draft locally:', cacheErr);
+            }
 
             showAlert(
               'Queued for Sync',

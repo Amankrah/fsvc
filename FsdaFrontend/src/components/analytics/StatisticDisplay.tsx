@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Chip, Divider } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface StatisticDisplayProps {
   label: string;
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   chip: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: colors.primary.faint,
   },
   highlightContainer: {
     width: '48%',
@@ -82,10 +83,10 @@ const styles = StyleSheet.create({
   },
   highlightValue: {
     fontWeight: 'bold',
-    color: '#6200ee',
+    color: colors.primary.main,
   },
   highlightLabel: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   label: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   value: {

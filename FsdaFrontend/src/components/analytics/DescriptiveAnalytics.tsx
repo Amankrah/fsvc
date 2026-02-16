@@ -4,6 +4,7 @@ import { Text, List, Portal, Modal, Button, Chip, Divider } from 'react-native-p
 import { analyticsService } from '../../services/analyticsService';
 import { AnalysisCard } from './AnalysisCard';
 import { StatisticDisplay, StatisticsGrid } from './StatisticDisplay';
+import { colors } from '../../constants/theme';
 
 interface DescriptiveAnalyticsProps {
   projectId: string;
@@ -148,7 +149,7 @@ export const DescriptiveAnalytics: React.FC<DescriptiveAnalyticsProps> = ({ proj
                   label="Outliers Detected"
                   value={methodData.outlier_count || 0}
                   variant="chip"
-                  color={methodData.outlier_count > 0 ? '#ffebee' : '#e8f5e9'}
+                  color={methodData.outlier_count > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}
                 />
                 <StatisticDisplay label="Outlier %" value={`${(methodData.outlier_percentage || 0).toFixed(1)}%`} />
               </View>
@@ -171,13 +172,13 @@ export const DescriptiveAnalytics: React.FC<DescriptiveAnalyticsProps> = ({ proj
             label="Total Missing"
             value={data.total_missing || 0}
             variant="highlight"
-            color="#ff6b6b"
+            color={colors.status.error}
           />
           <StatisticDisplay
             label="Missing %"
             value={`${(data.missing_percentage || 0).toFixed(1)}%`}
             variant="highlight"
-            color="#ff6b6b"
+            color={colors.status.error}
           />
         </StatisticsGrid>
         <Divider style={styles.divider} />
@@ -213,25 +214,25 @@ export const DescriptiveAnalytics: React.FC<DescriptiveAnalyticsProps> = ({ proj
             label="Completeness"
             value={`${(data.completeness_score || 0).toFixed(1)}%`}
             variant="highlight"
-            color="#4caf50"
+            color={colors.status.success}
           />
           <StatisticDisplay
             label="Validity"
             value={`${(data.validity_score || 0).toFixed(1)}%`}
             variant="highlight"
-            color="#2196f3"
+            color={colors.status.info}
           />
           <StatisticDisplay
             label="Consistency"
             value={`${(data.consistency_score || 0).toFixed(1)}%`}
             variant="highlight"
-            color="#ff9800"
+            color={colors.status.warning}
           />
           <StatisticDisplay
             label="Overall Score"
             value={`${(data.overall_score || 0).toFixed(1)}%`}
             variant="highlight"
-            color="#6200ee"
+            color={colors.primary.main}
           />
         </StatisticsGrid>
         {data.issues && data.issues.length > 0 && (
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statsCard: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
     padding: 12,
     borderRadius: 8,
     marginRight: 12,
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
   percentileLabel: {
     marginTop: 8,
     marginBottom: 4,
-    color: '#666',
+    color: colors.text.secondary,
   },
   distributionItem: {
     marginBottom: 16,
@@ -358,11 +359,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   normalChip: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     marginBottom: 8,
   },
   notNormalChip: {
-    backgroundColor: '#ffebee',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     marginBottom: 8,
   },
   categoricalItem: {
@@ -373,7 +374,7 @@ const styles = StyleSheet.create({
   },
   frequencyLabel: {
     marginBottom: 4,
-    color: '#666',
+    color: colors.text.secondary,
   },
   frequencyRow: {
     flexDirection: 'row',
@@ -395,16 +396,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   missingChip: {
-    backgroundColor: '#ffebee',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
   sectionLabel: {
     marginTop: 8,
     marginBottom: 8,
-    color: '#666',
+    color: colors.text.secondary,
   },
   issueText: {
     marginLeft: 8,
     marginBottom: 4,
-    color: '#666',
+    color: colors.text.secondary,
   },
 });

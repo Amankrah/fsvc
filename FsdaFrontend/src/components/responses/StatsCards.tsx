@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 interface StatsCardsProps {
   totalRespondents: number;
@@ -48,21 +49,21 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   statContent: {
     alignItems: 'center',
     paddingVertical: 16,
   },
   statNumber: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontWeight: 'bold',
     fontSize: 32,
   },
   statLabel: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginTop: 4,
     textAlign: 'center',
   },

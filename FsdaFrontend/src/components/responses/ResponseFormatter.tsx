@@ -8,6 +8,7 @@ import { View, Image, StyleSheet } from 'react-native';
 import { Text, Chip } from 'react-native-paper';
 import { ResponseDetail } from '../../hooks/responses';
 import { IMAGE_HEIGHT } from '../../constants/responses';
+import { colors } from '../../constants/theme';
 
 interface ResponseFormatterProps {
   response: ResponseDetail;
@@ -194,11 +195,11 @@ export const ResponseFormatter: React.FC<ResponseFormatterProps> = ({ response }
 
 const styles = StyleSheet.create({
   noResponse: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: colors.text.disabled,
     fontStyle: 'italic',
   },
   text: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 16,
   },
   image: {
@@ -206,15 +207,15 @@ const styles = StyleSheet.create({
     height: IMAGE_HEIGHT,
     borderRadius: 8,
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.light,
   },
   locationContainer: {
     marginBottom: 8,
   },
   locationText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 16,
     marginBottom: 4,
   },
@@ -225,21 +226,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   choiceChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.15)',
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.4)',
+    borderColor: 'rgba(67, 56, 202, 0.2)',
   },
   choiceChipText: {
-    color: '#64c8ff',
+    color: colors.text.secondary,
     fontSize: 13,
   },
   mediaContainer: {
     flexDirection: 'column',
     padding: 12,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.light,
     marginBottom: 8,
   },
   mediaIcon: {
@@ -248,14 +249,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   mediaText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 4,
   },
   mediaUrl: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.secondary,
     fontSize: 12,
     marginTop: 4,
   },
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   signatureLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
@@ -271,26 +272,26 @@ const styles = StyleSheet.create({
   signatureImage: {
     width: '100%',
     height: 120,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.light,
   },
   barcodeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(100, 200, 255, 0.3)',
+    borderColor: colors.border.light,
     gap: 12,
   },
   barcodeIcon: {
     fontSize: 28,
   },
   barcodeValue: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '600',
     flex: 1,

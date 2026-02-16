@@ -15,6 +15,7 @@ import {
   Modal,
   IconButton,
 } from 'react-native-paper';
+import { colors } from '../../constants/theme';
 
 export interface AnalysisMethod {
   id: string;
@@ -260,8 +261,8 @@ const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
                     method.category === 'descriptive'
                       ? 'chart-bar'
                       : method.category === 'inferential'
-                      ? 'chart-line'
-                      : 'text'
+                        ? 'chart-line'
+                        : 'text'
                   }
                 />
               )}
@@ -355,8 +356,8 @@ const AnalyticsSelector: React.FC<AnalyticsSelectorProps> = ({
                       selectedMethod.category === 'descriptive'
                         ? 'chart-bar'
                         : selectedMethod.category === 'inferential'
-                        ? 'chart-line'
-                        : 'text'
+                          ? 'chart-line'
+                          : 'text'
                     }
                   >
                     {selectedMethod.category}
@@ -482,7 +483,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
     marginTop: 8,
   },
@@ -494,7 +495,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedMethodDesc: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   categoryChipSmall: {
@@ -535,7 +536,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalContainer: {
-    backgroundColor: 'white',
+    backgroundColor: colors.background.elevated,
     margin: 20,
     borderRadius: 8,
     maxHeight: '80%',
@@ -546,7 +547,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.border.light,
   },
   modalContent: {
     maxHeight: '70%',
@@ -554,7 +555,7 @@ const styles = StyleSheet.create({
   modalFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: colors.border.light,
   },
   modalButton: {
     minWidth: 100,
@@ -574,7 +575,7 @@ const styles = StyleSheet.create({
   noVariablesText: {
     padding: 16,
     textAlign: 'center',
-    color: '#666',
+    color: colors.text.secondary,
     fontStyle: 'italic',
   },
 });

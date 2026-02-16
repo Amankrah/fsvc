@@ -11,6 +11,9 @@ import {
   Divider,
   Button,
 } from 'react-native-paper';
+import { colors } from '../constants/theme';
+import { ScreenWrapper } from '../components/layout/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -56,6 +59,7 @@ const AnalyticsScreen: React.FC = () => {
   const navigation = useNavigation<AnalyticsScreenNavigationProp>();
   const route = useRoute<AnalyticsScreenRouteProp>();
   const { projectId } = route.params || {};
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -142,7 +146,7 @@ const AnalyticsScreen: React.FC = () => {
                 label="Total Responses"
                 value={(summary?.total_responses || 0).toLocaleString()}
                 variant="highlight"
-                color="#6200ee"
+                color={colors.primary.main}
               />
               <StatisticDisplay
                 label="Respondents"
@@ -245,18 +249,18 @@ const AnalyticsScreen: React.FC = () => {
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <ActivityIndicator size="large" />
         <Text variant="bodyLarge" style={styles.loadingText}>
           Loading Analytics...
         </Text>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   if (error && !analysisSummary) {
     return (
-      <View style={styles.centerContainer}>
+      <ScreenWrapper style={styles.centerContainer}>
         <Text variant="headlineSmall" style={styles.errorText}>
           Error Loading Analytics
         </Text>
@@ -266,14 +270,14 @@ const AnalyticsScreen: React.FC = () => {
         <Button mode="contained" onPress={loadAnalyticsSummary} style={styles.retryButton}>
           Retry
         </Button>
-      </View>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={{ flex: 1 }}>
           <Text variant="headlineMedium" style={styles.title}>
             Analytics Dashboard
@@ -339,14 +343,14 @@ const AnalyticsScreen: React.FC = () => {
       >
         {renderAnalyticsContent()}
       </ScrollView>
-    </View>
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.default,
   },
   centerContainer: {
     flex: 1,
@@ -359,19 +363,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.paper,
     elevation: 2,
   },
   title: {
     fontWeight: 'bold',
   },
   projectName: {
-    color: '#6200ee',
+    color: colors.primary.main,
     marginTop: 4,
     fontWeight: '600',
   },
   subtitle: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 4,
   },
   segmentedButtons: {
@@ -405,7 +409,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   dateText: {
-    color: '#666',
+    color: colors.text.secondary,
     flex: 1,
     textAlign: 'right',
   },
@@ -419,7 +423,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dataTypeText: {
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 2,
   },
   actionButton: {
@@ -430,11 +434,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   errorText: {
-    color: '#d32f2f',
+    color: colors.status.error,
     marginBottom: 8,
   },
   errorMessage: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 24,
     textAlign: 'center',
   },

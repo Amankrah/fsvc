@@ -19,6 +19,13 @@ export interface Respondent {
   respondent_type?: string;
   commodity?: string;
   country?: string;
+  created_by?: number;
+  created_by_details?: {
+    id: number;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+  };
 }
 
 export interface RespondentFilters {

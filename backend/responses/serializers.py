@@ -24,7 +24,8 @@ class RespondentSerializer(serializers.ModelSerializer):
             'id', 'respondent_id', 'project', 'project_details', 'name', 'email', 'phone',
             'respondent_type', 'respondent_type_display', 'commodity', 'commodity_display', 'country',
             'demographics', 'location_data', 'created_at', 'last_response_at',
-            'is_anonymous', 'consent_given', 'sync_status', 'completion_status', 'created_by', 'created_by_details',
+            'is_anonymous', 'consent_given', 'sync_status', 'completion_status', 'draft_name',
+            'created_by', 'created_by_details',
             'response_count', 'completion_rate', 'profile_summary'
         ]
         read_only_fields = ['id', 'created_at', 'last_response_at', 'response_count', 'completion_rate',

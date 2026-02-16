@@ -4,6 +4,7 @@ import { Text, Chip, Divider, List } from 'react-native-paper';
 import { analyticsService } from '../../services/analyticsService';
 import { AnalysisCard } from './AnalysisCard';
 import { StatisticDisplay, StatisticsGrid } from './StatisticDisplay';
+import { colors } from '../../constants/theme';
 
 interface QualitativeAnalyticsProps {
   projectId: string;
@@ -55,7 +56,7 @@ export const QualitativeAnalytics: React.FC<QualitativeAnalyticsProps> = ({ proj
                 label="Unique Words"
                 value={analysis.unique_words || 0}
                 variant="highlight"
-                color="#ff9800"
+                color={colors.status.warning}
               />
             </StatisticsGrid>
             <Divider style={styles.divider} />
@@ -64,7 +65,7 @@ export const QualitativeAnalytics: React.FC<QualitativeAnalyticsProps> = ({ proj
                 label="Readability Score"
                 value={(analysis.readability_score || 0).toFixed(2)}
                 variant="chip"
-                color="#e3f2fd"
+                color={colors.primary.faint}
               />
             )}
           </View>
@@ -80,13 +81,13 @@ export const QualitativeAnalytics: React.FC<QualitativeAnalyticsProps> = ({ proj
     const getSentimentColor = (sentiment: string) => {
       switch (sentiment?.toLowerCase()) {
         case 'positive':
-          return '#e8f5e9';
+          return 'rgba(16, 185, 129, 0.15)';
         case 'negative':
-          return '#ffebee';
+          return 'rgba(239, 68, 68, 0.15)';
         case 'neutral':
-          return '#f5f5f5';
+          return colors.background.subtle;
         default:
-          return '#fff3e0';
+          return 'rgba(245, 158, 11, 0.15)';
       }
     };
 
@@ -102,13 +103,13 @@ export const QualitativeAnalytics: React.FC<QualitativeAnalyticsProps> = ({ proj
                 label="Avg Sentiment"
                 value={(sentimentData.average_sentiment || 0).toFixed(3)}
                 variant="highlight"
-                color="#2196f3"
+                color={colors.status.info}
               />
               <StatisticDisplay
                 label="Dominant Sentiment"
                 value={sentimentData.dominant_sentiment || 'N/A'}
                 variant="highlight"
-                color="#4caf50"
+                color={colors.status.success}
               />
             </StatisticsGrid>
             <Divider style={styles.divider} />
@@ -437,7 +438,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     marginTop: 8,
     marginBottom: 8,
-    color: '#666',
+    color: colors.text.secondary,
   },
   sentimentDistribution: {
     flexDirection: 'row',
@@ -454,17 +455,17 @@ const styles = StyleSheet.create({
   sampleItem: {
     marginBottom: 12,
     padding: 12,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
   },
   sampleText: {
     marginTop: 6,
-    color: '#666',
+    color: colors.text.secondary,
   },
   themeItem: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
   },
   themeHeader: {
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   themeDescription: {
-    color: '#666',
+    color: colors.text.secondary,
     fontStyle: 'italic',
   },
   wordFrequencyList: {
@@ -502,7 +503,7 @@ const styles = StyleSheet.create({
   categoryItem: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
   },
   categoryName: {
@@ -516,20 +517,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryPercentage: {
-    color: '#666',
+    color: colors.text.secondary,
   },
   categoryExamples: {
     marginTop: 8,
   },
   exampleText: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 4,
     fontStyle: 'italic',
   },
   codeItem: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
   },
   codeHeader: {
@@ -543,14 +544,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   codeDescription: {
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 8,
   },
   quotesList: {
     marginTop: 8,
   },
   quoteText: {
-    color: '#666',
+    color: colors.text.secondary,
     fontStyle: 'italic',
     marginBottom: 4,
     paddingLeft: 8,

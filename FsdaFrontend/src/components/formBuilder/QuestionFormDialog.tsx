@@ -27,6 +27,7 @@ import {
   CONDITION_OPERATORS,
 } from '../../constants/formBuilder';
 import { Question, RespondentType, ResponseType, ResponseTypeInfo } from '../../types';
+import { colors } from '../../constants/theme';
 
 interface QuestionFormDialogProps {
   visible: boolean;
@@ -179,10 +180,10 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               multiline
               numberOfLines={3}
               style={styles.input}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
+                  primary: colors.primary.light,
                   onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
                   outline: 'rgba(100, 200, 255, 0.5)',
                 },
@@ -243,13 +244,13 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
                     placeholder="Add an option"
                     mode="outlined"
                     style={styles.optionInput}
-                    textColor="#ffffff"
-                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                    textColor={colors.text.primary}
+                    placeholderTextColor={colors.text.secondary}
                     theme={{
                       colors: {
-                        primary: '#64c8ff',
-                        onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                        outline: 'rgba(100, 200, 255, 0.5)',
+                        primary: colors.primary.main,
+                        onSurfaceVariant: colors.text.secondary,
+                        outline: colors.border.light,
                       },
                     }}
                   />
@@ -268,7 +269,7 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
                       icon="close"
                       size={18}
                       onPress={() => removeOption(index)}
-                      iconColor="#ff6b6b"
+                      iconColor={colors.status.error}
                     />
                   </View>
                 ))}
@@ -341,18 +342,18 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               onChangeText={(text) => setNewQuestion({ ...newQuestion, question_category: text })}
               mode="outlined"
               style={styles.input}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder={
                 selectedTargetedRespondents.length > 0
                   ? `Auto: ${getAutoCategoryFromRespondents(selectedTargetedRespondents[0])}`
                   : 'e.g., Production, Sustainability...'
               }
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.secondary}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -402,7 +403,7 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               <Switch
                 value={newQuestion.is_required}
                 onValueChange={(value) => setNewQuestion({ ...newQuestion, is_required: value })}
-                color="#64c8ff"
+                color={colors.primary.main}
               />
             </View>
 
@@ -413,7 +414,7 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
                 onValueChange={(value) =>
                   setNewQuestion({ ...newQuestion, allow_multiple: value })
                 }
-                color="#64c8ff"
+                color={colors.primary.main}
               />
             </View>
 
@@ -422,7 +423,7 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               <Switch
                 value={newQuestion.is_active}
                 onValueChange={(value) => setNewQuestion({ ...newQuestion, is_active: value })}
-                color="#64c8ff"
+                color={colors.primary.main}
               />
             </View>
 
@@ -440,14 +441,14 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               onChangeText={(text) => setNewQuestion({ ...newQuestion, section_header: text })}
               mode="outlined"
               style={styles.input}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="e.g., Solution 1: Knowledge Sharing"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.secondary}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -460,14 +461,14 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
               multiline
               numberOfLines={3}
               style={styles.input}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="Introductory text shown before first question in this section..."
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.secondary}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -476,7 +477,7 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
 
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Follow-up Question (Conditional Logic)</Text>
-              <Switch value={isFollowUp} onValueChange={setIsFollowUp} color="#64c8ff" />
+              <Switch value={isFollowUp} onValueChange={setIsFollowUp} color={colors.primary.main} />
             </View>
 
             {/* Conditional Logic */}
@@ -518,14 +519,14 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
                   onChangeText={setConditionValue}
                   mode="outlined"
                   style={styles.input}
-                  textColor="#ffffff"
+                  textColor={colors.text.primary}
                   placeholder="Enter the value to check against"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  placeholderTextColor={colors.text.secondary}
                   theme={{
                     colors: {
-                      primary: '#64c8ff',
-                      onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                      outline: 'rgba(100, 200, 255, 0.5)',
+                      primary: colors.primary.main,
+                      onSurfaceVariant: colors.text.secondary,
+                      outline: colors.border.light,
                     },
                   }}
                 />
@@ -548,12 +549,12 @@ export const QuestionFormDialog: React.FC<QuestionFormDialogProps> = ({
 
 const styles = StyleSheet.create({
   dialog: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.default,
     borderRadius: 20,
     maxHeight: '90%',
   },
   dialogTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -563,7 +564,8 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.paper,
+    borderRadius: 8,
   },
   sectionTitle: {
     color: 'rgba(255, 255, 255, 0.9)',
@@ -573,13 +575,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   helpText: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.text.disabled,
     fontSize: 12,
     marginBottom: 12,
     lineHeight: 18,
   },
   label: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.primary,
     fontSize: 13,
     marginBottom: 8,
     marginTop: 8,
@@ -596,16 +598,17 @@ const styles = StyleSheet.create({
   chip: {
     marginRight: 8,
     marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.background.subtle,
+    borderRadius: 20,
+    borderColor: colors.border.light,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   selectedChip: {
     backgroundColor: 'rgba(100, 200, 255, 0.3)',
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
   },
   chipText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 12,
   },
   section: {
@@ -618,30 +621,30 @@ const styles = StyleSheet.create({
   },
   optionInput: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
   },
   addOptionButton: {
-    backgroundColor: '#64c8ff',
+    backgroundColor: colors.primary.main,
     justifyContent: 'center',
   },
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.subtle,
     borderRadius: 8,
     paddingLeft: 12,
     paddingRight: 4,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.light,
   },
   optionText: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
   },
   divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.primary.faint,
     marginVertical: 16,
   },
   switchRow: {
@@ -650,10 +653,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.border.light,
   },
   switchLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 14,
   },
   conditionalSection: {
@@ -669,17 +672,17 @@ const styles = StyleSheet.create({
   },
   autoCategoryChip: {
     backgroundColor: 'rgba(100, 200, 255, 0.2)',
-    borderColor: '#64c8ff',
+    borderColor: colors.primary.main,
     borderWidth: 1.5,
     alignSelf: 'flex-start',
   },
   autoCategoryText: {
-    color: '#64c8ff',
+    color: colors.primary.main,
     fontSize: 13,
     fontWeight: '600',
   },
   autoCategoryHint: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: colors.text.disabled,
     fontSize: 11,
     fontStyle: 'italic',
     marginTop: 6,

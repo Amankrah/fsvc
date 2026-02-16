@@ -8,6 +8,7 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { Portal, Dialog, Button, TextInput, ActivityIndicator, Text } from 'react-native-paper';
 import * as Location from 'expo-location';
 import { GPS_VALIDATION } from '../../constants/dataCollection';
+import { colors } from '../../constants/theme';
 
 interface LocationDialogProps {
   visible: boolean;
@@ -127,14 +128,14 @@ export const LocationDialog: React.FC<LocationDialogProps> = ({
                 keyboardType="numeric"
                 mode="outlined"
                 style={styles.input}
-                textColor="#ffffff"
+                textColor={colors.text.primary}
                 placeholder="e.g., 5.603717"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                placeholderTextColor={colors.text.disabled}
                 theme={{
                   colors: {
-                    primary: '#64c8ff',
-                    onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                    outline: 'rgba(100, 200, 255, 0.5)',
+                    primary: colors.primary.main,
+                    onSurfaceVariant: colors.text.secondary,
+                    outline: colors.border.light,
                   },
                 }}
               />
@@ -146,14 +147,14 @@ export const LocationDialog: React.FC<LocationDialogProps> = ({
                 keyboardType="numeric"
                 mode="outlined"
                 style={styles.input}
-                textColor="#ffffff"
+                textColor={colors.text.primary}
                 placeholder="e.g., -0.186964"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                placeholderTextColor={colors.text.disabled}
                 theme={{
                   colors: {
-                    primary: '#64c8ff',
-                    onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                    outline: 'rgba(100, 200, 255, 0.5)',
+                    primary: colors.primary.main,
+                    onSurfaceVariant: colors.text.secondary,
+                    outline: colors.border.light,
                   },
                 }}
               />
@@ -167,14 +168,14 @@ export const LocationDialog: React.FC<LocationDialogProps> = ({
               multiline
               numberOfLines={3}
               style={styles.input}
-              textColor="#ffffff"
+              textColor={colors.text.primary}
               placeholder="Enter full address"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              placeholderTextColor={colors.text.disabled}
               theme={{
                 colors: {
-                  primary: '#64c8ff',
-                  onSurfaceVariant: 'rgba(255, 255, 255, 0.7)',
-                  outline: 'rgba(100, 200, 255, 0.5)',
+                  primary: colors.primary.main,
+                  onSurfaceVariant: colors.text.secondary,
+                  outline: colors.border.light,
                 },
               }}
             />
@@ -191,14 +192,14 @@ export const LocationDialog: React.FC<LocationDialogProps> = ({
 
 const styles = StyleSheet.create({
   dialog: {
-    backgroundColor: '#1a1a3a',
+    backgroundColor: colors.background.default,
     borderRadius: 20,
   },
   dialogTitle: {
-    color: '#ffffff',
+    color: colors.text.primary,
   },
   captureButton: {
-    backgroundColor: '#4b1e85',
+    backgroundColor: colors.primary.dark,
     marginBottom: 16,
   },
   orText: {
@@ -209,6 +210,6 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.paper,
   },
 });
