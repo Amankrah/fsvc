@@ -101,7 +101,7 @@ const MembersScreen: React.FC = () => {
   const [activeMenuMemberId, setActiveMenuMemberId] = useState<string | null>(null);
 
   // Permission to manage members (only owner can manage)
-  const canManageMembers = members.find((m) => m.id === user?.id)?.role === 'owner' || false;
+  const canManageMembers = members.find((m) => m.user === user?.id)?.role === 'owner' || false;
 
   const loadMembers = useCallback(async () => {
     try {
@@ -148,7 +148,7 @@ const MembersScreen: React.FC = () => {
       const response: UserSearchResponse = await apiService.searchUsers(query);
 
       // Filter out users who are already members of this project
-      const memberEmails = members.map(m => m.email);
+      const memberEmails = members.map(m => m.user_details?.email || m.email);
       const filteredUsers = response.users.filter(user => !memberEmails.includes(user.email));
 
       setSearchedUsers(filteredUsers);
@@ -217,7 +217,7 @@ const MembersScreen: React.FC = () => {
     setIsUpdating(true);
     try {
       const updateData: UpdateMemberData = {
-        user_id: editingMember.id,
+        user_id: editingMember.user, // Use User ID
         role: editRole,
         // Permissions are fixed - all members have the same permissions
         permissions_list: FIXED_MEMBER_PERMISSIONS,
@@ -250,7 +250,8 @@ const MembersScreen: React.FC = () => {
             style: 'destructive',
             onPress: async () => {
               try {
-                await apiService.removeMember(projectId, member.id);
+                // Pass User ID (member.user), NOT Membership ID (member.id)
+                await apiService.removeMember(projectId, member.user);
                 Alert.alert('Success', 'Member removed successfully');
                 loadMembers();
               } catch (error: any) {
@@ -290,7 +291,11 @@ const MembersScreen: React.FC = () => {
 
   const renderMemberItem = ({ item }: { item: ProjectMember }) => {
     const isOwner = item.role === 'owner';
-    const isCurrentUser = item.id === user?.id;
+    // Use user.id for comparison, fallbacks for safety
+    const userId = item.user;
+    const isCurrentUser = userId === user?.id;
+    const username = item.user_details?.username || item.username || 'Unknown';
+    const email = item.user_details?.email || item.email || '';
 
     return (
       <Surface style={styles.memberCard} elevation={1}>
@@ -302,12 +307,12 @@ const MembersScreen: React.FC = () => {
           <View style={styles.memberInfo}>
             <View style={styles.memberNameRow}>
               <Text variant="titleMedium" style={styles.memberName}>
-                {item.username}
+                {username}
               </Text>
               {isCurrentUser && <Chip style={styles.youChip}>You</Chip>}
             </View>
             <Text variant="bodySmall" style={styles.memberEmail}>
-              {item.email}
+              {email}
             </Text>
             <View style={styles.memberMeta}>
               <Chip
@@ -320,6 +325,11 @@ const MembersScreen: React.FC = () => {
               <Text variant="bodySmall" style={styles.joinedText}>
                 Joined {new Date(item.joined_at).toLocaleDateString()}
               </Text>
+              {item.status === 'pending' && (
+                <Chip icon="clock-outline" style={styles.pendingChip} compact>
+                  Pending
+                </Chip>
+              )}
             </View>
           </View>
 
@@ -576,7 +586,7 @@ const MembersScreen: React.FC = () => {
       <Dialog.Title>Edit Member</Dialog.Title>
       <Dialog.Content>
         <Text variant="bodyMedium" style={styles.editMemberName}>
-          {editingMember?.username}
+          {editingMember?.user_details?.username || editingMember?.username}
         </Text>
 
         <Text variant="labelMedium" style={styles.sectionLabel}>

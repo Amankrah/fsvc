@@ -344,7 +344,7 @@ const ResponsesScreen: React.FC = () => {
             <Menu.Item
               onPress={() => {
                 setMenuVisible(false);
-                exportHook.handleExportCSV();
+                exportHook.handleExportCSV(selectedFilters);
               }}
               title="Export to CSV"
               leadingIcon="file-delimited"
@@ -353,7 +353,7 @@ const ResponsesScreen: React.FC = () => {
             <Menu.Item
               onPress={() => {
                 setMenuVisible(false);
-                exportHook.handleExportJSON();
+                exportHook.handleExportJSON(selectedFilters);
               }}
               title="Export to JSON"
               leadingIcon="code-json"

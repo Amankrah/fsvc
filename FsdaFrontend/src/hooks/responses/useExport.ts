@@ -14,11 +14,11 @@ export const useExport = (projectId: string, projectName: string) => {
   const [exporting, setExporting] = useState(false);
 
   const exportData = useCallback(
-    async (format: ExportFormat) => {
+    async (format: ExportFormat, filters?: any) => {
       try {
         setExporting(true);
 
-        const data = await apiService.exportResponses(projectId, format);
+        const data = await apiService.exportResponses(projectId, format, filters);
 
         // For web, trigger download
         if (Platform.OS === 'web') {
@@ -45,8 +45,8 @@ export const useExport = (projectId: string, projectName: string) => {
     [projectId, projectName]
   );
 
-  const handleExportCSV = useCallback(() => exportData('csv'), [exportData]);
-  const handleExportJSON = useCallback(() => exportData('json'), [exportData]);
+  const handleExportCSV = useCallback((filters?: any) => exportData('csv', filters), [exportData]);
+  const handleExportJSON = useCallback((filters?: any) => exportData('json', filters), [exportData]);
 
   return {
     exporting,

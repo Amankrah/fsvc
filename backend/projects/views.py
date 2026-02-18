@@ -196,7 +196,8 @@ class ProjectViewSet(BaseModelViewSet):
                 user=invited_user,
                 role=role,
                 partner_organization=partner_organization if role == 'partner' else None,
-                invited_by=request.user
+                invited_by=request.user,
+                status='pending'
             )
 
             # Create notification for the invited user
@@ -614,14 +615,20 @@ Research Data Collection Team
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if user is already a member
-            if not project.members.filter(user=request.user).exists():
+            member = project.members.filter(user=request.user).first()
+            if not member:
                 return Response({
                     'error': 'You are not invited to this project'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Accept the invitation - user should already be added to project during invitation
-            # Just mark the notification as read and confirm acceptance
+            # Accept the invitation
+            # Mark the notification as read and confirm acceptance
             notification.mark_as_read()
+
+            # Update member status to active
+            if member.status == 'pending':
+                member.status = 'active'
+                member.save()
             
             return Response({
                 'message': f'Successfully joined project {project.name}',

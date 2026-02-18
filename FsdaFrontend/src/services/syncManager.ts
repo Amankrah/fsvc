@@ -7,7 +7,7 @@ import { networkMonitor } from './networkMonitor';
 import { offlineStorage, SyncQueueItem } from './offlineStorage';
 import { syncApi } from './syncApi';
 
-type SyncEventType = 'sync_started' | 'sync_completed' | 'sync_failed' | 'item_synced' | 'item_failed';
+type SyncEventType = 'sync_started' | 'sync_completed' | 'sync_failed' | 'item_synced' | 'item_failed' | 'auth_error';
 type SyncEventCallback = (event: SyncEventType, data?: any) => void;
 
 class SyncManager {
@@ -107,91 +107,109 @@ class SyncManager {
     this.isSyncing = true;
     this.emitEvent('sync_started');
 
-    const pendingItems = await offlineStorage.getPendingItems();
     let synced = 0;
     let failed = 0;
     const errors: string[] = [];
 
-    console.log(`Starting sync of ${pendingItems.length} pending items...`);
+    try {
+      const pendingItems = await offlineStorage.getPendingItems();
+      console.log(`Starting sync of ${pendingItems.length} pending items...`);
 
-    for (const item of pendingItems) {
-      try {
-        // Check if max attempts reached
-        if (item.attempts >= item.max_attempts) {
-          console.log(`Item ${item.id} exceeded max attempts, skipping`);
-          await offlineStorage.markAsFailed(item.id, 'Max attempts reached');
-          failed++;
-          continue;
-        }
+      for (const item of pendingItems) {
+        try {
+          // Check if max attempts reached
+          if (item.attempts >= item.max_attempts) {
+            console.log(`Item ${item.id} exceeded max attempts, skipping`);
+            await offlineStorage.markAsFailed(item.id, 'Max attempts reached');
+            failed++;
+            continue;
+          }
 
-        // Mark as syncing
-        await offlineStorage.markAsSyncing(item.id);
+          // Mark as syncing
+          await offlineStorage.markAsSyncing(item.id);
 
-        // Send to backend
-        const result = await syncApi.syncItem(item);
+          // Send to backend
+          const result = await syncApi.syncItem(item);
 
-        if (result.success) {
-          // Mark as completed and remove from queue
-          await offlineStorage.markAsCompleted(item.id);
-          synced++;
-          this.emitEvent('item_synced', item);
-          console.log(`✓ Synced: ${item.table_name}:${item.record_id}`);
-        } else {
-          // Mark as failed
-          const errorMsg = result.error || 'Unknown error';
-          await offlineStorage.markAsFailed(item.id, errorMsg);
+          if (result.success) {
+            // Mark as completed and remove from queue
+            await offlineStorage.markAsCompleted(item.id);
+            synced++;
+            this.emitEvent('item_synced', item);
+            console.log(`✓ Synced: ${item.table_name}:${item.record_id}`);
+          } else {
+            // Mark as failed
+            const errorMsg = result.error || 'Unknown error';
+            await offlineStorage.markAsFailed(item.id, errorMsg);
+            failed++;
+            errors.push(`${item.table_name}:${item.record_id} - ${errorMsg}`);
+            this.emitEvent('item_failed', { item, error: errorMsg });
+            console.error(`✗ Failed: ${item.table_name}:${item.record_id} - ${errorMsg}`);
+
+            // If authentication error, emit special event to notify user
+            if (errorMsg.includes('Authentication') || errorMsg.includes('Session expired') || errorMsg.includes('Not logged in')) {
+              this.emitEvent('auth_error', { message: errorMsg });
+            }
+          }
+        } catch (error: any) {
+          const errorMsg = error.message || 'Unknown error';
+          try {
+            await offlineStorage.markAsFailed(item.id, errorMsg);
+          } catch (storageError) {
+            console.error('[SyncManager] Failed to mark item as failed in storage:', storageError);
+          }
           failed++;
           errors.push(`${item.table_name}:${item.record_id} - ${errorMsg}`);
           this.emitEvent('item_failed', { item, error: errorMsg });
-          console.error(`✗ Failed: ${item.table_name}:${item.record_id} - ${errorMsg}`);
+          console.error(`✗ Error syncing item:`, error);
+        }
+      }
 
-          // If authentication error, emit special event to notify user
-          if (errorMsg.includes('Authentication') || errorMsg.includes('Session expired') || errorMsg.includes('Not logged in')) {
-            this.emitEvent('auth_error', { message: errorMsg });
+      // Update last sync timestamp
+      if (synced > 0) {
+        await offlineStorage.updateLastSync();
+
+        // Trigger backend processing of the synced items
+        try {
+          console.log(`[SyncManager] Successfully synced ${synced} items to backend queue`);
+          console.log('[SyncManager] Now triggering backend processing...');
+          const processResult = await syncApi.processPending();
+          console.log('[SyncManager] processPending returned:', processResult);
+
+          if (processResult.success) {
+            const processed = processResult.data?.total_processed || processResult.total_processed || 0;
+            console.log(`✓ Backend processed ${processed} items`);
+          } else {
+            console.warn('[SyncManager] Backend processing had issues:', processResult.error);
           }
+        } catch (error) {
+          console.error('[SyncManager] Error triggering backend processing:', error);
+          // Don't fail the sync if backend processing fails
         }
-      } catch (error: any) {
-        const errorMsg = error.message || 'Unknown error';
-        await offlineStorage.markAsFailed(item.id, errorMsg);
-        failed++;
-        errors.push(`${item.table_name}:${item.record_id} - ${errorMsg}`);
-        this.emitEvent('item_failed', { item, error: errorMsg });
-        console.error(`✗ Error syncing item:`, error);
+      } else {
+        console.log('[SyncManager] No items were synced, skipping backend processing');
       }
+    } catch (outerError: any) {
+      console.error('[SyncManager] Critical sync error:', outerError);
+      errors.push(`Sync infrastructure error: ${outerError.message}`);
+    } finally {
+      this.isSyncing = false;
+      this.emitEvent('sync_completed', { synced, failed, errors });
+      console.log(`Sync completed: ${synced} synced, ${failed} failed`);
     }
 
-    // Update last sync timestamp
-    if (synced > 0) {
-      await offlineStorage.updateLastSync();
-
-      // Trigger backend processing of the synced items
-      try {
-        console.log(`[SyncManager] Successfully synced ${synced} items to backend queue`);
-        console.log('[SyncManager] Now triggering backend processing...');
-        const processResult = await syncApi.processPending();
-        console.log('[SyncManager] processPending returned:', processResult);
-
-        if (processResult.success) {
-          const processed = processResult.data?.total_processed || processResult.total_processed || 0;
-          console.log(`✓ Backend processed ${processed} items`);
-        } else {
-          console.warn('[SyncManager] Backend processing had issues:', processResult.error);
-        }
-      } catch (error) {
-        console.error('[SyncManager] Error triggering backend processing:', error);
-        // Don't fail the sync if backend processing fails
+    // Fix 4: Re-check for items queued during sync
+    try {
+      const remainingCount = await this.getPendingCount();
+      if (remainingCount > 0 && networkMonitor.getConnectionStatus()) {
+        console.log(`[SyncManager] ${remainingCount} items pending after sync, triggering follow-up in 500ms`);
+        setTimeout(() => this.syncPendingItems(), 500);
       }
-    } else {
-      console.log('[SyncManager] No items were synced, skipping backend processing');
+    } catch (recheckError) {
+      console.error('[SyncManager] Error during post-sync recheck:', recheckError);
     }
 
-    this.isSyncing = false;
-    const success = failed === 0 && synced > 0;
-
-    this.emitEvent('sync_completed', { synced, failed, errors });
-    console.log(`Sync completed: ${synced} synced, ${failed} failed`);
-
-    return { success, synced, failed, errors };
+    return { success: failed === 0 && synced > 0, synced, failed, errors };
   }
 
   /**

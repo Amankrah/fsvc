@@ -26,11 +26,35 @@ const STORAGE_KEYS = {
 };
 
 class OfflineStorage {
+  // Serializes all queue write operations to prevent read-modify-write races
+  private writeChain: Promise<void> = Promise.resolve();
+
+  /**
+   * Execute a queue mutation atomically.
+   * All write callers go through this, so writes are serialized.
+   */
+  private async withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+    let result!: T;
+    let error: any = null;
+    this.writeChain = this.writeChain
+      .then(async () => {
+        try {
+          result = await fn();
+        } catch (e) {
+          error = e;
+        }
+      })
+      .catch(() => { }); // don't let one failure block future writes
+    await this.writeChain;
+    if (error) throw error;
+    return result;
+  }
+
   /**
    * Add item to sync queue
    */
   async addToQueue(item: Omit<SyncQueueItem, 'id' | 'created_at' | 'attempts' | 'status'>): Promise<SyncQueueItem> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const newItem: SyncQueueItem = {
         ...item,
@@ -45,14 +69,11 @@ class OfflineStorage {
 
       console.log(`Added item to sync queue: ${newItem.table_name}:${newItem.record_id}`);
       return newItem;
-    } catch (error) {
-      console.error('Error adding item to queue:', error);
-      throw error;
-    }
+    });
   }
 
   /**
-   * Get all pending items from queue
+   * Get all pending items from queue (read-only, no lock needed)
    */
   async getQueue(): Promise<SyncQueueItem[]> {
     try {
@@ -74,7 +95,7 @@ class OfflineStorage {
   }
 
   /**
-   * Get pending items only
+   * Get pending items only (read-only, no lock needed)
    */
   async getPendingItems(): Promise<SyncQueueItem[]> {
     const queue = await this.getQueue();
@@ -82,7 +103,7 @@ class OfflineStorage {
   }
 
   /**
-   * Get failed items
+   * Get failed items (read-only, no lock needed)
    */
   async getFailedItems(): Promise<SyncQueueItem[]> {
     const queue = await this.getQueue();
@@ -90,10 +111,10 @@ class OfflineStorage {
   }
 
   /**
-   * Update item in queue
+   * Update item in queue (serialized)
    */
   async updateQueueItem(id: string, updates: Partial<SyncQueueItem>): Promise<void> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const index = queue.findIndex((item) => item.id === id);
 
@@ -103,52 +124,51 @@ class OfflineStorage {
 
       queue[index] = { ...queue[index], ...updates };
       await this.saveQueue(queue);
-    } catch (error) {
-      console.error('Error updating queue item:', error);
-      throw error;
-    }
+    });
   }
 
   /**
-   * Mark item as syncing
+   * Mark item as syncing (serialized)
    */
   async markAsSyncing(id: string): Promise<void> {
     await this.updateQueueItem(id, { status: 'syncing' });
   }
 
   /**
-   * Mark item as completed and remove from queue
+   * Mark item as completed and remove from queue (serialized)
    */
   async markAsCompleted(id: string): Promise<void> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const filtered = queue.filter((item) => item.id !== id);
       await this.saveQueue(filtered);
       console.log(`Removed completed item from queue: ${id}`);
-    } catch (error) {
-      console.error('Error marking item as completed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Mark item as failed
-   */
-  async markAsFailed(id: string, error_message: string): Promise<void> {
-    const queue = await this.getQueue();
-    const item = queue.find((i) => i.id === id);
-
-    if (!item) return;
-
-    await this.updateQueueItem(id, {
-      status: 'failed',
-      error_message,
-      attempts: item.attempts + 1,
     });
   }
 
   /**
-   * Retry failed item
+   * Mark item as failed (serialized)
+   */
+  async markAsFailed(id: string, error_message: string): Promise<void> {
+    return this.withQueueLock(async () => {
+      const queue = await this.getQueue();
+      const item = queue.find((i) => i.id === id);
+
+      if (!item) return;
+
+      const index = queue.findIndex((i) => i.id === id);
+      queue[index] = {
+        ...queue[index],
+        status: 'failed',
+        error_message,
+        attempts: item.attempts + 1,
+      };
+      await this.saveQueue(queue);
+    });
+  }
+
+  /**
+   * Retry failed item (serialized)
    */
   async retryItem(id: string): Promise<void> {
     await this.updateQueueItem(id, {
@@ -158,44 +178,40 @@ class OfflineStorage {
   }
 
   /**
-   * Remove item from queue
+   * Remove item from queue (serialized)
    */
   async removeFromQueue(id: string): Promise<void> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const filtered = queue.filter((item) => item.id !== id);
       await this.saveQueue(filtered);
-    } catch (error) {
-      console.error('Error removing item from queue:', error);
-      throw error;
-    }
+    });
   }
 
   /**
-   * Clear completed items from queue
+   * Clear completed items from queue (serialized)
    */
   async clearCompleted(): Promise<number> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const pending = queue.filter((item) => item.status !== 'completed');
       const clearedCount = queue.length - pending.length;
       await this.saveQueue(pending);
       return clearedCount;
-    } catch (error) {
-      console.error('Error clearing completed items:', error);
-      throw error;
-    }
+    });
   }
 
   /**
    * Clear all queue items
    */
   async clearQueue(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.SYNC_QUEUE);
+    return this.withQueueLock(async () => {
+      await AsyncStorage.removeItem(STORAGE_KEYS.SYNC_QUEUE);
+    });
   }
 
   /**
-   * Get queue statistics
+   * Get queue statistics (read-only, no lock needed)
    */
   async getStats(): Promise<{
     total: number;
@@ -269,11 +285,10 @@ class OfflineStorage {
   }
 
   /**
-   * Migrate and fix malformed queue items
-   * Removes items with invalid structure (where table_name or record_id are objects)
+   * Migrate and fix malformed queue items (serialized)
    */
   async migrateQueue(): Promise<{ removed: number; kept: number }> {
-    try {
+    return this.withQueueLock(async () => {
       const queue = await this.getQueue();
       const validQueue: SyncQueueItem[] = [];
       let removedCount = 0;
@@ -302,10 +317,7 @@ class OfflineStorage {
       console.log(`Queue migration: removed ${removedCount}, kept ${validQueue.length}`);
 
       return { removed: removedCount, kept: validQueue.length };
-    } catch (error) {
-      console.error('Error migrating queue:', error);
-      throw error;
-    }
+    });
   }
 
   /**
