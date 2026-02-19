@@ -843,6 +843,10 @@ const styles = StyleSheet.create({
   joinedText: {
     color: colors.text.disabled,
   },
+  pendingChip: {
+    backgroundColor: '#fff8e1',
+    alignSelf: 'flex-start',
+  },
   permissionsSection: {
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',

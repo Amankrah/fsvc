@@ -4,7 +4,7 @@
  */
 
 import { networkMonitor } from './networkMonitor';
-import { offlineStorage, SyncQueueItem } from './offlineStorage';
+import { offlineStorage } from './offlineStorage';
 import { syncApi } from './syncApi';
 
 type SyncEventType = 'sync_started' | 'sync_completed' | 'sync_failed' | 'item_synced' | 'item_failed' | 'auth_error';
@@ -177,7 +177,7 @@ class SyncManager {
           console.log('[SyncManager] processPending returned:', processResult);
 
           if (processResult.success) {
-            const processed = processResult.data?.total_processed || processResult.total_processed || 0;
+            const processed = processResult.data?.total_processed || 0;
             console.log(`✓ Backend processed ${processed} items`);
           } else {
             console.warn('[SyncManager] Backend processing had issues:', processResult.error);
