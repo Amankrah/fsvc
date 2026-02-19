@@ -12,7 +12,9 @@
 export const generateRespondentId = (projectId: string): string => {
   const shortProjectId = projectId.slice(0, 8).toUpperCase();
   const timestamp = Date.now();
-  return `PROJ_${shortProjectId}_${timestamp}`;
+  // 6 random hex chars (~16.7M permutations) eliminates same-millisecond collisions
+  const random = Math.random().toString(16).slice(2, 8).toUpperCase();
+  return `PROJ_${shortProjectId}_${timestamp}${random}`;
 };
 
 /**
