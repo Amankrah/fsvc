@@ -319,87 +319,112 @@ const DataCollectionScreen: React.FC = () => {
         return;
       }
 
-      // Load questions using the filtered API endpoint for this draft's criteria
-      const filteredResponse = await apiService.getQuestionsForRespondent(
-        projectId,
-        {
-          assigned_respondent_type: draft.respondent_type,
-          assigned_commodity: draft.commodity,
-          assigned_country: draft.country,
-        },
-        {
-          page: 1,
-          page_size: 1000,
-        }
-      );
+      // ----- Load questions (online → API, offline → local cache) -----
+      let loadedQuestions: any[] = [];
 
-      const matchingQuestions = filteredResponse.questions || [];
+      const { networkMonitor } = require('../services');
+      const { offlineQuestionCache } = require('../services');
+      const isOnline = await networkMonitor.checkConnection();
+      const isOfflineDraft = !!draft.is_offline;
 
-      // Sort by category order first, then by order_index within each category
-      const loadedQuestions = matchingQuestions.sort((a: any, b: any) => {
-        const categoryA = a.question_category || '';
-        const categoryB = b.question_category || '';
-        const categoryIndexA = getCategorySortIndex(categoryA);
-        const categoryIndexB = getCategorySortIndex(categoryB);
+      if (isOnline && !isOfflineDraft) {
+        // ✅ Online path: fetch from backend
+        const filteredResponse = await apiService.getQuestionsForRespondent(
+          projectId,
+          {
+            assigned_respondent_type: draft.respondent_type,
+            assigned_commodity: draft.commodity,
+            assigned_country: draft.country,
+          },
+          {
+            page: 1,
+            page_size: 1000,
+          }
+        );
+        loadedQuestions = filteredResponse.questions || filteredResponse.results || [];
+      } else {
+        // 📴 Offline path (or is_offline draft): load from cached questions
+        console.log('Offline draft resume — loading questions from local cache');
+        const cachedQuestions = await offlineQuestionCache.getGeneratedQuestions(projectId);
+        const commodityStr = draft.commodity;
+        loadedQuestions = cachedQuestions.filter((q: any) =>
+          q.assigned_respondent_type === draft.respondent_type &&
+          q.assigned_commodity === commodityStr &&
+          q.assigned_country === draft.country
+        );
+        console.log(`Loaded ${loadedQuestions.length} questions from offline cache`);
+      }
 
-        if (categoryIndexA !== categoryIndexB) {
-          return categoryIndexA - categoryIndexB;
-        }
-
-        // Within same category, maintain original order
-        return a.order_index - b.order_index;
+      // Sort by category then order_index
+      loadedQuestions = loadedQuestions.sort((a: any, b: any) => {
+        const catA = getCategorySortIndex(a.question_category || '');
+        const catB = getCategorySortIndex(b.question_category || '');
+        return catA !== catB ? catA - catB : a.order_index - b.order_index;
       });
 
-      // Verify questions loaded
       if (!loadedQuestions || loadedQuestions.length === 0) {
         console.error('No questions loaded after generation');
-        showAlert('Error', 'Failed to load questions for this respondent. Please check that questions were generated for this criteria.');
+        showAlert(
+          'Error',
+          isOnline
+            ? 'Failed to load questions for this respondent. Check that questions were generated for this criteria.'
+            : 'No questions cached for this respondent type. Please go online and generate questions before collecting offline.'
+        );
         return;
       }
 
       console.log(`Loaded ${loadedQuestions.length} questions for resume`);
 
-      // Load the draft's responses
-      const draftResponses = await apiService.getRespondentResponses(draft.id);
+      // CRITICAL: Inject the fetched questions directly into the hook's state so that
+      // visibleQuestions is already populated when the survey view mounts.
+      // Without this, setQuestionIndex fires on an empty/stale questions array.
+      questions.setQuestionsDirectly(loadedQuestions);
 
-      // Build the responses object and track pre-existing response question IDs
+      // ----- Load responses (online → backend, offline → cached draft.responses) -----
       const loadedResponses: any = {};
       const existingQuestionIds = new Set<string>();
 
-      if (draftResponses.responses && draftResponses.responses.length > 0) {
-        draftResponses.responses.forEach((resp: any) => {
-          // Track this question ID as having a pre-existing response
-          existingQuestionIds.add(resp.question);
-
-          // Parse JSON arrays if needed
+      if (isOfflineDraft && draft.responses && draft.responses.length > 0) {
+        // Offline draft: responses are already stored in the cached draft object
+        // CachedDraft stores them as { question_id, response_value }
+        console.log(`Reading ${draft.responses.length} responses from offline draft cache`);
+        draft.responses.forEach((resp: any) => {
+          const qId = resp.question_id ?? resp.question;
+          if (!qId) return;
+          existingQuestionIds.add(qId);
           let value = resp.response_value;
           try {
             if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
               value = JSON.parse(value);
             }
-          } catch (e) {
-            // Keep original value if parsing fails
-          }
-          loadedResponses[resp.question] = value;
+          } catch (e) { /* keep raw value */ }
+          loadedResponses[qId] = value;
         });
-
-        // Load all responses at once
-        responses.loadResponses(loadedResponses);
-
-        // Store the pre-existing response question IDs
-        setPreExistingResponseQuestionIds(existingQuestionIds);
-        console.log(`Captured ${existingQuestionIds.size} pre-existing response question IDs`);
+      } else {
+        // Online draft: fetch responses from backend
+        const draftResponses = await apiService.getRespondentResponses(draft.id);
+        if (draftResponses.responses && draftResponses.responses.length > 0) {
+          draftResponses.responses.forEach((resp: any) => {
+            existingQuestionIds.add(resp.question);
+            let value = resp.response_value;
+            try {
+              if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+                value = JSON.parse(value);
+              }
+            } catch (e) { /* keep raw value */ }
+            loadedResponses[resp.question] = value;
+          });
+        }
       }
 
-      console.log(`Loaded ${Object.keys(loadedResponses).length} existing responses`);
+      if (Object.keys(loadedResponses).length > 0) {
+        responses.loadResponses(loadedResponses);
+        setPreExistingResponseQuestionIds(existingQuestionIds);
+        console.log(`Loaded ${Object.keys(loadedResponses).length} responses (${existingQuestionIds.size} pre-existing)`);
+      }
 
-      // Calculate resume position using the loaded questions
+      // ----- Calculate resume position -----
       const answeredQuestionIds = new Set(Object.keys(loadedResponses));
-
-      console.log('Total questions captured:', loadedQuestions.length);
-      console.log('Answered questions:', answeredQuestionIds.size);
-
-      // Find the last answered question index
       let lastAnsweredIndex = -1;
       for (let i = loadedQuestions.length - 1; i >= 0; i--) {
         if (answeredQuestionIds.has(loadedQuestions[i].id)) {
@@ -408,39 +433,31 @@ const DataCollectionScreen: React.FC = () => {
         }
       }
 
-      console.log('Last answered index:', lastAnsweredIndex);
-
-      // Move to the next unanswered question (or stay at last if all answered)
-      const resumeIndex = Math.min(
-        lastAnsweredIndex + 1,
-        loadedQuestions.length - 1
-      );
-
-      console.log('Resume index:', resumeIndex);
-
+      const resumeIndex = Math.min(lastAnsweredIndex + 1, loadedQuestions.length - 1);
       const totalQuestions = loadedQuestions.length;
       const answeredCount = answeredQuestionIds.size;
 
-      // Start the survey
+      console.log(`Resume: lastAnsweredIndex=${lastAnsweredIndex}, resumeIndex=${resumeIndex}`);
+
+      // Start the survey — questions are already in the hook so the view mounts correctly
       setShowRespondentForm(false);
 
-      // Wait for UI to render, then set question index and show alert
+      // One short tick so setShowRespondentForm re-render completes, then apply index
       setTimeout(() => {
-        // Set the question index to resume from
         if (resumeIndex > 0) {
           responses.setQuestionIndex(resumeIndex);
         }
-
         setIsResumingDraft(false);
 
         showAlert(
-          'Draft Loaded',
+          isOfflineDraft ? 'Offline Draft Loaded' : 'Draft Loaded',
           `Resuming survey for ${draft.respondent_id}\n\n` +
           `${answeredCount} of ${totalQuestions} questions already answered.\n` +
-          `Starting at question ${resumeIndex + 1}.`,
+          `Starting at question ${resumeIndex + 1}.` +
+          (isOfflineDraft ? '\n\n(Offline draft — changes will sync when you reconnect)' : ''),
           [{ text: 'Continue' }]
         );
-      }, 200);
+      }, 100);
 
     } catch (error: any) {
       setIsResumingDraft(false);

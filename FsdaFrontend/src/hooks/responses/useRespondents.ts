@@ -1,9 +1,9 @@
 /**
  * useRespondents Hook
- * Manages respondent data fetching and state
+ * Manages respondent data fetching with server-side pagination (infinite scroll)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 
@@ -28,51 +28,91 @@ export interface Respondent {
   };
 }
 
+const PAGE_SIZE = 20;
+
 export const useRespondents = (projectId: string) => {
   const [respondents, setRespondents] = useState<Respondent[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadRespondents = useCallback(async () => {
-    try {
-      const data = await apiService.getRespondents(projectId);
-      const respondentList: Respondent[] = Array.isArray(data) ? data : data.results || [];
-      setRespondents(respondentList);
-      return respondentList;
-    } catch (error) {
-      console.error('Error loading respondents:', error);
-      throw error;
-    }
-  }, [projectId]);
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const loadData = useCallback(async () => {
+  const isFetchingRef = useRef(false);
+
+  /**
+   * Fetch a specific page from the backend.
+   * Returns the raw API response so callers can decide how to merge.
+   */
+  const fetchPage = useCallback(
+    async (page: number) => {
+      const data = await apiService.getRespondentsPaginated(projectId, page, PAGE_SIZE);
+      // Handle both standard DRF pagination and local CustomPagination formats
+      const results: Respondent[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+      // CustomPagination uses 'total' and 'links.next', standard uses 'count' and 'next'
+      const count: number = data.count ?? data.total ?? results.length;
+      const next: string | null = data.next ?? data.links?.next ?? null;
+
+      return { results, count, next };
+    },
+    [projectId]
+  );
+
+  /** Load a specific page */
+  const goToPage = useCallback(async (page: number) => {
+    // Prevent going out of bounds
+    if (page < 1 || (totalPages > 0 && page > totalPages)) return;
+    if (isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
+    setLoading(true);
+
     try {
-      setLoading(true);
-      await loadRespondents();
+      const { results, count } = await fetchPage(page);
+      setRespondents(results);
+      setTotalCount(count);
+      setCurrentPage(page);
+      setTotalPages(Math.ceil(count / PAGE_SIZE) || 1);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading page:', error);
       showAlert('Error', 'Failed to load responses');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [loadRespondents]);
+  }, [fetchPage, totalPages]);
 
+  /** Initial load — always loads page 1 */
+  const loadData = useCallback(() => {
+    goToPage(1);
+  }, [goToPage]);
+
+  /** Pull-to-refresh — resets back to page 1 */
   const handleRefresh = useCallback(async () => {
+    if (isFetchingRef.current) return;
     setRefreshing(true);
-    try {
-      await loadRespondents();
-    } catch (error) {
-      // Error already logged
-    } finally {
-      setRefreshing(false);
-    }
-  }, [loadRespondents]);
+    await goToPage(1);
+    setRefreshing(false);
+  }, [goToPage]);
 
   return {
     respondents,
+    totalCount,
     loading,
     refreshing,
+    currentPage,
+    totalPages,
     loadData,
     handleRefresh,
+    goToPage,
+    nextPage: () => goToPage(currentPage + 1),
+    prevPage: () => goToPage(currentPage - 1),
   };
 };

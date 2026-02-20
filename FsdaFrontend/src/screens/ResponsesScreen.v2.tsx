@@ -7,11 +7,19 @@
  * - Reusable components handle UI
  * - Constants centralize configuration
  * - Full Django backend compatibility
+ * - Server-side pagination via infinite scroll (FlatList + onEndReached)
  */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { colors } from '../constants/theme';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  ListRenderItem,
+  TouchableOpacity,
+} from 'react-native';
 import {
   Text,
   ActivityIndicator,
@@ -30,20 +38,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useRespondents,
   useRespondentDetails,
-  useSearch,
   useExport,
 } from '../hooks/responses';
+import { Respondent } from '../hooks/responses/useRespondents';
 import { useAuthStore } from '../store/authStore';
 
 // Components
-import {
-  StatsCards,
-  RespondentsTable,
-  ResponseCard,
-} from '../components/responses';
+import { StatsCards, ResponseCard } from '../components/responses';
 
 // Types
 import { RootStackParamList } from '../navigation/RootNavigator';
+
 type ResponsesRouteProp = RouteProp<RootStackParamList, 'Responses'>;
 
 const ResponsesScreen: React.FC = () => {
@@ -64,10 +69,10 @@ const ResponsesScreen: React.FC = () => {
     commodity: false,
     country: false,
   });
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Hooks
   const respondentsHook = useRespondents(projectId);
-  const searchHook = useSearch(respondentsHook.respondents);
   const detailsHook = useRespondentDetails();
   const exportHook = useExport(projectId, projectName);
   const { user } = useAuthStore();
@@ -85,11 +90,12 @@ const ResponsesScreen: React.FC = () => {
     respondentsHook.loadData();
     detailsHook.clearSelection();
     setViewMode('list');
+    setSearchQuery('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   // Handle respondent press
-  const handleRespondentPress = async (respondent: any) => {
+  const handleRespondentPress = async (respondent: Respondent) => {
     await detailsHook.loadRespondentResponses(respondent);
     setViewMode('detail');
   };
@@ -100,95 +106,239 @@ const ResponsesScreen: React.FC = () => {
     setViewMode('list');
   };
 
-  // Extract unique filter values
-  const uniqueRespondentTypes = React.useMemo(() => {
-    const types = new Set<string>();
-    respondentsHook.respondents.forEach(r => {
-      if (r.respondent_type) types.add(r.respondent_type);
-    });
-    return Array.from(types).sort();
-  }, [respondentsHook.respondents]);
+  // ----------- Filtering & search applied to loaded respondents -----------
 
-  const uniqueCommodities = React.useMemo(() => {
-    const commodities = new Set<string>();
-    respondentsHook.respondents.forEach(r => {
-      if (r.commodity) commodities.add(r.commodity);
-    });
-    return Array.from(commodities).sort();
-  }, [respondentsHook.respondents]);
+  const filteredRespondents = useMemo(() => {
+    let data = respondentsHook.respondents;
 
-  const uniqueCountries = React.useMemo(() => {
-    const countries = new Set<string>();
-    respondentsHook.respondents.forEach(r => {
-      if (r.country) countries.add(r.country);
-    });
-    return Array.from(countries).sort();
-  }, [respondentsHook.respondents]);
-
-  // Apply filters to respondents
-  const filteredRespondents = React.useMemo(() => {
-    let filtered = searchHook.filteredRespondents;
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(
+        r =>
+          r.respondent_id?.toLowerCase().includes(q) ||
+          r.created_by_details?.first_name?.toLowerCase().includes(q) ||
+          r.created_by_details?.last_name?.toLowerCase().includes(q) ||
+          r.respondent_type?.toLowerCase().includes(q) ||
+          r.commodity?.toLowerCase().includes(q) ||
+          r.country?.toLowerCase().includes(q)
+      );
+    }
 
     if (selectedFilters.respondent_type) {
-      filtered = filtered.filter(r => r.respondent_type === selectedFilters.respondent_type);
+      data = data.filter(r => r.respondent_type === selectedFilters.respondent_type);
     }
     if (selectedFilters.commodity) {
-      filtered = filtered.filter(r => r.commodity === selectedFilters.commodity);
+      data = data.filter(r => r.commodity === selectedFilters.commodity);
     }
     if (selectedFilters.country) {
-      filtered = filtered.filter(r => r.country === selectedFilters.country);
+      data = data.filter(r => r.country === selectedFilters.country);
     }
-
     if (filterMode === 'mine' && user?.id) {
-      // The user.id from auth store is a string or number, created_by is a number. 
-      // Safely compare them.
-      filtered = filtered.filter(r => String(r.created_by) === String(user.id));
+      data = data.filter(r => String(r.created_by) === String(user.id));
     }
 
-    return filtered;
-  }, [searchHook.filteredRespondents, selectedFilters, filterMode, user?.id]);
+    return data;
+  }, [respondentsHook.respondents, searchQuery, selectedFilters, filterMode, user?.id]);
 
-  // Toggle filter selection
+  // Unique filter values — derived from ALL loaded pages so far
+  const uniqueRespondentTypes = useMemo(() => {
+    const s = new Set<string>();
+    respondentsHook.respondents.forEach(r => { if (r.respondent_type) s.add(r.respondent_type); });
+    return Array.from(s).sort();
+  }, [respondentsHook.respondents]);
+
+  const uniqueCommodities = useMemo(() => {
+    const s = new Set<string>();
+    respondentsHook.respondents.forEach(r => { if (r.commodity) s.add(r.commodity); });
+    return Array.from(s).sort();
+  }, [respondentsHook.respondents]);
+
+  const uniqueCountries = useMemo(() => {
+    const s = new Set<string>();
+    respondentsHook.respondents.forEach(r => { if (r.country) s.add(r.country); });
+    return Array.from(s).sort();
+  }, [respondentsHook.respondents]);
+
   const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
     setSelectedFilters(prev => ({
       ...prev,
       [filterType]: prev[filterType] === value ? undefined : value,
     }));
-    // Close the menu after selection
-    setFilterMenusVisible(prev => ({
-      ...prev,
-      [filterType]: false,
-    }));
+    setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
   };
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSelectedFilters({});
-  };
+  const clearFilters = () => setSelectedFilters({});
 
-  // Toggle menu visibility
   const toggleFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
-    setFilterMenusVisible(prev => ({
-      ...prev,
-      [filterType]: !prev[filterType],
-    }));
+    setFilterMenusVisible(prev => ({ ...prev, [filterType]: !prev[filterType] }));
   };
 
-  // Close menu
   const closeFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
-    setFilterMenusVisible(prev => ({
-      ...prev,
-      [filterType]: false,
-    }));
+    setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
   };
 
-  // Calculate stats
-  const totalResponses = respondentsHook.respondents.reduce(
-    (sum, r) => sum + r.response_count,
-    0
+  // Total responses across loaded pages (local approximation)
+  const totalResponses = useMemo(
+    () => respondentsHook.respondents.reduce((sum, r) => sum + r.response_count, 0),
+    [respondentsHook.respondents]
   );
 
-  // Loading state
+  // ----------- Infinite scroll handlers -----------
+
+  // ----------- Pagination handlers -----------
+
+  const flatListRef = useRef<FlatList<Respondent>>(null);
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (respondentsHook.currentPage > 1) {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [respondentsHook.currentPage]);
+
+  // ----------- FlatList renderers -----------
+
+  const renderTableRow: ListRenderItem<Respondent> = useCallback(
+    ({ item: respondent }) => (
+      <TouchableOpacity
+        onPress={() => handleRespondentPress(respondent)}
+        activeOpacity={0.7}>
+        <View style={styles.tableRow}>
+          {/* Respondent ID */}
+          <View style={styles.colId}>
+            <Text style={styles.cellText} numberOfLines={2}>
+              {respondent.respondent_id}
+            </Text>
+          </View>
+          {/* Submitted By + time */}
+          <View style={[styles.colSubmittedBy, styles.submittedByCell]}>
+            <Text style={styles.cellText} numberOfLines={1}>
+              {respondent.created_by_details?.first_name
+                ? `${respondent.created_by_details.first_name} ${respondent.created_by_details.last_name || ''}`.trim()
+                : 'Anonymous'}
+            </Text>
+            {respondent.created_at ? (
+              <Text style={styles.cellTimestamp} numberOfLines={1}>
+                {new Date(respondent.created_at).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            ) : null}
+          </View>
+          {/* Filters */}
+          <View style={[styles.filtersCell, styles.colFilters]}>
+            {respondent.respondent_type && (
+              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                {respondent.respondent_type}
+              </Chip>
+            )}
+            {respondent.commodity && (
+              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                {respondent.commodity}
+              </Chip>
+            )}
+            {respondent.country && (
+              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
+                {respondent.country}
+              </Chip>
+            )}
+          </View>
+          {/* Response count */}
+          <View style={styles.colResponses}>
+            <Text style={[styles.cellText, styles.cellCountText]}>
+              {respondent.response_count}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const ListHeader = useCallback(
+    () => (
+      <>
+        <StatsCards
+          totalRespondents={respondentsHook.respondents.length}
+          totalResponses={totalResponses}
+          totalCount={respondentsHook.totalCount}
+        />
+
+        <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+          <SegmentedButtons
+            value={filterMode}
+            onValueChange={value => setFilterMode(value as 'all' | 'mine')}
+            buttons={[
+              { value: 'all', label: 'All Responses', icon: 'account-group' },
+              { value: 'mine', label: 'My Responses', icon: 'account' },
+            ]}
+            style={{ marginBottom: 8 }}
+          />
+        </View>
+
+        {/* Table header row */}
+        <View style={styles.tableHeaderRow}>
+          <Text style={[styles.headerText, styles.colId]}>Respondent ID</Text>
+          <Text style={[styles.headerText, styles.colSubmittedBy]}>Submitted By</Text>
+          <Text style={[styles.headerText, styles.colFilters]}>Filters</Text>
+          <Text style={[styles.headerText, styles.colResponses]}>Responses</Text>
+        </View>
+      </>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [respondentsHook.respondents.length, respondentsHook.totalCount, totalResponses, filterMode]
+  );
+
+  const ListFooter = useCallback(
+    () => (
+      <View style={styles.paginationContainer}>
+        <Button
+          mode="outlined"
+          disabled={respondentsHook.currentPage === 1 || respondentsHook.loading}
+          onPress={respondentsHook.prevPage}
+          style={styles.pageButton}
+          icon="chevron-left"
+        >
+          Prev
+        </Button>
+        <Text variant="bodyMedium" style={styles.pageInfo}>
+          Page {respondentsHook.currentPage} of {respondentsHook.totalPages}
+        </Text>
+        <Button
+          mode="outlined"
+          disabled={respondentsHook.currentPage >= respondentsHook.totalPages || respondentsHook.loading}
+          onPress={respondentsHook.nextPage}
+          style={styles.pageButton}
+          contentStyle={{ flexDirection: 'row-reverse' }}
+          icon="chevron-right"
+        >
+          Next
+        </Button>
+      </View>
+    ),
+    [respondentsHook.currentPage, respondentsHook.totalPages, respondentsHook.loading, respondentsHook.prevPage, respondentsHook.nextPage]
+  );
+
+  const ListEmpty = useCallback(
+    () =>
+      !respondentsHook.loading ? (
+        <View style={styles.emptyContainer}>
+          <Text variant="bodyLarge" style={styles.emptyText}>
+            No respondents found
+          </Text>
+        </View>
+      ) : null,
+    [respondentsHook.loading]
+  );
+
+  // ----------- Loading state -----------
+
   if (respondentsHook.loading && respondentsHook.respondents.length === 0) {
     return (
       <ScreenWrapper style={styles.centerContainer}>
@@ -200,53 +350,8 @@ const ResponsesScreen: React.FC = () => {
     );
   }
 
-  // Render List View
-  const renderListView = () => (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={respondentsHook.refreshing}
-          onRefresh={respondentsHook.handleRefresh}
-          tintColor={colors.primary.main}
-          colors={[colors.primary.main]}
-        />
-      }>
-      <StatsCards
-        totalRespondents={respondentsHook.respondents.length}
-        totalResponses={totalResponses}
-      />
+  // ----------- Detail view -----------
 
-      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-        <SegmentedButtons
-          value={filterMode}
-          onValueChange={value => setFilterMode(value as 'all' | 'mine')}
-          buttons={[
-            {
-              value: 'all',
-              label: 'All Responses',
-              icon: 'account-group',
-            },
-            {
-              value: 'mine',
-              label: 'My Responses',
-              icon: 'account',
-            },
-          ]}
-          style={{ marginBottom: 8 }}
-        />
-      </View>
-
-      <RespondentsTable
-        respondents={filteredRespondents}
-        onRespondentPress={handleRespondentPress}
-      />
-    </ScrollView>
-  );
-
-  // Render Detail View
   const renderDetailView = () => {
     if (!detailsHook.selectedRespondent) return null;
 
@@ -295,8 +400,10 @@ const ResponsesScreen: React.FC = () => {
           )}
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
+        <FlatList
+          data={detailsHook.respondentResponses}
+          keyExtractor={item => item.response_id}
+          renderItem={({ item }) => <ResponseCard response={item} />}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -306,14 +413,13 @@ const ResponsesScreen: React.FC = () => {
               tintColor={colors.primary.main}
               colors={[colors.primary.main]}
             />
-          }>
-          {detailsHook.respondentResponses.map((response) => (
-            <ResponseCard key={response.response_id} response={response} />
-          ))}
-        </ScrollView>
+          }
+        />
       </>
     );
   };
+
+  // ----------- Main render -----------
 
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
@@ -342,28 +448,19 @@ const ResponsesScreen: React.FC = () => {
             }
             contentStyle={styles.menuContent}>
             <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                exportHook.handleExportCSV(selectedFilters);
-              }}
+              onPress={() => { setMenuVisible(false); exportHook.handleExportCSV(selectedFilters); }}
               title="Export to CSV"
               leadingIcon="file-delimited"
               titleStyle={styles.menuItemText}
             />
             <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                exportHook.handleExportJSON(selectedFilters);
-              }}
+              onPress={() => { setMenuVisible(false); exportHook.handleExportJSON(selectedFilters); }}
               title="Export to JSON"
               leadingIcon="code-json"
               titleStyle={styles.menuItemText}
             />
             <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                respondentsHook.loadData();
-              }}
+              onPress={() => { setMenuVisible(false); respondentsHook.loadData(); }}
               title="Refresh"
               leadingIcon="refresh"
               titleStyle={styles.menuItemText}
@@ -372,14 +469,14 @@ const ResponsesScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Search Bar (List view only) */}
+      {/* Search & Filters (list view only) */}
       {viewMode === 'list' && (
         <>
           <View style={styles.searchContainer}>
             <Searchbar
               placeholder="Search respondents..."
-              onChangeText={searchHook.handleSearch}
-              value={searchHook.searchQuery}
+              onChangeText={setSearchQuery}
+              value={searchQuery}
               style={styles.searchBar}
               inputStyle={styles.searchInput}
               iconColor={colors.primary.light}
@@ -388,15 +485,12 @@ const ResponsesScreen: React.FC = () => {
                 colors: {
                   onSurface: colors.text.primary,
                   onSurfaceVariant: colors.text.secondary,
-                  elevation: {
-                    level3: 'white',
-                  },
+                  elevation: { level3: 'white' },
                 },
               }}
             />
           </View>
 
-          {/* Filter Dropdowns */}
           <View style={styles.filterContainer}>
             {/* Respondent Type Filter */}
             <Menu
@@ -406,31 +500,21 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('respondent_type')}
-                  style={[
-                    styles.filterButton,
-                    selectedFilters.respondent_type && styles.filterButtonActive
-                  ]}
+                  style={[styles.filterButton, selectedFilters.respondent_type && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
                   Type: {selectedFilters.respondent_type || 'All'}
                 </Button>
               }
               contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('respondent_type', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
+              <Menu.Item onPress={() => toggleFilter('respondent_type', '')} title="All" titleStyle={styles.menuItemText} />
               {uniqueRespondentTypes.map(type => (
                 <Menu.Item
                   key={type}
                   onPress={() => toggleFilter('respondent_type', type)}
                   title={type}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.respondent_type === type && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.respondent_type === type ? "check" : undefined}
+                  titleStyle={[styles.menuItemText, selectedFilters.respondent_type === type && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.respondent_type === type ? 'check' : undefined}
                 />
               ))}
             </Menu>
@@ -443,31 +527,21 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('commodity')}
-                  style={[
-                    styles.filterButton,
-                    selectedFilters.commodity && styles.filterButtonActive
-                  ]}
+                  style={[styles.filterButton, selectedFilters.commodity && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
                   Commodity: {selectedFilters.commodity || 'All'}
                 </Button>
               }
               contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('commodity', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
-              {uniqueCommodities.map(commodity => (
+              <Menu.Item onPress={() => toggleFilter('commodity', '')} title="All" titleStyle={styles.menuItemText} />
+              {uniqueCommodities.map(c => (
                 <Menu.Item
-                  key={commodity}
-                  onPress={() => toggleFilter('commodity', commodity)}
-                  title={commodity}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.commodity === commodity && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.commodity === commodity ? "check" : undefined}
+                  key={c}
+                  onPress={() => toggleFilter('commodity', c)}
+                  title={c}
+                  titleStyle={[styles.menuItemText, selectedFilters.commodity === c && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.commodity === c ? 'check' : undefined}
                 />
               ))}
             </Menu>
@@ -480,36 +554,25 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('country')}
-                  style={[
-                    styles.filterButton,
-                    selectedFilters.country && styles.filterButtonActive
-                  ]}
+                  style={[styles.filterButton, selectedFilters.country && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
                   Country: {selectedFilters.country || 'All'}
                 </Button>
               }
               contentStyle={styles.menuContent}>
-              <Menu.Item
-                onPress={() => toggleFilter('country', '')}
-                title="All"
-                titleStyle={styles.menuItemText}
-              />
-              {uniqueCountries.map(country => (
+              <Menu.Item onPress={() => toggleFilter('country', '')} title="All" titleStyle={styles.menuItemText} />
+              {uniqueCountries.map(c => (
                 <Menu.Item
-                  key={country}
-                  onPress={() => toggleFilter('country', country)}
-                  title={country}
-                  titleStyle={[
-                    styles.menuItemText,
-                    selectedFilters.country === country && styles.menuItemTextSelected
-                  ]}
-                  leadingIcon={selectedFilters.country === country ? "check" : undefined}
+                  key={c}
+                  onPress={() => toggleFilter('country', c)}
+                  title={c}
+                  titleStyle={[styles.menuItemText, selectedFilters.country === c && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.country === c ? 'check' : undefined}
                 />
               ))}
             </Menu>
 
-            {/* Clear Filters Button */}
             {Object.values(selectedFilters).some(v => v) && (
               <Button
                 mode="text"
@@ -526,7 +589,29 @@ const ResponsesScreen: React.FC = () => {
 
       {/* Content */}
       <View style={styles.content}>
-        {viewMode === 'list' ? renderListView() : renderDetailView()}
+        {viewMode === 'list' ? (
+          <FlatList<Respondent>
+            ref={flatListRef}
+            data={filteredRespondents}
+            keyExtractor={item => item.id}
+            renderItem={renderTableRow}
+            ListHeaderComponent={ListHeader}
+            ListFooterComponent={ListFooter}
+            ListEmptyComponent={ListEmpty}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={respondentsHook.refreshing}
+                onRefresh={respondentsHook.handleRefresh}
+                tintColor={colors.primary.main}
+                colors={[colors.primary.main]}
+              />
+            }
+          />
+        ) : (
+          renderDetailView()
+        )}
       </View>
 
       {/* Export Loading Overlay */}
@@ -586,6 +671,10 @@ const styles = StyleSheet.create({
   menuItemText: {
     color: colors.text.primary,
   },
+  menuItemTextSelected: {
+    color: colors.primary.main,
+    fontWeight: '600',
+  },
   searchContainer: {
     padding: 16,
     backgroundColor: colors.background.default,
@@ -606,6 +695,114 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 20,
   },
+  // Table styles (inline — no longer in a separate component)
+  dataTable: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 0,
+  },
+  tableHeader: {
+    backgroundColor: colors.background.subtle,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  headerText: {
+    color: colors.text.primary,
+    fontWeight: 'bold',
+    fontSize: 14,
+    flexShrink: 1,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 52,
+  },
+  cellText: {
+    color: colors.text.primary,
+    fontSize: 14,
+  },
+  cellCountText: {
+    textAlign: 'right',
+  },
+  filtersCell: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  filterChip: {
+    backgroundColor: 'rgba(67, 56, 202, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(67, 56, 202, 0.2)',
+    paddingVertical: 2,
+  },
+  filterChipText: {
+    color: colors.text.secondary,
+    fontSize: 10,
+  },
+  // Load more footer
+  loadMoreContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  loadMoreText: {
+    color: colors.text.secondary,
+  },
+  endOfListText: {
+    textAlign: 'center',
+    color: colors.text.hint,
+    paddingVertical: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyText: {
+    color: colors.text.secondary,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: colors.background.default,
+    flexWrap: 'wrap',
+  },
+  filterButton: {
+    borderColor: colors.border.medium,
+    borderWidth: 1,
+    backgroundColor: 'white',
+    minWidth: 140,
+    flexShrink: 1,
+  },
+  filterButtonActive: {
+    borderColor: colors.primary.main,
+    borderWidth: 2,
+    backgroundColor: colors.primary.faint,
+  },
+  filterButtonLabel: {
+    color: colors.text.primary,
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  clearButton: {
+    marginLeft: 'auto',
+  },
+  clearButtonLabel: {
+    color: colors.status.error,
+    fontSize: 12,
+  },
+  // Detail view styles
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -660,42 +857,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 999,
   },
-  filterContainer: {
+  // Table column flex widths — must match header and row
+  tableHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-    backgroundColor: colors.background.default,
-    flexWrap: 'wrap',
+    backgroundColor: colors.background.subtle,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    marginTop: 8,
   },
-  filterButton: {
+  colId: { flex: 2.5, paddingRight: 4 },
+  colSubmittedBy: { flex: 1.5, paddingRight: 4 },
+  colFilters: { flex: 2, paddingRight: 4 },
+  colResponses: { flex: 0.8, alignItems: 'flex-end' },
+  submittedByCell: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  cellTimestamp: {
+    fontSize: 11,
+    color: colors.text.hint,
+    marginTop: 2,
+  },
+  // Pagination
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 16,
+    paddingBottom: 40,
+  },
+  pageButton: {
+    minWidth: 100,
     borderColor: colors.border.medium,
-    borderWidth: 1,
-    backgroundColor: 'white',
-    minWidth: 140,
-    flexShrink: 1,
   },
-  filterButtonActive: {
-    borderColor: colors.primary.main,
-    borderWidth: 2,
-    backgroundColor: colors.primary.faint,
-  },
-  filterButtonLabel: {
-    color: colors.text.primary,
-    fontSize: 13,
-    flexShrink: 1,
-  },
-  menuItemTextSelected: {
-    color: colors.primary.main,
-    fontWeight: '600',
-  },
-  clearButton: {
-    marginLeft: 'auto',
-  },
-  clearButtonLabel: {
-    color: colors.status.error,
-    fontSize: 12,
+  pageInfo: {
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
 });
 

@@ -619,6 +619,13 @@ class ApiService {
     return await this.get(`/responses/respondents/?project_id=${projectId}&page_size=1000`);
   }
 
+  async getRespondentsPaginated(projectId: string, page: number = 1, pageSize: number = 50) {
+    return await this.get(
+      `/responses/respondents/?project_id=${projectId}&page=${page}&page_size=${pageSize}`
+    );
+  }
+
+
   async createRespondent(data: any) {
     return await this.post('/responses/respondents/', data);
   }
