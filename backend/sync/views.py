@@ -264,7 +264,7 @@ class SyncQueueViewSet(viewsets.ModelViewSet):
             if not project_id or not respondent_data or not responses_list:
                 return {'success': False, 'error': 'Missing required data: projectId, respondentData, or responses'}
 
-            # Create or get respondent
+            # Create or get respondent (start as 'draft' - only mark 'completed' after responses are saved)
             respondent, created = Respondent.objects.get_or_create(
                 respondent_id=respondent_data.get('respondentId'),
                 project_id=project_id,
@@ -274,26 +274,24 @@ class SyncQueueViewSet(viewsets.ModelViewSet):
                     'respondent_type': respondent_data.get('respondentType'),
                     'commodity': ','.join(respondent_data.get('commodities', [])) if respondent_data.get('commodities') else None,
                     'country': respondent_data.get('country'),
-                    'completion_status': 'completed',
+                    'completion_status': 'draft',
                     'created_by': self.request.user
                 }
             )
-
-            if not created:
-                # Update respondent status if it already exists
-                respondent.completion_status = 'completed'
-                respondent.save(update_fields=['completion_status'])
 
             logger.info(f"{'Created' if created else 'Found'} respondent: {respondent.id}")
 
             # Create all responses
             created_responses = []
+            skipped_count = 0
+            failed_count = 0
             for resp_data in responses_list:
                 question_id = resp_data.get('questionId')
                 response_value = resp_data.get('responseValue')
 
                 if not question_id or response_value is None:
                     logger.warning(f"Skipping response with missing questionId or responseValue")
+                    skipped_count += 1
                     continue
 
                 try:
@@ -305,6 +303,7 @@ class SyncQueueViewSet(viewsets.ModelViewSet):
 
                     if existing_response:
                         logger.info(f"Response already exists for question {question_id}, skipping")
+                        skipped_count += 1
                         continue
 
                     # Create new response
@@ -319,13 +318,32 @@ class SyncQueueViewSet(viewsets.ModelViewSet):
 
                 except Exception as e:
                     logger.error(f"Error creating response for question {question_id}: {str(e)}")
+                    failed_count += 1
                     continue
+
+            # Set completion status based on actual results
+            if created_responses:
+                respondent.completion_status = 'completed'
+                respondent.save(update_fields=['completion_status'])
+                logger.info(
+                    f"Respondent {respondent.id}: marked completed with "
+                    f"{len(created_responses)} responses saved, "
+                    f"{skipped_count} skipped, {failed_count} failed"
+                )
+            else:
+                logger.warning(
+                    f"Respondent {respondent.id}: NO responses saved "
+                    f"({skipped_count} skipped, {failed_count} failed), "
+                    f"keeping as draft"
+                )
 
             return {
                 'success': True,
                 'message': f'Created respondent and {len(created_responses)} responses',
                 'respondent_id': str(respondent.id),
-                'responses_created': len(created_responses)
+                'responses_created': len(created_responses),
+                'responses_skipped': skipped_count,
+                'responses_failed': failed_count
             }
 
         except Exception as e:

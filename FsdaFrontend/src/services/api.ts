@@ -688,21 +688,37 @@ class ApiService {
     });
   }
 
-  async exportResponses(projectId: string, format: 'csv' | 'json' = 'csv') {
+  async exportResponses(
+    projectId: string,
+    format: 'csv' | 'json' = 'csv',
+    filters?: {
+      respondent_type?: string;
+      commodity?: string;
+      country?: string;
+    }
+  ) {
+    // Build query params
+    const params = new URLSearchParams({ project_id: projectId });
+    if (filters?.respondent_type) params.append('respondent_type', filters.respondent_type);
+    if (filters?.commodity) params.append('commodity', filters.commodity);
+    if (filters?.country) params.append('country', filters.country);
+
+    const queryString = params.toString();
+
     if (format === 'csv') {
       const response = await this.axiosInstance.get(
-        `/responses/respondents/export_csv/?project_id=${projectId}`,
+        `/responses/respondents/export_csv/?${queryString}`,
         { responseType: 'text' }
       );
       return response.data;
     } else if (format === 'json') {
       const response = await this.axiosInstance.get(
-        `/responses/respondents/export_json/?project_id=${projectId}`,
+        `/responses/respondents/export_json/?${queryString}`,
         { responseType: 'text' }
       );
       return response.data;
     }
-    return await this.get(`/responses/responses/?project_id=${projectId}`);
+    return await this.get(`/responses/responses/?${queryString}`);
   }
 
   async exportBundlePivot(

@@ -76,7 +76,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
 }) => {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Card style={styles.card}>
+      <Card style={styles.card} mode="outlined">
         <Card.Content>
           {/* Respondent ID Section */}
           <Text variant="titleLarge" style={styles.sectionTitle}>
@@ -100,7 +100,7 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
               colors: {
                 primary: colors.primary.main,
                 onSurfaceVariant: colors.text.secondary,
-                outline: 'rgba(100, 200, 255, 0.5)',
+                outline: colors.border.light,
               },
             }}
             right={
@@ -265,10 +265,10 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: 16,
-    backgroundColor: 'rgba(75, 30, 133, 0.15)',
+    backgroundColor: colors.primary.faint,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(75, 30, 133, 0.3)',
+    borderColor: colors.border.light,
   },
   sectionTitle: {
     color: colors.text.primary,
@@ -288,10 +288,10 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.background.paper,
   },
   divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.border.light,
     marginVertical: 24,
   },
   label: {

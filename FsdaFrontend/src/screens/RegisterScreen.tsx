@@ -57,6 +57,7 @@ const RegisterScreen: React.FC = () => {
   const {
     control,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -115,16 +116,54 @@ const RegisterScreen: React.FC = () => {
 
         if (error.response?.data) {
           const data = error.response.data;
+          let handled = false;
+
+          // Map backend errors to form fields
+          if (data.email) {
+            setError('email', { type: 'server', message: data.email[0] });
+            handled = true;
+          }
+          if (data.username) {
+            setError('username', { type: 'server', message: data.username[0] });
+            handled = true;
+          }
+          if (data.password) {
+            setError('password', { type: 'server', message: data.password[0] });
+            handled = true;
+          }
+          if (data.first_name) {
+            setError('firstName', { type: 'server', message: data.first_name[0] });
+            handled = true;
+          }
+          if (data.last_name) {
+            setError('lastName', { type: 'server', message: data.last_name[0] });
+            handled = true;
+          }
+          if (data.institution) {
+            setError('institution', { type: 'server', message: data.institution[0] });
+            handled = true;
+          }
+
+          if (handled) {
+            Alert.alert('Registration Failed', 'Please fix the highlighted errors.');
+            return;
+          }
+
+          // Fallback for non-field errors
           if (typeof data === 'string') {
             errorMessage = data;
-          } else if (data.email) {
-            errorMessage = `Email: ${data.email[0]}`;
-          } else if (data.username) {
-            errorMessage = `Username: ${data.username[0]}`;
-          } else if (data.password) {
-            errorMessage = `Password: ${data.password[0]}`;
           } else if (data.message) {
             errorMessage = data.message;
+          } else if (data.detail) {
+            errorMessage = data.detail;
+          } else if (data.non_field_errors) {
+            errorMessage = data.non_field_errors[0];
+          } else {
+            // Try to find any other error message
+            const keys = Object.keys(data);
+            if (keys.length > 0 && Array.isArray(data[keys[0]])) {
+              errorMessage = `${keys[0]}: ${data[keys[0]][0]}`;
+            }
           }
         } else if (error.message) {
           // Network error or timeout

@@ -14,7 +14,6 @@ interface ProjectSelectorProps {
 
 const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   currentProjectId,
-  currentProjectName,
   onProjectChange,
   iconColor = colors.primary.contrast,
 }) => {
@@ -83,7 +82,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             <Menu.Item
               key={project.id}
               onPress={() => handleProjectSelect(project)}
-              title={project.name}
+              title={`${project.name}${project.membership_status === 'pending' ? ' (Pending)' : ''}`}
               titleStyle={[
                 styles.menuItemTitle,
                 project.id === currentProjectId && styles.activeMenuItem,

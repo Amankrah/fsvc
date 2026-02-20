@@ -10,12 +10,12 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch, Snackbar } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, AppState } from 'react-native';
+import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as PaperTextInput, Button, Switch } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import { showAlert, showError, showInfo } from '../utils/alert';
+import { showAlert, showConfirm, showError, showInfo } from '../utils/alert';
 
 // Custom Hooks
 import { useRespondent, useQuestions, useResponseState } from '../hooks/dataCollection';
@@ -66,11 +66,10 @@ const DataCollectionScreen: React.FC = () => {
   const [showDraftNameDialog, setShowDraftNameDialog] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftsLoadedOffline, setDraftsLoadedOffline] = useState(false);
+  const [enterDirection, setEnterDirection] = useState<'left' | 'right' | null>(null);
 
   // Scroll & navigation feedback
   const scrollViewRef = useRef<ScrollView>(null);
-  const [navSnackVisible, setNavSnackVisible] = useState(false);
-  const [navSnackMessage, setNavSnackMessage] = useState('');
   const prevQuestionIndexRef = useRef<number | null>(null);
 
   // Respondent Hook
@@ -123,15 +122,86 @@ const DataCollectionScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  // Scroll to top and show navigation toast when question changes
+  // --- Auto-Save Recovery & Background Save ---
+
+  // Check for auto-save on mount
+  useEffect(() => {
+    const checkAutoSave = async () => {
+      // Only check if we're starting fresh (not resuming a draft explicitly)
+      if (!resumedDraftDatabaseId) {
+        const savedData = await responses.hasAutoSave();
+        if (savedData) {
+          // Found unsaved progress — ask user with a simple yes/no confirm
+          const wantsResume = await showConfirm(
+            'Unsaved Progress Found',
+            `We found an unfinished survey for this project from ${new Date(savedData.timestamp).toLocaleString()}.\n\n` +
+            `Progress: ${Object.keys(savedData.responses).length} responses.\n\n` +
+            `Would you like to resume where you left off?`,
+            'Resume',
+            'Discard'
+          );
+
+          if (wantsResume) {
+            setLoadingDrafts(true);
+
+            // Restore respondent state
+            respondent.setRespondentId(savedData.respondentId);
+            respondent.setSelectedRespondentType(savedData.respondentType as any);
+            respondent.setSelectedCommodities(savedData.commodities as any);
+            respondent.setSelectedCountry(savedData.country);
+
+            // Load responses
+            responses.loadAutoSave(savedData);
+
+            // Restore pre-existing question IDs if any
+            if (savedData.preExistingResponseQuestionIds) {
+              setPreExistingResponseQuestionIds(new Set(savedData.preExistingResponseQuestionIds));
+            }
+
+            setLoadingDrafts(false);
+            setShowRespondentForm(false);
+
+            // Show confirmation after UI renders
+            setTimeout(() => {
+              showAlert(
+                'Resumed',
+                `Restored ${Object.keys(savedData.responses).length} responses. Jumping to question ${savedData.currentQuestionIndex + 1}.`
+              );
+            }, 500);
+          } else {
+            // User chose Discard
+            await responses.clearAutoSave();
+            showInfo('Progress discarded', 'Starting a fresh survey.');
+          }
+        }
+      }
+    };
+
+    checkAutoSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]); // Run when project changes/loads
+
+  // Listen to AppState to flush save on background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState.match(/inactive|background/)) {
+        // App going to background -> flush immediate save
+        responses.flushAutoSave();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [responses]);
+
+  // Scroll to top when question changes
   useEffect(() => {
     if (prevQuestionIndexRef.current !== null && prevQuestionIndexRef.current !== responses.currentQuestionIndex) {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      setNavSnackMessage(`Question ${responses.currentQuestionIndex + 1} of ${responses.visibleQuestions.length}`);
-      setNavSnackVisible(true);
     }
     prevQuestionIndexRef.current = responses.currentQuestionIndex;
-  }, [responses.currentQuestionIndex, responses.visibleQuestions.length]);
+  }, [responses.currentQuestionIndex]);
 
   // Handle Load Drafts — with offline fallback
   const handleLoadDrafts = async () => {
@@ -634,7 +704,7 @@ const DataCollectionScreen: React.FC = () => {
         </View>
 
         {/* Question Bank Scope Configuration */}
-        <Card style={styles.configCard}>
+        <Card style={styles.configCard} mode="outlined">
           <Card.Content>
             <View style={styles.scopeControl}>
               <View style={styles.scopeTextContainer}>
@@ -768,7 +838,7 @@ const DataCollectionScreen: React.FC = () => {
                       </Text>
                     </View>
                   )}
-                  {drafts.map((draft, index) => (
+                  {drafts.map((draft) => (
                     <Card
                       key={draft.id}
                       style={{
@@ -888,7 +958,7 @@ const DataCollectionScreen: React.FC = () => {
             {projectName}
           </Text>
           <Text variant="bodySmall" style={styles.subtitle}>
-            Respondent: {respondent.respondentId}
+            Respondent: {respondent.respondentId} • Q{responses.currentQuestionIndex + 1}/{responses.visibleQuestions.length}
           </Text>
         </View>
         <View style={{ width: 48 }} />
@@ -900,11 +970,20 @@ const DataCollectionScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
         <SwipeableQuestionView
-          onSwipeLeft={responses.handleNext}
-          onSwipeRight={responses.handlePrevious}
+          key={currentQuestion?.id || 'loading'}
+          onSwipeLeft={() => {
+            setEnterDirection('right');
+            responses.handleNext();
+          }}
+          onSwipeRight={() => {
+            setEnterDirection('left');
+            responses.handlePrevious();
+          }}
           canSwipeLeft={responses.currentQuestionIndex < responses.visibleQuestions.length - 1}
           canSwipeRight={responses.currentQuestionIndex > 0}
           enabled={!responses.submitting}
+          onCheckSwipeLeft={responses.validateCurrentQuestion}
+          enterDirection={enterDirection}
         >
           <ScrollView
             ref={scrollViewRef}
@@ -912,7 +991,7 @@ const DataCollectionScreen: React.FC = () => {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}>
             {currentQuestion ? (
-              <Card style={styles.questionCard}>
+              <Card style={styles.questionCard} mode="outlined">
                 <Card.Content>
                   {/* Follow-up Question Indicator */}
                   {currentQuestion.is_follow_up && (
@@ -1021,16 +1100,7 @@ const DataCollectionScreen: React.FC = () => {
         )}
       </KeyboardAvoidingView>
 
-      {/* Navigation Toast */}
-      <Snackbar
-        visible={navSnackVisible}
-        onDismiss={() => setNavSnackVisible(false)}
-        duration={1500}
-        wrapperStyle={styles.snackbarWrapper}
-        style={styles.snackbar}
-      >
-        {navSnackMessage}
-      </Snackbar>
+
 
       {/* Draft Name Dialog (must be in this view too for question form) */}
       <Portal>
@@ -1239,7 +1309,7 @@ const styles = StyleSheet.create({
   },
   configCard: {
     backgroundColor: colors.primary.faint,
-    borderRadius: 12,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border.light,
     marginBottom: 16,

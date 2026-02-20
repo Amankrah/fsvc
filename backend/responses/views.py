@@ -522,7 +522,11 @@ class RespondentViewSet(BaseModelViewSet):
                 'country'
             ).annotate(
                 total_respondents=Count('id'),
-                completed_respondents_count=Count('id', filter=Q(completion_status='completed'))
+                completed_respondents_count=Count(
+                    'id',
+                    filter=Q(completion_status='completed') & Q(responses__isnull=False),
+                    distinct=True
+                )
             ).order_by('respondent_type', 'commodity', 'country')
 
             # Format results
@@ -625,7 +629,7 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
-        """Export respondents and their responses to CSV"""
+        """Export respondents and their responses to CSV with consolidated columns"""
         try:
             project_id = request.query_params.get('project_id')
             if not project_id:
@@ -633,19 +637,36 @@ class RespondentViewSet(BaseModelViewSet):
                     'error': 'project_id parameter is required'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            # --- 1. FILTER RESPONDENTS (ROWS) ---
+            # Get filter parameters
+            respondent_type = request.query_params.get('respondent_type')
+            commodity = request.query_params.get('commodity')
+            country = request.query_params.get('country')
+
             # Get respondents for the project
             queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
 
+            # Apply filters if provided
+            if respondent_type:
+                queryset = queryset.filter(respondent_type=respondent_type)
+            if commodity:
+                queryset = queryset.filter(commodity=commodity)
+            if country:
+                queryset = queryset.filter(country=country)
+
             if not queryset.exists():
                 return DRFResponse({
-                    'error': 'No respondents found for this project'
+                    'error': 'No matching respondents found for export'
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            # Get all questions for the project
-            from forms.models import Question
-            questions = list(Question.objects.filter(project_id=project_id))
-
-            # Sort by category order first, then by order_index
+            # --- 2. DEFINE COLUMNS (QUESTION BANK ITEMS) ---
+            from forms.models import QuestionBank, Question
+            
+            # Fetch all QuestionBank items for this project to use as the "Master Template" columns
+            # This ensures we have one column per "concept" regardless of how many generated questions exist
+            question_bank_items = list(QuestionBank.objects.filter(project_id=project_id))
+            
+            # Sort QuestionBank items
             CATEGORY_ORDER = [
                 'Sociodemographics',
                 'Environmental LCA',
@@ -657,56 +678,126 @@ class RespondentViewSet(BaseModelViewSet):
                 'Proximity and Value',
             ]
 
-            def get_category_sort_key(question):
+            # Create a mapping of QuestionBank ID -> Min Order Index from Questions
+            # This ensures columns appear in the order they are presented in the form
+            qb_order_map = {}
+            all_questions = Question.objects.filter(project_id=project_id)
+            
+            for q in all_questions:
+                if q.question_bank_source_id:
+                    qb_id = str(q.question_bank_source_id)
+                    current_min = qb_order_map.get(qb_id, 999999)
+                    # Update min order if this question comes earlier
+                    if q.order_index < current_min:
+                        qb_order_map[qb_id] = q.order_index
+
+            def get_qb_sort_key(qb_item):
+                category = qb_item.question_category or ''
+                try:
+                    cat_idx = CATEGORY_ORDER.index(category)
+                except ValueError:
+                    cat_idx = 9999
+                
+                # Secondary sort: order_index from actual questions (or 999999 if not found)
+                # Tertiary sort: created_at as stable fallback
+                order_index = qb_order_map.get(str(qb_item.id), 999999)
+                
+                return (cat_idx, order_index, qb_item.created_at)
+
+            question_bank_items.sort(key=get_qb_sort_key)
+
+            # Create a mapping of QuestionBank ID -> QuestionBank Item
+            qb_columns = {str(qb.id): qb for qb in question_bank_items}
+            
+            # --- 3. IDENTIFY ALL QUESTIONS & MAP TO BANK ---
+            # We need all questions to map responses back to their bank item
+            # Also keep track of "orphaned" questions (handmade, not from bank) to add as extra columns
+            all_questions = Question.objects.filter(project_id=project_id)
+            question_map = {} # Question ID -> QuestionBank ID
+            orphaned_questions = []
+
+            for q in all_questions:
+                if q.question_bank_source_id:
+                    question_map[str(q.id)] = str(q.question_bank_source_id)
+                else:
+                    orphaned_questions.append(q)
+
+            # Sort orphaned questions by category/order
+            def get_q_sort_key(question):
                 category = question.question_category or ''
                 try:
                     return (CATEGORY_ORDER.index(category), question.order_index)
                 except ValueError:
                     return (9999, question.order_index)
+            
+            orphaned_questions.sort(key=get_q_sort_key)
 
-            questions.sort(key=get_category_sort_key)
-
-            # Create CSV
+            # --- 4. GENERATE CSV ---
             output = StringIO()
             writer = csv.writer(output)
 
-            # Write header row
-            headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country']
-            # Add question headers with category prefix
-            for i, q in enumerate(questions):
+            # Build Header Row
+            headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country', 'Completion Status']
+            
+            # Add Question Bank Columns
+            for qb in question_bank_items:
+                category_prefix = f"[{qb.question_category}] " if qb.question_category else ""
+                headers.append(f'{category_prefix}{qb.question_text[:100]}')
+            
+            # Add Orphaned Question Columns (Legacy support)
+            for q in orphaned_questions:
                 category_prefix = f"[{q.question_category}] " if q.question_category else ""
-                headers.append(f'{category_prefix}Q{i+1}: {q.question_text[:100]}')
+                headers.append(f'{category_prefix}[Legacy] {q.question_text[:100]}')
+
             writer.writerow(headers)
 
-            # Write data rows
+            # Build Data Rows
             for respondent in queryset:
                 row = [
                     respondent.respondent_id,
                     respondent.respondent_type or '',
                     respondent.commodity or '',
-                    respondent.country or ''
+                    respondent.country or '',
+                    respondent.completion_status or 'draft'
                 ]
 
-                # Get responses for this respondent
-                responses_dict = {}
+                # Fetch responses
                 responses = Response.objects.filter(
                     respondent=respondent,
                     project_id=project_id
                 ).select_related('question')
 
+                # Create a map of QuestionBank ID -> Response Value
+                # If a respondent somehow has multiple answers for the same bank item (rare edge case),
+                # the last one wins or we could join them. Let's assume one per bank item per respondent.
+                qb_responses = {}
+                orphaned_responses = {}
+
                 for response in responses:
-                    # Skip responses with deleted questions
                     if not response.question:
                         continue
+                    
+                    q_id = str(response.question_id)
                     formatted_value = self.format_response_for_csv(
                         response.response_value,
                         response.question.response_type
                     )
-                    responses_dict[response.question_id] = formatted_value
 
-                # Add response values in question order
-                for question in questions:
-                    row.append(responses_dict.get(question.id, ''))
+                    # Check if this response belongs to a Question Bank item
+                    if q_id in question_map:
+                        qb_id = question_map[q_id]
+                        qb_responses[qb_id] = formatted_value
+                    elif response.question in orphaned_questions:
+                        # It's an orphaned question
+                        orphaned_responses[q_id] = formatted_value
+
+                # 1. Fill Question Bank Columns
+                for qb in question_bank_items:
+                    row.append(qb_responses.get(str(qb.id), ''))
+
+                # 2. Fill Orphaned Columns
+                for q in orphaned_questions:
+                    row.append(orphaned_responses.get(str(q.id), ''))
 
                 writer.writerow(row)
 
@@ -721,6 +812,7 @@ class RespondentViewSet(BaseModelViewSet):
             return response
 
         except Exception as e:
+            logger.exception("Error exporting CSV")
             return DRFResponse({
                 'error': f'Failed to export CSV: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -735,12 +827,26 @@ class RespondentViewSet(BaseModelViewSet):
                     'error': 'project_id parameter is required'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            # --- 1. FILTER RESPONDENTS (ROWS) ---
+            # Get filter parameters
+            respondent_type = request.query_params.get('respondent_type')
+            commodity = request.query_params.get('commodity')
+            country = request.query_params.get('country')
+
             # Get respondents for the project
             queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
 
+            # Apply filters if provided
+            if respondent_type:
+                queryset = queryset.filter(respondent_type=respondent_type)
+            if commodity:
+                queryset = queryset.filter(commodity=commodity)
+            if country:
+                queryset = queryset.filter(country=country)
+
             if not queryset.exists():
                 return DRFResponse({
-                    'error': 'No respondents found for this project'
+                    'error': 'No matching respondents found for export'
                 }, status=status.HTTP_404_NOT_FOUND)
 
             # Get all questions for the project

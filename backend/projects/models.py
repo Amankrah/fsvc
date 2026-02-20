@@ -325,6 +325,12 @@ class ProjectMember(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_memberships')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
 
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('active', 'Active'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+
     # Partner organization affiliation
     partner_organization = models.CharField(
         max_length=255,
@@ -347,7 +353,7 @@ class ProjectMember(models.Model):
         ordering = ['joined_at']
     
     def __str__(self):
-        return f"{self.user.username} - {self.project.name} ({self.role})"
+        return f"{self.user.username} - {self.project.name} ({self.role}) [{self.status}]"
 
     def get_permissions(self):
         """Get fixed permissions for members - all members have the same permissions"""

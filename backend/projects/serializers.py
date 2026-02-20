@@ -93,6 +93,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     team_members_count = serializers.SerializerMethodField()
     team_members = serializers.SerializerMethodField()
     user_permissions = serializers.SerializerMethodField()
+    membership_status = serializers.SerializerMethodField()
     
     class Meta:
         model = Project
@@ -100,7 +101,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'created_by', 'created_by_details',
             'created_at', 'updated_at', 'sync_status', 'cloud_id',
             'settings', 'metadata', 'question_count', 'response_count',
-            'team_members_count', 'team_members', 'user_permissions',
+            'team_members_count', 'team_members', 'user_permissions', 'membership_status',
             'has_partners', 'partner_organizations', 'owner_database_endpoint',
             'targeted_respondents', 'targeted_commodities', 'targeted_countries'
         ]
@@ -206,6 +207,21 @@ class ProjectSerializer(serializers.ModelSerializer):
             return []
         
         return obj.get_user_permissions(request.user)
+
+    def get_membership_status(self, obj):
+        """Get current user's membership status for this project"""
+        request = self.context.get('request')
+        if not request:
+            return None
+        
+        try:
+            member = obj.members.get(user=request.user)
+            return member.status
+        except:
+            # If user is creator, they are active
+            if obj.created_by == request.user:
+                return 'active'
+            return None
 
 
 class ProjectMemberInviteSerializer(serializers.Serializer):

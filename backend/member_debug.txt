@@ -1,0 +1,29 @@
+{
+  "id": "2204eb32-f62f-4ff7-8298-620ac55684a2",
+  "user": "1e60aac4-f756-4c78-8e4c-9a778b30d832",
+  "user_details": {
+    "id": "1e60aac4-f756-4c78-8e4c-9a778b30d832",
+    "email": "invitee_0318dfda@repro.com",
+    "username": "invitee_0318dfda",
+    "role": "researcher",
+    "first_name": "",
+    "last_name": "",
+    "institution": "",
+    "is_active": true
+  },
+  "role": "member",
+  "permissions": [
+    "collect_data",
+    "view_responses",
+    "view_share_link"
+  ],
+  "partner_organization": null,
+  "is_partner": false,
+  "partner_config": null,
+  "accessible_question_sources": [
+    "owner"
+  ],
+  "joined_at": "2026-02-15T23:22:18.821714Z",
+  "invited_by": null,
+  "invited_by_details": null
+}

@@ -114,6 +114,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onPress, onMenuPress
 
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
+              {project.membership_status === 'pending' && (
+                <Chip
+                  mode="flat"
+                  style={[styles.statusChip, { backgroundColor: colors.status.warning + '20', marginRight: 8 }]}
+                  textStyle={{ color: colors.status.warning, fontSize: 11 }}
+                  compact
+                  icon="account-clock"
+                >
+                  PENDING INVITE
+                </Chip>
+              )}
               <Chip
                 mode="flat"
                 style={[styles.statusChip, { backgroundColor: `${getStatusColor()}20` }]}

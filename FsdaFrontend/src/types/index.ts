@@ -102,15 +102,27 @@ export type ProjectPermission =
 
 export interface ProjectMember {
   id: string;
-  username: string;
-  email: string;
+  user: string;
+  user_details: User;
   role: ProjectMemberRole;
   permissions: ProjectPermission[];
   partner_organization?: string;
   is_partner?: boolean;
+  partner_config?: {
+    name: string;
+    contact_email?: string;
+    has_database_endpoint: boolean;
+    has_api_key: boolean;
+  };
   accessible_question_sources?: string[];
   joined_at: string;
-  is_creator: boolean;
+  invited_by?: string;
+  invited_by_details?: User;
+  status?: 'active' | 'pending';
+  // Optional getters for backward compatibility if needed, but better to update usage
+  username?: string;
+  email?: string;
+  is_creator?: boolean;
 }
 
 export interface ProjectMemberDetails {
@@ -253,6 +265,7 @@ export interface Project {
   team_members_count: number;
   team_members?: ProjectMember[];
   user_permissions?: string[];
+  membership_status?: 'active' | 'pending';
   has_partners: boolean;
   partner_organizations: PartnerOrganization[];
   owner_database_endpoint?: string;  // Owner's database endpoint (AWS RDS or API URL)
