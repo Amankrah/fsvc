@@ -1,9 +1,9 @@
 /**
  * useRespondents Hook
- * Manages respondent data fetching and state
+ * Manages respondent data fetching with server-side pagination (infinite scroll)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 
@@ -34,103 +34,86 @@ export interface RespondentFilters {
   country?: string;
 }
 
-export const useRespondents = (projectId: string, filters?: RespondentFilters) => {
+const PAGE_SIZE = 20;
+
+export const useRespondents = (projectId: string, _filters?: RespondentFilters) => {
   const [respondents, setRespondents] = useState<Respondent[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1); // Server uses 1-indexed pages
-  const [pageSize] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const loadRespondents = useCallback(async (pageNum?: number, customFilters?: RespondentFilters) => {
+  const isFetchingRef = useRef(false);
+
+  /**
+   * Fetch a specific page from the backend.
+   * Returns the raw API response so callers can decide how to merge.
+   */
+  const fetchPage = useCallback(
+    async (page: number) => {
+      const data = await apiService.getRespondentsPaginated(projectId, page, PAGE_SIZE);
+      const results: Respondent[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+      const count: number = data.count ?? data.total ?? results.length;
+      const next: string | null = data.next ?? data.links?.next ?? null;
+
+      return { results, count, next };
+    },
+    [projectId]
+  );
+
+  /** Load a specific page */
+  const goToPage = useCallback(async (page: number) => {
+    if (page < 1 || (totalPages > 0 && page > totalPages)) return;
+    if (isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
+    setLoading(true);
+
     try {
-      const currentPage = pageNum || page;
-      const activeFilters = customFilters || filters || {};
-      const data = await apiService.getRespondents(projectId, currentPage, pageSize, activeFilters);
-
-      // Extract paginated data and metadata
-      const respondentList: Respondent[] = Array.isArray(data) ? data : data.results || [];
-      const total = data.total || data.count || respondentList.length;
-      const pages = data.total_pages || Math.ceil(total / pageSize);
-
-      console.log(`📊 Loaded page ${currentPage}: ${respondentList.length} respondents (${total} total, ${pages} pages)`);
-
-      setRespondents(respondentList);
-      setTotalCount(total);
-      setTotalPages(pages);
-
-      return respondentList;
+      const { results, count } = await fetchPage(page);
+      setRespondents(results);
+      setTotalCount(count);
+      setCurrentPage(page);
+      setTotalPages(Math.ceil(count / PAGE_SIZE) || 1);
     } catch (error) {
-      console.error('Error loading respondents:', error);
-      throw error;
-    }
-  }, [projectId, page, pageSize, filters]);
-
-  const loadData = useCallback(async (customFilters?: RespondentFilters) => {
-    try {
-      setLoading(true);
-      setPage(1); // Reset to page 1 when filters change
-      await loadRespondents(1, customFilters);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading page:', error);
       showAlert('Error', 'Failed to load responses');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [loadRespondents]);
+  }, [fetchPage, totalPages]);
 
+  /** Initial load — always loads page 1 */
+  const loadData = useCallback(() => {
+    goToPage(1);
+  }, [goToPage]);
+
+  /** Pull-to-refresh — resets back to page 1 */
   const handleRefresh = useCallback(async () => {
+    if (isFetchingRef.current) return;
     setRefreshing(true);
-    try {
-      await loadRespondents();
-    } catch (error) {
-      // Error already logged
-    } finally {
-      setRefreshing(false);
-    }
-  }, [loadRespondents]);
-
-  const goToPage = useCallback(async (pageNum: number) => {
-    if (pageNum < 1 || pageNum > totalPages) return;
-    setPage(pageNum);
-    setLoading(true);
-    try {
-      await loadRespondents(pageNum);
-    } catch (error) {
-      console.error('Error loading page:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [totalPages, loadRespondents]);
-
-  const nextPage = useCallback(async () => {
-    if (page < totalPages) {
-      await goToPage(page + 1);
-    }
-  }, [page, totalPages, goToPage]);
-
-  const previousPage = useCallback(async () => {
-    if (page > 1) {
-      await goToPage(page - 1);
-    }
-  }, [page, goToPage]);
+    await goToPage(1);
+    setRefreshing(false);
+  }, [goToPage]);
 
   return {
     respondents,
+    totalCount,
     loading,
     refreshing,
+    currentPage,
+    totalPages,
     loadData,
     handleRefresh,
-    // Pagination
-    page,
-    pageSize,
-    totalCount,
-    totalPages,
     goToPage,
-    nextPage,
-    previousPage,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
+    nextPage: () => goToPage(currentPage + 1),
+    prevPage: () => goToPage(currentPage - 1),
   };
 };

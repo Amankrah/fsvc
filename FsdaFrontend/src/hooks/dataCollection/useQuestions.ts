@@ -7,11 +7,10 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
-import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
+import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 import { Question, RespondentType, CommodityType, DynamicQuestionGenerationResult } from '../../types';
-import { offlineProjectCache, offlineQuestionCache, networkMonitor } from '../../services';
+import { offlineQuestionCache, networkMonitor } from '../../services';
 import { getCategorySortIndex } from '../../constants/formBuilder';
 import {
   validateQuestionFilters,
@@ -793,6 +792,16 @@ export const useQuestions = ({
     }
   }, [projectId, selectedRespondentType, selectedCommodities, selectedCountry]);
 
+  /**
+   * Directly inject a pre-fetched set of questions into the hook's state.
+   * Used by the draft resume path so questions are available immediately
+   * before the survey view renders — avoiding the race with the auto-load effect.
+   */
+  const setQuestionsDirectly = useCallback((qs: Question[]) => {
+    setQuestions(qs);
+    setQuestionsGenerated(qs.length > 0);
+  }, []);
+
   return {
     questions,
     generatingQuestions,
@@ -810,5 +819,6 @@ export const useQuestions = ({
     loadMoreQuestions,
     resetQuestions,
     cacheForOffline,
+    setQuestionsDirectly,
   };
 };

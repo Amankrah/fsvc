@@ -11,15 +11,19 @@ import { colors } from '../../constants/theme';
 interface StatsCardsProps {
   totalRespondents: number;
   totalResponses: number;
+  /** True total from the backend (may be larger than loaded respondents) */
+  totalCount?: number;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ totalRespondents, totalResponses }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({ totalRespondents, totalResponses, totalCount }) => {
+  const displayCount = totalCount ?? totalRespondents;
+
   return (
     <View style={styles.container}>
       <Card style={styles.statCard}>
         <Card.Content style={styles.statContent}>
           <Text variant="headlineMedium" style={styles.statNumber}>
-            {totalRespondents}
+            {displayCount}
           </Text>
           <Text variant="bodyMedium" style={styles.statLabel}>
             Total Respondents
