@@ -24,19 +24,22 @@ export const showAlert = (
   if (Platform.OS === 'web') {
     // Web implementation using window.confirm/alert
     if (buttons && buttons.length > 1) {
-      // Confirmation dialog
+      // Confirmation dialog.
+      // window.confirm: OK = positive action (LAST button), Cancel = destructive/cancel action.
       const fullMessage = message ? `${title}\n\n${message}` : title;
       const confirmed = window.confirm(fullMessage);
 
       if (confirmed) {
-        // Find the non-cancel button (usually the destructive or default button)
-        const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+        // OK clicked → run the LAST button (the positive/resume/confirm action)
+        const confirmButton = buttons[buttons.length - 1];
         if (confirmButton?.onPress) {
           confirmButton.onPress();
         }
       } else {
-        // Find the cancel button
-        const cancelButton = buttons.find(btn => btn.style === 'cancel');
+        // Cancel clicked → run the cancel or destructive button
+        const cancelButton = buttons.find(
+          btn => btn.style === 'cancel' || btn.style === 'destructive'
+        );
         if (cancelButton?.onPress) {
           cancelButton.onPress();
         }

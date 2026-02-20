@@ -131,10 +131,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(67, 56, 202, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(67, 56, 202, 0.2)',
-    height: 24,
+    paddingVertical: 2,
   },
   filterChipText: {
     color: colors.text.secondary,
-    fontSize: 9,
+    fontSize: 10,
   },
 });

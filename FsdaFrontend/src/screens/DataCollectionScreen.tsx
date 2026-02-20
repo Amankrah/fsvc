@@ -15,7 +15,7 @@ import { Text, Card, ActivityIndicator, IconButton, Portal, Dialog, TextInput as
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import { showAlert, showError, showInfo } from '../utils/alert';
+import { showAlert, showConfirm, showError, showInfo } from '../utils/alert';
 
 // Custom Hooks
 import { useRespondent, useQuestions, useResponseState } from '../hooks/dataCollection';
@@ -131,55 +131,48 @@ const DataCollectionScreen: React.FC = () => {
       if (!resumedDraftDatabaseId) {
         const savedData = await responses.hasAutoSave();
         if (savedData) {
-          // Found unsaved progress
-          showAlert(
+          // Found unsaved progress — ask user with a simple yes/no confirm
+          const wantsResume = await showConfirm(
             'Unsaved Progress Found',
-            `We found an unfinished survey for this project form ${new Date(savedData.timestamp).toLocaleString()}.\n\n` +
+            `We found an unfinished survey for this project from ${new Date(savedData.timestamp).toLocaleString()}.\n\n` +
             `Progress: ${Object.keys(savedData.responses).length} responses.\n\n` +
             `Would you like to resume where you left off?`,
-            [
-              {
-                text: 'Discard',
-                style: 'destructive',
-                onPress: async () => {
-                  await responses.clearAutoSave();
-                  showInfo('Progress discarded', 'Starting a fresh survey.');
-                }
-              },
-              {
-                text: 'Resume',
-                onPress: () => {
-                  setLoadingDrafts(true); // Re-use loading state
-
-                  // Resume the state
-                  respondent.setRespondentId(savedData.respondentId);
-                  respondent.setSelectedRespondentType(savedData.respondentType as any);
-                  respondent.setSelectedCommodities(savedData.commodities as any);
-                  respondent.setSelectedCountry(savedData.country);
-
-                  // Load responses
-                  responses.loadAutoSave(savedData);
-
-                  // restore pre-existing question IDs if any
-                  if (savedData.preExistingResponseQuestionIds) {
-                    setPreExistingResponseQuestionIds(new Set(savedData.preExistingResponseQuestionIds));
-                  }
-
-                  // Clean up loading state
-                  setLoadingDrafts(false);
-                  setShowRespondentForm(false);
-
-                  // Show confirmation
-                  setTimeout(() => {
-                    showAlert(
-                      'Resumed',
-                      `restored ${Object.keys(savedData.responses).length} responses. Jumping to question ${savedData.currentQuestionIndex + 1}.`
-                    );
-                  }, 500);
-                }
-              }
-            ]
+            'Resume',
+            'Discard'
           );
+
+          if (wantsResume) {
+            setLoadingDrafts(true);
+
+            // Restore respondent state
+            respondent.setRespondentId(savedData.respondentId);
+            respondent.setSelectedRespondentType(savedData.respondentType as any);
+            respondent.setSelectedCommodities(savedData.commodities as any);
+            respondent.setSelectedCountry(savedData.country);
+
+            // Load responses
+            responses.loadAutoSave(savedData);
+
+            // Restore pre-existing question IDs if any
+            if (savedData.preExistingResponseQuestionIds) {
+              setPreExistingResponseQuestionIds(new Set(savedData.preExistingResponseQuestionIds));
+            }
+
+            setLoadingDrafts(false);
+            setShowRespondentForm(false);
+
+            // Show confirmation after UI renders
+            setTimeout(() => {
+              showAlert(
+                'Resumed',
+                `Restored ${Object.keys(savedData.responses).length} responses. Jumping to question ${savedData.currentQuestionIndex + 1}.`
+              );
+            }, 500);
+          } else {
+            // User chose Discard
+            await responses.clearAutoSave();
+            showInfo('Progress discarded', 'Starting a fresh survey.');
+          }
         }
       }
     };
