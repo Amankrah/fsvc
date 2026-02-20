@@ -259,32 +259,40 @@ def get_default_response_type():
 
 class Respondent(models.Model):
     """Model to track individuals who are answering questions"""
-    # Respondent type choices (aligned with QuestionBank.RESPONDENT_CHOICES)
+    # Respondent type choices (MUST match QuestionBank.RESPONDENT_CHOICES in forms/models.py)
     RESPONDENT_CHOICES = [
         ('input_suppliers', 'Input Suppliers'),
         ('farmers', 'Farmers'),
+        ('farmers_in', 'Farmers In'),
+        ('farmers_out', 'Farmers Out'),
         ('aggregators_lbcs', 'Aggregators/LBCs'),
         ('processors', 'Processors'),
         ('processors_eu', 'Processors EU'),
+        ('traders', 'Traders'),
         ('retailers_food_vendors', 'Retailers/Food Vendors'),
         ('retailers_food_vendors_eu', 'Retailers/Food Vendors EU'),
         ('local_consumers', 'Local Consumers'),
+        ('consumers_in', 'Consumers In'),
+        ('consumers_out', 'Consumers Out'),
         ('consumers_eu_prolific', 'Consumers EU (Prolific)'),
         ('client_business_eu_prolific', 'Client/Business EU (Prolific)'),
         ('government', 'Government'),
+        ('policymakers', 'Policymakers'),
         ('ngos', 'NGOs'),
         ('certification_schemes', 'Certification Schemes'),
         ('coop', 'COOP'),
         ('chief', 'Chief'),
     ]
     
-    # Commodity choices (aligned with QuestionBank.COMMODITY_CHOICES)
+    # Commodity choices (MUST match QuestionBank.COMMODITY_CHOICES in forms/models.py)
     COMMODITY_CHOICES = [
         ('cocoa', 'Cocoa'),
         ('maize', 'Maize'),
         ('palm_oil', 'Palm Oil'),
         ('groundnut', 'Groundnut'),
         ('honey', 'Honey'),
+        ('fish', 'Fish'),
+        ('vegetables', 'Vegetables'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
