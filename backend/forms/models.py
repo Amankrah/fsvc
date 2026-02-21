@@ -703,7 +703,7 @@ class Question(models.Model):
         indexes = [
             models.Index(
                 fields=['project', 'assigned_respondent_type', 'assigned_commodity', 'assigned_country'],
-                name='forms_question_respondent_filter_idx',
+                name='forms_q_resp_filter_idx',
             ),
         ]
 
