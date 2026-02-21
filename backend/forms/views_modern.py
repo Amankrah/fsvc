@@ -13,8 +13,8 @@ import json
 
 from .models import Question, QuestionBank, DynamicQuestionSession
 from .serializers import (
-    QuestionSerializer, QuestionBankSerializer, DynamicQuestionSessionSerializer,
-    QuestionBankSearchSerializer, GenerateDynamicQuestionsSerializer
+    QuestionSerializer, QuestionSerializerLight, QuestionBankSerializer,
+    DynamicQuestionSessionSerializer, QuestionBankSearchSerializer, GenerateDynamicQuestionsSerializer
 )
 from .validators import (
     validate_question_order,
@@ -1248,20 +1248,13 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 )
                 return Response(validation_result, status=status.HTTP_400_BAD_REQUEST)
 
-            # Optimized queryset: direct filter + select_related to avoid N+1 and heavy get_queryset
-            # (access already validated via project.can_user_access above)
+            # Optimized queryset: direct filter, no heavy joins (light serializer needs no nested FKs)
             queryset = (
                 Question.objects.filter(
                     project=project,
                     assigned_respondent_type=assigned_respondent_type,
                     assigned_commodity=assigned_commodity,
                     assigned_country=assigned_country,
-                )
-                .select_related(
-                    'project',
-                    'question_bank_source',
-                    'question_bank_source__project',
-                    'question_bank_source__created_by_user',
                 )
                 .annotate(
                     category_priority=Case(
@@ -1281,8 +1274,8 @@ class ModernQuestionViewSet(BaseModelViewSet):
             )
             questions = list(queryset)
 
-            # Serialize questions
-            serializer = QuestionSerializer(questions, many=True)
+            # Light serializer: no project_details / question_bank_source_details (~10–20x smaller payload)
+            serializer = QuestionSerializerLight(questions, many=True)
 
             logger.info(
                 f"Filtered questions for project {project_id}: "

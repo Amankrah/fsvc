@@ -231,7 +231,8 @@ class ApiService {
       params.append('page_size', String(pagination.page_size));
     }
 
-    return await this.get(`/forms/questions/get_for_respondent/?${params.toString()}`);
+    // Large payload (100+ questions with full serializer); allow 60s on slow networks
+    return await this.get(`/forms/questions/get_for_respondent/?${params.toString()}`, { timeout: 60000 });
   }
 
   async getQuestion(id: string) {
@@ -354,7 +355,8 @@ class ApiService {
     replace_existing?: boolean;
     notes?: string;
   }) {
-    return await this.post('/forms/questions/generate_dynamic_questions/', data);
+    // Generation can take 20s+ and returns large payload; allow 90s
+    return await this.post('/forms/questions/generate_dynamic_questions/', data, { timeout: 90000 });
   }
 
   // Get available options from QuestionBank for a project

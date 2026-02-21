@@ -137,6 +137,32 @@ class QuestionBankSerializer(serializers.ModelSerializer):
         return data
 
 
+class QuestionSerializerLight(serializers.ModelSerializer):
+    """
+    Minimal serializer for get_for_respondent / data collection.
+    Omits project_details and question_bank_source_details to keep payload small
+    (176 questions was ~900KB; with this, typically 10–20x smaller).
+    """
+    is_dynamically_generated = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Question
+        fields = [
+            'id', 'project', 'question_text', 'response_type',
+            'is_required', 'allow_multiple', 'options', 'validation_rules', 'order_index',
+            'created_at', 'sync_status', 'assigned_respondent_type', 'assigned_commodity',
+            'assigned_country', 'is_dynamically_generated',
+            'question_category', 'data_source', 'research_partner_name',
+            'research_partner_contact', 'work_package',
+            'section_header', 'section_preamble',
+            'is_follow_up', 'conditional_logic',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def get_is_dynamically_generated(self, obj):
+        return obj.question_bank_source_id is not None
+
+
 class QuestionSerializer(serializers.ModelSerializer):
     project_details = ProjectSerializer(source='project', read_only=True)
     question_bank_source_details = QuestionBankSerializer(source='question_bank_source', read_only=True)
