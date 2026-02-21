@@ -700,6 +700,12 @@ class Question(models.Model):
         # Sociodemographics questions appear first (handled in ViewSet get_queryset)
         # Removed unique_together constraint to allow flexible reordering
         # Questions are uniquely identified by their UUID primary key
+        indexes = [
+            models.Index(
+                fields=['project', 'assigned_respondent_type', 'assigned_commodity', 'assigned_country'],
+                name='forms_question_respondent_filter_idx',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.question_text[:50]}..."

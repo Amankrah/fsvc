@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.db import transaction, models
-from django.db.models import Prefetch, Q, Count, Max, F
+from django.db.models import Prefetch, Q, Count, Max, F, Case, When, Value, IntegerField
 from django.utils import timezone
 from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
@@ -50,8 +50,6 @@ class ModernQuestionViewSet(BaseModelViewSet):
     
     def get_queryset(self):
         """Optimized queryset with prefetching and user filtering"""
-        from django.db.models import Case, When, Value, IntegerField
-
         queryset = Question.objects.select_related('project').prefetch_related('project__members')
 
         # STRICT FILTERING: Only include questions with ALL 3 required filters
@@ -1250,15 +1248,37 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 )
                 return Response(validation_result, status=status.HTTP_400_BAD_REQUEST)
 
-            # Start with base queryset and apply ALL filters (all 3 are mandatory)
-            queryset = self.get_queryset().filter(
-                project=project,
-                assigned_respondent_type=assigned_respondent_type,
-                assigned_commodity=assigned_commodity,
-                assigned_country=assigned_country
+            # Optimized queryset: direct filter + select_related to avoid N+1 and heavy get_queryset
+            # (access already validated via project.can_user_access above)
+            queryset = (
+                Question.objects.filter(
+                    project=project,
+                    assigned_respondent_type=assigned_respondent_type,
+                    assigned_commodity=assigned_commodity,
+                    assigned_country=assigned_country,
+                )
+                .select_related(
+                    'project',
+                    'question_bank_source',
+                    'question_bank_source__project',
+                    'question_bank_source__created_by_user',
+                )
+                .annotate(
+                    category_priority=Case(
+                        When(question_category__iexact='Sociodemographics', then=Value(0)),
+                        When(question_category__iexact='Environmental LCA', then=Value(1)),
+                        When(question_category__iexact='Social LCA', then=Value(2)),
+                        When(question_category__iexact='Vulnerability', then=Value(3)),
+                        When(question_category__iexact='Fairness', then=Value(4)),
+                        When(question_category__iexact='Solutions', then=Value(5)),
+                        When(question_category__iexact='Informations', then=Value(6)),
+                        When(question_category__iexact='Proximity and Value', then=Value(7)),
+                        default=Value(9999),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by('category_priority', 'order_index', 'created_at')
             )
-
-            # Get questions with category sorting already applied by get_queryset()
             questions = list(queryset)
 
             # Serialize questions
