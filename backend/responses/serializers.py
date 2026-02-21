@@ -73,19 +73,33 @@ class RespondentSerializer(serializers.ModelSerializer):
         return value
 
 class ResponseLightSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for listing responses - includes only essential data"""
-    question_text = serializers.CharField(source='question.question_text', read_only=True)
-    question_type = serializers.CharField(source='question.question_type', read_only=True)
-    collected_by_name = serializers.CharField(source='collected_by.username', read_only=True)
+    """
+    Lightweight serializer for listing responses (list + respondent responses).
+    No project_details, question_details, respondent_details - keeps payload small.
+    """
+    question_text = serializers.SerializerMethodField()
+    question_type = serializers.SerializerMethodField()
+    collected_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Response
         fields = [
-            'response_id', 'question', 'question_text', 'question_type',
-            'response_value', 'collected_at', 'collected_by_name',
-            'is_validated', 'sync_status', 'database_routing_status'
+            'response_id', 'project', 'question', 'respondent',
+            'question_text', 'question_type', 'response_value', 'response_metadata',
+            'collected_at', 'collected_by', 'collected_by_name',
+            'question_category', 'question_data_source', 'sync_status',
+            'is_validated', 'database_routing_status',
         ]
         read_only_fields = ['response_id', 'collected_at']
+
+    def get_question_text(self, obj):
+        return obj.question.question_text if obj.question else None
+
+    def get_question_type(self, obj):
+        return obj.question.response_type if obj.question else None
+
+    def get_collected_by_name(self, obj):
+        return obj.collected_by.username if obj.collected_by else None
 
 class ResponseSerializer(serializers.ModelSerializer):
     """Updated serializer for the restructured Response model with QuestionBank alignment"""

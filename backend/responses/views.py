@@ -7,7 +7,7 @@ from django.utils import timezone
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import ResponseFilter
 from .models import Response, Respondent
-from .serializers import ResponseSerializer, RespondentSerializer
+from .serializers import ResponseSerializer, ResponseLightSerializer, RespondentSerializer
 from .database_router import get_database_router
 import csv
 import json
@@ -25,6 +25,12 @@ class ResponseViewSet(BaseModelViewSet):
     search_fields = ['response_value', 'respondent_id', 'question__question_text']
     ordering_fields = ['collected_at', 'respondent_id']
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        """Use light serializer for list to avoid huge payloads (no project/question/respondent details)."""
+        if self.action == 'list':
+            return ResponseLightSerializer
+        return ResponseSerializer
 
     def get_queryset(self):
         """
@@ -52,6 +58,10 @@ class ResponseViewSet(BaseModelViewSet):
             queryset = queryset.filter(question_id=question_id)
         if respondent_id is not None:
             queryset = queryset.filter(respondent_id=respondent_id)
+
+        # For list action, select_related to avoid N+1 when using ResponseLightSerializer
+        if self.action == 'list':
+            queryset = queryset.select_related('question', 'collected_by', 'respondent')
 
         return queryset
 
