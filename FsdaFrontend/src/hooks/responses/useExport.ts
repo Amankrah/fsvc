@@ -1,6 +1,6 @@
 /**
  * useExport Hook
- * Handles CSV and JSON export operations
+ * Handles CSV, JSON, and Excel export operations
  */
 
 import { useState, useCallback } from 'react';
@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
 import { showAlert } from '../../utils/alert';
 import apiService from '../../services/api';
 
-type ExportFormat = 'csv' | 'json';
+type ExportFormat = 'csv' | 'json' | 'xlsx';
 
 export const useExport = (projectId: string, projectName: string) => {
   const [exporting, setExporting] = useState(false);
@@ -22,14 +22,29 @@ export const useExport = (projectId: string, projectName: string) => {
 
         // For web, trigger download
         if (Platform.OS === 'web') {
-          const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
-          const blob = new Blob([data], { type: mimeType });
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${projectName}_responses_${new Date().toISOString().split('T')[0]}.${format}`;
-          link.click();
-          window.URL.revokeObjectURL(url);
+          if (format === 'xlsx') {
+            // xlsx already returns a Blob from axios responseType: 'blob'
+            const blob = data instanceof Blob
+              ? data
+              : new Blob([data], {
+                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${projectName}_responses_${new Date().toISOString().split('T')[0]}.xlsx`;
+            link.click();
+            window.URL.revokeObjectURL(url);
+          } else {
+            const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+            const blob = new Blob([data], { type: mimeType });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${projectName}_responses_${new Date().toISOString().split('T')[0]}.${format}`;
+            link.click();
+            window.URL.revokeObjectURL(url);
+          }
           showAlert('Success', `Responses exported to ${format.toUpperCase()} successfully`);
         } else {
           // For mobile, show message
@@ -47,10 +62,12 @@ export const useExport = (projectId: string, projectName: string) => {
 
   const handleExportCSV = useCallback((filters?: any) => exportData('csv', filters), [exportData]);
   const handleExportJSON = useCallback((filters?: any) => exportData('json', filters), [exportData]);
+  const handleExportExcel = useCallback((filters?: any) => exportData('xlsx', filters), [exportData]);
 
   return {
     exporting,
     handleExportCSV,
     handleExportJSON,
+    handleExportExcel,
   };
 };
