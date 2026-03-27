@@ -31,6 +31,7 @@ import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 
 // Services
 import apiService from '../services/api';
+import type { CachedDraft } from '../services/offlineDraftCache';
 
 // Constants
 import { getCategorySortIndex } from '../constants/formBuilder';
@@ -203,30 +204,30 @@ const DataCollectionScreen: React.FC = () => {
     prevQuestionIndexRef.current = responses.currentQuestionIndex;
   }, [responses.currentQuestionIndex]);
 
-  // Handle Load Drafts — with offline fallback
+  // Handle Load Drafts — server first, then merge in local-only drafts so user always sees their saved drafts
   const handleLoadDrafts = async () => {
     try {
       setLoadingDrafts(true);
       setDraftsLoadedOffline(false);
       console.log(`Loading drafts for project: ${projectId}`);
 
+      let serverDrafts: any[] = [];
+
       try {
         const result = await apiService.getDraftResponses(projectId);
         console.log(`Received ${result.count || 0} drafts from backend:`, result);
+        serverDrafts = result.drafts || [];
 
-        // Log each draft's status
-        if (result.drafts && result.drafts.length > 0) {
-          result.drafts.forEach((draft: any, index: number) => {
+        if (serverDrafts.length > 0) {
+          serverDrafts.forEach((draft: any, index: number) => {
             console.log(`Draft ${index + 1}: ID=${draft.id}, Status=${draft.completion_status}, Name=${draft.draft_name || '(none)'}, Respondent=${draft.respondent_id}`);
           });
         }
 
-        setDrafts(result.drafts || []);
-
         // Sync server drafts to local cache for offline access
         try {
           const { offlineDraftCache } = require('../services/offlineDraftCache');
-          await offlineDraftCache.syncDraftsFromServer(projectId, (result.drafts || []).map((d: any) => ({
+          await offlineDraftCache.syncDraftsFromServer(projectId, serverDrafts.map((d: any) => ({
             id: d.id,
             respondent_id: d.respondent_id,
             draft_name: d.draft_name || '',
@@ -244,19 +245,66 @@ const DataCollectionScreen: React.FC = () => {
         }
       } catch (apiError: any) {
         console.warn('API call failed, trying offline cache:', apiError.message);
-        // Fallback to offline cache
+        // When offline or API fails, use only local cache
         try {
           const { offlineDraftCache } = require('../services/offlineDraftCache');
           const cachedDrafts = await offlineDraftCache.getCachedDrafts(projectId);
-          setDrafts(cachedDrafts);
+          const merged = cachedDrafts.map((d: CachedDraft) => ({
+            id: d.id,
+            respondent_id: d.respondent_id,
+            draft_name: d.draft_name || '',
+            respondent_type: d.respondent_type,
+            commodity: d.commodity,
+            country: d.country,
+            completion_status: d.completion_status,
+            created_at: d.created_at,
+            last_response_at: d.last_response_at,
+            response_count: d.responses?.length ?? 0,
+            is_offline: d.is_offline ?? true,
+            responses: d.responses,
+          }));
+          setDrafts(merged);
           setDraftsLoadedOffline(true);
-          console.log(`Loaded ${cachedDrafts.length} drafts from offline cache`);
+          console.log(`Loaded ${merged.length} drafts from offline cache`);
+          setShowDraftsDialog(true);
         } catch (cacheErr) {
           console.error('Offline cache also failed:', cacheErr);
           showAlert('Error', 'Failed to load draft responses. No cached drafts available.');
+        } finally {
           setLoadingDrafts(false);
-          return;
         }
+        return;
+      }
+
+      // Merge: show server drafts + any local-only drafts (saved on device but not yet on server)
+      try {
+        const { offlineDraftCache } = require('../services/offlineDraftCache');
+        const cachedDrafts = await offlineDraftCache.getCachedDrafts(projectId);
+        const serverIds = new Set(serverDrafts.map((d: any) => d.id));
+        const localOnly = cachedDrafts.filter((d: CachedDraft) => !serverIds.has(d.id) || d.is_offline);
+        const localOnlyForList = localOnly.map((d: CachedDraft) => ({
+          id: d.id,
+          respondent_id: d.respondent_id,
+          draft_name: d.draft_name || '',
+          respondent_type: d.respondent_type,
+          commodity: d.commodity,
+          country: d.country,
+          completion_status: d.completion_status,
+          created_at: d.created_at,
+          last_response_at: d.last_response_at,
+          response_count: d.responses?.length ?? 0,
+          is_offline: true,
+          responses: d.responses,
+        }));
+        const merged = [...serverDrafts, ...localOnlyForList];
+        if (localOnlyForList.length > 0) {
+          setDraftsLoadedOffline(true);
+          console.log(`Merged ${serverDrafts.length} server + ${localOnlyForList.length} local-only drafts`);
+        }
+        setDrafts(merged);
+      } catch (cacheErr) {
+        console.warn('Could not merge local drafts:', cacheErr);
+        setDrafts(serverDrafts);
       }
 
       setShowDraftsDialog(true);
