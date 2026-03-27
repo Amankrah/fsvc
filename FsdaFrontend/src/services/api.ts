@@ -699,7 +699,7 @@ class ApiService {
 
   async exportResponses(
     projectId: string,
-    format: 'csv' | 'json' = 'csv',
+    format: 'csv' | 'json' | 'xlsx' = 'csv',
     filters?: {
       respondent_type?: string;
       commodity?: string;
@@ -718,6 +718,12 @@ class ApiService {
       const response = await this.axiosInstance.get(
         `/responses/respondents/export_csv/?${queryString}`,
         { responseType: 'text' }
+      );
+      return response.data;
+    } else if (format === 'xlsx') {
+      const response = await this.axiosInstance.get(
+        `/responses/respondents/export_xlsx/?${queryString}`,
+        { responseType: 'blob' }
       );
       return response.data;
     } else if (format === 'json') {

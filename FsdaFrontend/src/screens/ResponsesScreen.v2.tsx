@@ -448,6 +448,12 @@ const ResponsesScreen: React.FC = () => {
             }
             contentStyle={styles.menuContent}>
             <Menu.Item
+              onPress={() => { setMenuVisible(false); exportHook.handleExportExcel(selectedFilters); }}
+              title="Export to Excel"
+              leadingIcon="file-excel"
+              titleStyle={styles.menuItemText}
+            />
+            <Menu.Item
               onPress={() => { setMenuVisible(false); exportHook.handleExportCSV(selectedFilters); }}
               title="Export to CSV"
               leadingIcon="file-delimited"

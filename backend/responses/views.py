@@ -671,10 +671,32 @@ class RespondentViewSet(BaseModelViewSet):
 
             # --- 2. DEFINE COLUMNS (QUESTION BANK ITEMS) ---
             from forms.models import QuestionBank, Question
+            from django.db.models import Prefetch
+            from django.http import StreamingHttpResponse
             
-            # Fetch all QuestionBank items for this project to use as the "Master Template" columns
-            # This ensures we have one column per "concept" regardless of how many generated questions exist
-            question_bank_items = list(QuestionBank.objects.filter(project_id=project_id))
+            # Fetch only questions that match the profile filters to prevent blank columns
+            all_questions_qs = Question.objects.filter(project_id=project_id)
+            if respondent_type:
+                all_questions_qs = all_questions_qs.filter(assigned_respondent_type=respondent_type)
+            if commodity:
+                all_questions_qs = all_questions_qs.filter(assigned_commodity=commodity)
+            if country:
+                all_questions_qs = all_questions_qs.filter(assigned_country=country)
+                
+            all_questions = list(all_questions_qs)
+            
+            # Create a mapping of QuestionBank ID -> Min Order Index from Questions
+            qb_order_map = {}
+            for q in all_questions:
+                if q.question_bank_source_id:
+                    qb_id = str(q.question_bank_source_id)
+                    current_min = qb_order_map.get(qb_id, 999999)
+                    if q.order_index < current_min:
+                        qb_order_map[qb_id] = q.order_index
+                        
+            # Fetch only the targeted QuestionBank items
+            included_qb_ids = list(qb_order_map.keys())
+            question_bank_items = list(QuestionBank.objects.filter(id__in=included_qb_ids))
             
             # Sort QuestionBank items
             CATEGORY_ORDER = [
@@ -688,19 +710,6 @@ class RespondentViewSet(BaseModelViewSet):
                 'Proximity and Value',
             ]
 
-            # Create a mapping of QuestionBank ID -> Min Order Index from Questions
-            # This ensures columns appear in the order they are presented in the form
-            qb_order_map = {}
-            all_questions = Question.objects.filter(project_id=project_id)
-            
-            for q in all_questions:
-                if q.question_bank_source_id:
-                    qb_id = str(q.question_bank_source_id)
-                    current_min = qb_order_map.get(qb_id, 999999)
-                    # Update min order if this question comes earlier
-                    if q.order_index < current_min:
-                        qb_order_map[qb_id] = q.order_index
-
             def get_qb_sort_key(qb_item):
                 category = qb_item.question_category or ''
                 try:
@@ -709,20 +718,14 @@ class RespondentViewSet(BaseModelViewSet):
                     cat_idx = 9999
                 
                 # Secondary sort: order_index from actual questions (or 999999 if not found)
-                # Tertiary sort: created_at as stable fallback
+                # Matches frontend DataCollectionScreen sorting: (category_index, order_index)
                 order_index = qb_order_map.get(str(qb_item.id), 999999)
                 
-                return (cat_idx, order_index, qb_item.created_at)
+                return (cat_idx, order_index)
 
             question_bank_items.sort(key=get_qb_sort_key)
 
-            # Create a mapping of QuestionBank ID -> QuestionBank Item
-            qb_columns = {str(qb.id): qb for qb in question_bank_items}
-            
             # --- 3. IDENTIFY ALL QUESTIONS & MAP TO BANK ---
-            # We need all questions to map responses back to their bank item
-            # Also keep track of "orphaned" questions (handmade, not from bank) to add as extra columns
-            all_questions = Question.objects.filter(project_id=project_id)
             question_map = {} # Question ID -> QuestionBank ID
             orphaned_questions = []
 
@@ -742,80 +745,93 @@ class RespondentViewSet(BaseModelViewSet):
             
             orphaned_questions.sort(key=get_q_sort_key)
 
-            # --- 4. GENERATE CSV ---
-            output = StringIO()
-            writer = csv.writer(output)
-
-            # Build Header Row
-            headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country', 'Completion Status']
-            
-            # Add Question Bank Columns
-            for qb in question_bank_items:
-                category_prefix = f"[{qb.question_category}] " if qb.question_category else ""
-                headers.append(f'{category_prefix}{qb.question_text[:100]}')
-            
-            # Add Orphaned Question Columns (Legacy support)
-            for q in orphaned_questions:
-                category_prefix = f"[{q.question_category}] " if q.question_category else ""
-                headers.append(f'{category_prefix}[Legacy] {q.question_text[:100]}')
-
-            writer.writerow(headers)
-
-            # Build Data Rows
-            for respondent in queryset:
-                row = [
-                    respondent.respondent_id,
-                    respondent.respondent_type or '',
-                    respondent.commodity or '',
-                    respondent.country or '',
-                    respondent.completion_status or 'draft'
-                ]
-
-                # Fetch responses
-                responses = Response.objects.filter(
-                    respondent=respondent,
-                    project_id=project_id
-                ).select_related('question')
-
-                # Create a map of QuestionBank ID -> Response Value
-                # If a respondent somehow has multiple answers for the same bank item (rare edge case),
-                # the last one wins or we could join them. Let's assume one per bank item per respondent.
-                qb_responses = {}
-                orphaned_responses = {}
-
-                for response in responses:
-                    if not response.question:
-                        continue
+            # --- 4. STREAM GENERATE CSV ---
+            class Echo:
+                """An object that implements just the write method of the file-like interface."""
+                def write(self, value):
+                    return value
                     
-                    q_id = str(response.question_id)
-                    formatted_value = self.format_response_for_csv(
-                        response.response_value,
-                        response.question.response_type
-                    )
-
-                    # Check if this response belongs to a Question Bank item
-                    if q_id in question_map:
-                        qb_id = question_map[q_id]
-                        qb_responses[qb_id] = formatted_value
-                    elif response.question in orphaned_questions:
-                        # It's an orphaned question
-                        orphaned_responses[q_id] = formatted_value
-
-                # 1. Fill Question Bank Columns
+            def generate_csv_rows():
+                # Build Header Row
+                headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country', 'Completion Status']
+                
+                # Add Question Bank Columns
                 for qb in question_bank_items:
-                    row.append(qb_responses.get(str(qb.id), ''))
-
-                # 2. Fill Orphaned Columns
+                    category_prefix = f"[{qb.question_category}] " if qb.question_category else ""
+                    headers.append(f'{category_prefix}{qb.question_text[:100]}')
+                
+                # Add Orphaned Question Columns (Legacy support)
                 for q in orphaned_questions:
-                    row.append(orphaned_responses.get(str(q.id), ''))
+                    category_prefix = f"[{q.question_category}] " if q.question_category else ""
+                    headers.append(f'{category_prefix}[Legacy] {q.question_text[:100]}')
 
-                writer.writerow(row)
+                yield headers
+
+                # Chunk processing to avoid memory bloat and N+1 queries
+                chunk_size = 1000
+                respondent_ids = list(queryset.values_list('id', flat=True))
+                
+                for i in range(0, len(respondent_ids), chunk_size):
+                    chunk_ids = respondent_ids[i:i+chunk_size]
+                    
+                    # Fetch respondents in chunk with prefetched responses and related questions
+                    chunk_respondents = Respondent.objects.filter(id__in=chunk_ids).prefetch_related(
+                        Prefetch(
+                            'responses', 
+                            queryset=Response.objects.filter(project_id=project_id).select_related('question')
+                        )
+                    )
+                    
+                    # Track respondents by ID to preserve original queryset ordering
+                    id_to_respondent = {r.id: r for r in chunk_respondents}
+                    ordered_respondents = [id_to_respondent[r_id] for r_id in chunk_ids if r_id in id_to_respondent]
+
+                    # Build Data Rows
+                    for respondent in ordered_respondents:
+                        row = [
+                            respondent.respondent_id,
+                            respondent.respondent_type or '',
+                            respondent.commodity or '',
+                            respondent.country or '',
+                            respondent.completion_status or 'draft'
+                        ]
+
+                        qb_responses = {}
+                        orphaned_responses = {}
+
+                        # Iterate pre-fetched responses without triggering N+1
+                        for response in respondent.responses.all():
+                            if not response.question:
+                                continue
+                            
+                            q_id = str(response.question_id)
+                            formatted_value = self.format_response_for_csv(
+                                response.response_value,
+                                response.question.response_type
+                            )
+
+                            if q_id in question_map:
+                                qb_id = question_map[q_id]
+                                qb_responses[qb_id] = formatted_value
+                            elif response.question in orphaned_questions:
+                                orphaned_responses[q_id] = formatted_value
+
+                        # 1. Fill Question Bank Columns
+                        for qb in question_bank_items:
+                            row.append(qb_responses.get(str(qb.id), ''))
+
+                        # 2. Fill Orphaned Columns
+                        for q in orphaned_questions:
+                            row.append(orphaned_responses.get(str(q.id), ''))
+
+                        yield row
 
             # Create HTTP response
-            csv_data = output.getvalue()
-            output.close()
-
-            response = HttpResponse(csv_data, content_type='text/csv')
+            writer = csv.writer(Echo())
+            response = StreamingHttpResponse(
+                (writer.writerow(row) for row in generate_csv_rows()),
+                content_type="text/csv"
+            )
             filename = f'responses_{project_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
@@ -825,6 +841,211 @@ class RespondentViewSet(BaseModelViewSet):
             logger.exception("Error exporting CSV")
             return DRFResponse({
                 'error': f'Failed to export CSV: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def export_xlsx(self, request):
+        """Export respondents and their responses to Excel (.xlsx) format.
+        Uses openpyxl so Unicode characters (smart quotes, accents, etc.)
+        are preserved without the encoding issues that plague CSV in Excel.
+        """
+        try:
+            project_id = request.query_params.get('project_id')
+            if not project_id:
+                return DRFResponse({
+                    'error': 'project_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # --- 1. FILTER RESPONDENTS (ROWS) ---
+            respondent_type = request.query_params.get('respondent_type')
+            commodity = request.query_params.get('commodity')
+            country = request.query_params.get('country')
+
+            queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
+            if respondent_type:
+                queryset = queryset.filter(respondent_type=respondent_type)
+            if commodity:
+                queryset = queryset.filter(commodity=commodity)
+            if country:
+                queryset = queryset.filter(country=country)
+
+            if not queryset.exists():
+                return DRFResponse({
+                    'error': 'No matching respondents found for export'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # --- 2. DEFINE COLUMNS (QUESTION BANK ITEMS) ---
+            from forms.models import QuestionBank, Question
+            from django.db.models import Prefetch
+            from openpyxl import Workbook
+
+            all_questions_qs = Question.objects.filter(project_id=project_id)
+            if respondent_type:
+                all_questions_qs = all_questions_qs.filter(assigned_respondent_type=respondent_type)
+            if commodity:
+                all_questions_qs = all_questions_qs.filter(assigned_commodity=commodity)
+            if country:
+                all_questions_qs = all_questions_qs.filter(assigned_country=country)
+
+            all_questions = list(all_questions_qs)
+
+            qb_order_map = {}
+            for q in all_questions:
+                if q.question_bank_source_id:
+                    qb_id = str(q.question_bank_source_id)
+                    current_min = qb_order_map.get(qb_id, 999999)
+                    if q.order_index < current_min:
+                        qb_order_map[qb_id] = q.order_index
+
+            included_qb_ids = list(qb_order_map.keys())
+            question_bank_items = list(QuestionBank.objects.filter(id__in=included_qb_ids))
+
+            CATEGORY_ORDER = [
+                'Sociodemographics',
+                'Environmental LCA',
+                'Social LCA',
+                'Vulnerability',
+                'Fairness',
+                'Solutions',
+                'Informations',
+                'Proximity and Value',
+            ]
+
+            def get_qb_sort_key(qb_item):
+                category = qb_item.question_category or ''
+                try:
+                    cat_idx = CATEGORY_ORDER.index(category)
+                except ValueError:
+                    cat_idx = 9999
+                order_index = qb_order_map.get(str(qb_item.id), 999999)
+                return (cat_idx, order_index)
+
+            question_bank_items.sort(key=get_qb_sort_key)
+
+            # --- 3. IDENTIFY ALL QUESTIONS & MAP TO BANK ---
+            question_map = {}
+            orphaned_questions = []
+            for q in all_questions:
+                if q.question_bank_source_id:
+                    question_map[str(q.id)] = str(q.question_bank_source_id)
+                else:
+                    orphaned_questions.append(q)
+
+            def get_q_sort_key(question):
+                category = question.question_category or ''
+                try:
+                    return (CATEGORY_ORDER.index(category), question.order_index)
+                except ValueError:
+                    return (9999, question.order_index)
+
+            orphaned_questions.sort(key=get_q_sort_key)
+
+            # --- 4. BUILD EXCEL WORKBOOK ---
+            wb = Workbook()
+            ws = wb.active
+            ws.title = 'Responses'
+
+            # Header row
+            headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country', 'Completion Status']
+            for qb in question_bank_items:
+                category_prefix = f"[{qb.question_category}] " if qb.question_category else ""
+                headers.append(f'{category_prefix}{qb.question_text[:100]}')
+            for q in orphaned_questions:
+                category_prefix = f"[{q.question_category}] " if q.question_category else ""
+                headers.append(f'{category_prefix}[Legacy] {q.question_text[:100]}')
+
+            ws.append(headers)
+
+            # Style header row
+            from openpyxl.styles import Font, PatternFill
+            header_font = Font(bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='4338CA', end_color='4338CA', fill_type='solid')
+            for cell in ws[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+
+            # Data rows — chunked processing
+            chunk_size = 1000
+            respondent_ids = list(queryset.values_list('id', flat=True))
+
+            for i in range(0, len(respondent_ids), chunk_size):
+                chunk_ids = respondent_ids[i:i+chunk_size]
+                chunk_respondents = Respondent.objects.filter(id__in=chunk_ids).prefetch_related(
+                    Prefetch(
+                        'responses',
+                        queryset=Response.objects.filter(project_id=project_id).select_related('question')
+                    )
+                )
+                id_to_respondent = {r.id: r for r in chunk_respondents}
+                ordered_respondents = [id_to_respondent[r_id] for r_id in chunk_ids if r_id in id_to_respondent]
+
+                for respondent in ordered_respondents:
+                    row = [
+                        respondent.respondent_id,
+                        respondent.respondent_type or '',
+                        respondent.commodity or '',
+                        respondent.country or '',
+                        respondent.completion_status or 'draft',
+                    ]
+
+                    qb_responses = {}
+                    orphaned_responses = {}
+
+                    for response in respondent.responses.all():
+                        if not response.question:
+                            continue
+                        q_id = str(response.question_id)
+                        formatted_value = self.format_response_for_csv(
+                            response.response_value,
+                            response.question.response_type
+                        )
+                        if q_id in question_map:
+                            qb_id = question_map[q_id]
+                            qb_responses[qb_id] = formatted_value
+                        elif response.question in orphaned_questions:
+                            orphaned_responses[q_id] = formatted_value
+
+                    for qb in question_bank_items:
+                        row.append(qb_responses.get(str(qb.id), ''))
+                    for q in orphaned_questions:
+                        row.append(orphaned_responses.get(str(q.id), ''))
+
+                    ws.append(row)
+
+            # Auto-fit column widths (approximate)
+            for col in ws.columns:
+                max_length = 0
+                for cell in col:
+                    try:
+                        cell_len = len(str(cell.value or ''))
+                        if cell_len > max_length:
+                            max_length = cell_len
+                    except Exception:
+                        pass
+                adjusted_width = min(max_length + 2, 60)
+                ws.column_dimensions[col[0].column_letter].width = adjusted_width
+
+            # Freeze header row
+            ws.freeze_panes = 'A2'
+
+            # Write to response
+            from io import BytesIO
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            filename = f'responses_{project_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            logger.exception("Error exporting Excel")
+            return DRFResponse({
+                'error': f'Failed to export Excel: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
@@ -859,9 +1080,18 @@ class RespondentViewSet(BaseModelViewSet):
                     'error': 'No matching respondents found for export'
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            # Get all questions for the project
+            # Get all questions for the project scoped to filters
             from forms.models import Question
-            questions = list(Question.objects.filter(project_id=project_id))
+            from django.db.models import Prefetch
+            questions_qs = Question.objects.filter(project_id=project_id)
+            if respondent_type:
+                questions_qs = questions_qs.filter(assigned_respondent_type=respondent_type)
+            if commodity:
+                questions_qs = questions_qs.filter(assigned_commodity=commodity)
+            if country:
+                questions_qs = questions_qs.filter(assigned_country=country)
+                
+            questions = list(questions_qs)
 
             # Sort by category order first, then by order_index
             CATEGORY_ORDER = [
@@ -884,7 +1114,7 @@ class RespondentViewSet(BaseModelViewSet):
 
             questions.sort(key=get_category_sort_key)
 
-            # Build export data
+            # Build export data metadata
             export_data = {
                 'project_id': project_id,
                 'exported_at': datetime.now().isoformat(),
@@ -904,73 +1134,94 @@ class RespondentViewSet(BaseModelViewSet):
                 'respondents': []
             }
 
-            # Add respondent data
-            for respondent in queryset:
-                respondent_data = {
-                    'respondent_id': respondent.respondent_id,
-                    'respondent_type': respondent.respondent_type,
-                    'commodity': respondent.commodity,
-                    'country': respondent.country,
-                    'responses': []
-                }
+            # --- 2. ADD RESPONDENT DATA IN CHUNKS ---
+            chunk_size = 1000
+            respondent_ids = list(queryset.values_list('id', flat=True))
+            
+            for i in range(0, len(respondent_ids), chunk_size):
+                chunk_ids = respondent_ids[i:i+chunk_size]
+                chunk_respondents = Respondent.objects.filter(id__in=chunk_ids).prefetch_related(
+                    Prefetch('responses', queryset=Response.objects.filter(project_id=project_id).select_related('question'))
+                ).order_by('-created_at') # Standard order
+                
+                # To maintain original ordering
+                id_to_respondent = {r.id: r for r in chunk_respondents}
+                ordered_respondents = [id_to_respondent[r_id] for r_id in chunk_ids if r_id in id_to_respondent]
 
-                # Get responses for this respondent
-                responses = Response.objects.filter(
-                    respondent=respondent,
-                    project_id=project_id
-                ).select_related('question').order_by('question__order_index')
-
-                for response in responses:
-                    # Skip responses with deleted questions
-                    if not response.question:
-                        continue
-
-                    response_data = {
-                        'question_id': response.question_id,
-                        'question_text': response.question.question_text,
-                        'question_category': response.question.question_category,
-                        'assigned_respondent_type': response.question.assigned_respondent_type,
-                        'assigned_commodity': response.question.assigned_commodity,
-                        'assigned_country': response.question.assigned_country
+                for respondent in ordered_respondents:
+                    respondent_data = {
+                        'respondent_id': respondent.respondent_id,
+                        'respondent_type': respondent.respondent_type,
+                        'commodity': respondent.commodity,
+                        'country': respondent.country,
+                        'responses': []
                     }
 
-                    # Parse response value based on type
-                    raw_value = response.response_value
-                    if response.question.response_type == 'image':
-                        # For images, indicate presence rather than including base64
-                        if raw_value and (raw_value.startswith('data:image/') or
-                                         raw_value.startswith('iVBOR') or
-                                         raw_value.startswith('/9j/')):
-                            response_data['value'] = '[IMAGE_DATA]'
-                            response_data['has_image'] = True
-                        else:
-                            response_data['value'] = raw_value
-                            response_data['has_image'] = False
-                    elif response.question.response_type in ['geopoint', 'geoshape']:
-                        # Parse location JSON
+                    # Get chunked responses and sort by category then order_index
+                    # Matches frontend DataCollectionScreen sorting: (category_index, order_index)
+                    r_responses = list(respondent.responses.all())
+                    def _json_response_sort_key(r):
+                        if not r.question:
+                            return (9999, 99999)
+                        category = r.question.question_category or ''
                         try:
-                            response_data['value'] = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
-                        except (json.JSONDecodeError, TypeError):
-                            response_data['value'] = raw_value
-                    elif response.question.response_type == 'choice_multiple':
-                        # Parse array
-                        try:
-                            response_data['value'] = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
-                        except (json.JSONDecodeError, TypeError):
-                            response_data['value'] = raw_value
-                    else:
-                        # Try to parse as JSON, otherwise keep as string
-                        if raw_value and isinstance(raw_value, str) and (raw_value.strip().startswith('{') or raw_value.strip().startswith('[')):
+                            cat_idx = CATEGORY_ORDER.index(category)
+                        except ValueError:
+                            cat_idx = 9999
+                        return (cat_idx, r.question.order_index)
+                    r_responses.sort(key=_json_response_sort_key)
+
+                    for response in r_responses:
+                        # Skip responses with deleted questions
+                        if not response.question:
+                            continue
+
+                        response_data = {
+                            'question_id': str(response.question_id),
+                            'question_text': response.question.question_text,
+                            'question_category': response.question.question_category,
+                            'assigned_respondent_type': response.question.assigned_respondent_type,
+                            'assigned_commodity': response.question.assigned_commodity,
+                            'assigned_country': response.question.assigned_country
+                        }
+
+                        # Parse response value based on type
+                        raw_value = response.response_value
+                        if response.question.response_type == 'image':
+                            # For images, indicate presence rather than including base64
+                            if raw_value and (raw_value.startswith('data:image/') or
+                                             raw_value.startswith('iVBOR') or
+                                             raw_value.startswith('/9j/')):
+                                response_data['value'] = '[IMAGE_DATA]'
+                                response_data['has_image'] = True
+                            else:
+                                response_data['value'] = raw_value
+                                response_data['has_image'] = False
+                        elif response.question.response_type in ['geopoint', 'geoshape']:
+                            # Parse location JSON
                             try:
-                                response_data['value'] = json.loads(raw_value)
-                            except json.JSONDecodeError:
+                                response_data['value'] = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+                            except (json.JSONDecodeError, TypeError):
+                                response_data['value'] = raw_value
+                        elif response.question.response_type == 'choice_multiple':
+                            # Parse array
+                            try:
+                                response_data['value'] = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+                            except (json.JSONDecodeError, TypeError):
                                 response_data['value'] = raw_value
                         else:
-                            response_data['value'] = raw_value
+                            # Try to parse as JSON, otherwise keep as string
+                            if raw_value and isinstance(raw_value, str) and (raw_value.strip().startswith('{') or raw_value.strip().startswith('[')):
+                                try:
+                                    response_data['value'] = json.loads(raw_value)
+                                except json.JSONDecodeError:
+                                    response_data['value'] = raw_value
+                            else:
+                                response_data['value'] = raw_value
 
-                    respondent_data['responses'].append(response_data)
+                        respondent_data['responses'].append(response_data)
 
-                export_data['respondents'].append(respondent_data)
+                    export_data['respondents'].append(respondent_data)
 
             # Create HTTP response with pretty-printed JSON
             json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
