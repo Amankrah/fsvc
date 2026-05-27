@@ -209,7 +209,8 @@ class ResponseViewSet(BaseModelViewSet):
 
 class RespondentViewSet(BaseModelViewSet):
     serializer_class = RespondentSerializer
-    search_fields = ['respondent_id', 'name', 'email']
+    search_fields = ['respondent_id', 'name', 'email', 'respondent_type', 'commodity', 'country',
+                     'created_by__first_name', 'created_by__last_name']
     ordering_fields = ['created_at', 'last_response_at']
     permission_classes = [permissions.IsAuthenticated]
 
@@ -227,13 +228,86 @@ class RespondentViewSet(BaseModelViewSet):
                 Q(project__created_by=user) |
                 Q(project__members__user=user)
             ).select_related('project', 'created_by').prefetch_related('responses').distinct()
-        
-        # Additional filtering by query parameters
+
+        # Filter by project
         project_id = self.request.query_params.get('project_id', None)
         if project_id is not None:
             queryset = queryset.filter(project_id=project_id)
 
+        # Profile filters — same params used by the export endpoints
+        # Support multi-value: ?respondent_type=A&respondent_type=B
+        respondent_types = self.request.query_params.getlist('respondent_type')
+        commodities_filter = self.request.query_params.getlist('commodity')
+        countries_filter = self.request.query_params.getlist('country')
+        created_by = self.request.query_params.get('created_by', None)
+
+        if respondent_types:
+            queryset = queryset.filter(respondent_type__in=respondent_types)
+        if commodities_filter:
+            queryset = queryset.filter(commodity__in=commodities_filter)
+        if countries_filter:
+            queryset = queryset.filter(country__in=countries_filter)
+        if created_by:
+            queryset = queryset.filter(created_by_id=created_by)
+
         return queryset
+
+    @action(detail=False, methods=['get'])
+    def filter_options(self, request):
+        """Return the distinct respondent_type / commodity / country values that
+        exist for a given project.  Used to populate filter dropdowns so that
+        options reflect the full dataset, not just the current page.
+
+        Uses a JOIN-free queryset to avoid the duplicate-row problem that
+        arises when get_queryset() joins through project__members.
+        """
+        project_id = request.query_params.get('project_id')
+        if not project_id:
+            return DRFResponse(
+                {'error': 'project_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = request.user
+
+        # Verify the user has access to this project without using the
+        # member-JOIN queryset (which produces duplicate rows).
+        if not user.is_superuser:
+            from projects.models import Project
+            has_access = Project.objects.filter(
+                Q(created_by=user) | Q(members__user=user),
+                id=project_id
+            ).exists()
+            if not has_access:
+                return DRFResponse(
+                    {'error': 'Project not found or access denied'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        # Clean queryset — no JOINs, so DISTINCT works correctly.
+        qs = Respondent.objects.filter(project_id=project_id)
+
+        respondent_types = list(
+            qs.exclude(respondent_type__isnull=True).exclude(respondent_type='')
+              .order_by('respondent_type')
+              .values_list('respondent_type', flat=True).distinct()
+        )
+        commodities = list(
+            qs.exclude(commodity__isnull=True).exclude(commodity='')
+              .order_by('commodity')
+              .values_list('commodity', flat=True).distinct()
+        )
+        countries = list(
+            qs.exclude(country__isnull=True).exclude(country='')
+              .order_by('country')
+              .values_list('country', flat=True).distinct()
+        )
+
+        return DRFResponse({
+            'respondent_types': respondent_types,
+            'commodities': commodities,
+            'countries': countries,
+        })
 
     def perform_create(self, serializer):
         """Ensure created_by is set to the current user"""
@@ -444,21 +518,16 @@ class RespondentViewSet(BaseModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # --- 1. FILTER RESPONDENTS (ROWS) ---
-            # Get filter parameters
-            respondent_type = request.query_params.get('respondent_type')
-            commodity = request.query_params.get('commodity')
-            country = request.query_params.get('country')
+            # Support multi-value: ?respondent_type=A&respondent_type=B
+            respondent_types = request.query_params.getlist('respondent_type')
+            commodities_filter = request.query_params.getlist('commodity')
+            countries_filter = request.query_params.getlist('country')
+            created_by = request.query_params.get('created_by')
 
-            # Get respondents for the project
+            # get_queryset() already applies the list filters; start from it
             queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
-
-            # Apply filters if provided
-            if respondent_type:
-                queryset = queryset.filter(respondent_type=respondent_type)
-            if commodity:
-                queryset = queryset.filter(commodity=commodity)
-            if country:
-                queryset = queryset.filter(country=country)
+            if created_by:
+                queryset = queryset.filter(created_by_id=created_by)
 
             if not queryset.exists():
                 return DRFResponse({
@@ -469,15 +538,15 @@ class RespondentViewSet(BaseModelViewSet):
             from forms.models import QuestionBank, Question
             from django.db.models import Prefetch
             from django.http import StreamingHttpResponse
-            
+
             # Fetch only questions that match the profile filters to prevent blank columns
             all_questions_qs = Question.objects.filter(project_id=project_id)
-            if respondent_type:
-                all_questions_qs = all_questions_qs.filter(assigned_respondent_type=respondent_type)
-            if commodity:
-                all_questions_qs = all_questions_qs.filter(assigned_commodity=commodity)
-            if country:
-                all_questions_qs = all_questions_qs.filter(assigned_country=country)
+            if respondent_types:
+                all_questions_qs = all_questions_qs.filter(assigned_respondent_type__in=respondent_types)
+            if commodities_filter:
+                all_questions_qs = all_questions_qs.filter(assigned_commodity__in=commodities_filter)
+            if countries_filter:
+                all_questions_qs = all_questions_qs.filter(assigned_country__in=countries_filter)
                 
             all_questions = list(all_questions_qs)
             
@@ -653,17 +722,15 @@ class RespondentViewSet(BaseModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # --- 1. FILTER RESPONDENTS (ROWS) ---
-            respondent_type = request.query_params.get('respondent_type')
-            commodity = request.query_params.get('commodity')
-            country = request.query_params.get('country')
+            # Support multi-value: ?respondent_type=A&respondent_type=B
+            respondent_types = request.query_params.getlist('respondent_type')
+            commodities_filter = request.query_params.getlist('commodity')
+            countries_filter = request.query_params.getlist('country')
+            created_by = request.query_params.get('created_by')
 
             queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
-            if respondent_type:
-                queryset = queryset.filter(respondent_type=respondent_type)
-            if commodity:
-                queryset = queryset.filter(commodity=commodity)
-            if country:
-                queryset = queryset.filter(country=country)
+            if created_by:
+                queryset = queryset.filter(created_by_id=created_by)
 
             if not queryset.exists():
                 return DRFResponse({
@@ -676,12 +743,12 @@ class RespondentViewSet(BaseModelViewSet):
             from openpyxl import Workbook
 
             all_questions_qs = Question.objects.filter(project_id=project_id)
-            if respondent_type:
-                all_questions_qs = all_questions_qs.filter(assigned_respondent_type=respondent_type)
-            if commodity:
-                all_questions_qs = all_questions_qs.filter(assigned_commodity=commodity)
-            if country:
-                all_questions_qs = all_questions_qs.filter(assigned_country=country)
+            if respondent_types:
+                all_questions_qs = all_questions_qs.filter(assigned_respondent_type__in=respondent_types)
+            if commodities_filter:
+                all_questions_qs = all_questions_qs.filter(assigned_commodity__in=commodities_filter)
+            if countries_filter:
+                all_questions_qs = all_questions_qs.filter(assigned_country__in=countries_filter)
 
             all_questions = list(all_questions_qs)
 
@@ -855,21 +922,15 @@ class RespondentViewSet(BaseModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # --- 1. FILTER RESPONDENTS (ROWS) ---
-            # Get filter parameters
-            respondent_type = request.query_params.get('respondent_type')
-            commodity = request.query_params.get('commodity')
-            country = request.query_params.get('country')
+            # Support multi-value: ?respondent_type=A&respondent_type=B
+            respondent_types = request.query_params.getlist('respondent_type')
+            commodities_filter = request.query_params.getlist('commodity')
+            countries_filter = request.query_params.getlist('country')
+            created_by = request.query_params.get('created_by')
 
-            # Get respondents for the project
             queryset = self.get_queryset().filter(project_id=project_id).select_related('project')
-
-            # Apply filters if provided
-            if respondent_type:
-                queryset = queryset.filter(respondent_type=respondent_type)
-            if commodity:
-                queryset = queryset.filter(commodity=commodity)
-            if country:
-                queryset = queryset.filter(country=country)
+            if created_by:
+                queryset = queryset.filter(created_by_id=created_by)
 
             if not queryset.exists():
                 return DRFResponse({
@@ -880,12 +941,12 @@ class RespondentViewSet(BaseModelViewSet):
             from forms.models import Question
             from django.db.models import Prefetch
             questions_qs = Question.objects.filter(project_id=project_id)
-            if respondent_type:
-                questions_qs = questions_qs.filter(assigned_respondent_type=respondent_type)
-            if commodity:
-                questions_qs = questions_qs.filter(assigned_commodity=commodity)
-            if country:
-                questions_qs = questions_qs.filter(assigned_country=country)
+            if respondent_types:
+                questions_qs = questions_qs.filter(assigned_respondent_type__in=respondent_types)
+            if commodities_filter:
+                questions_qs = questions_qs.filter(assigned_commodity__in=commodities_filter)
+            if countries_filter:
+                questions_qs = questions_qs.filter(assigned_country__in=countries_filter)
                 
             questions = list(questions_qs)
 

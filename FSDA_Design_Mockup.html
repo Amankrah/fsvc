@@ -1,0 +1,2934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FSDA — Design Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── DESIGN TOKENS ── */
+  :root {
+    --green-950: #052210;
+    --green-900: #0A3D2B;
+    --green-800: #0F5239;
+    --green-700: #1B6B4A;
+    --green: #1D7A52;       /* primary */
+    --green-500: #26A86E;
+    --green-400: #4CC28A;
+    --green-200: #B7E8D0;
+    --green-100: #D9F4E8;
+    --green-50:  #EEF9F3;
+
+    --amber-900: #78350F;
+    --amber-700: #B45309;
+    --amber: #D97706;       /* accent */
+    --amber-400: #FBBF24;
+    --amber-100: #FEF3C7;
+    --amber-50:  #FFFBEB;
+
+    --stone-900: #1C1917;
+    --stone-700: #44403C;
+    --stone-600: #57534E;
+    --stone-500: #78716C;
+    --stone-400: #A8A29E;
+    --stone-300: #D6D3D1;
+    --stone-200: #E7E5E4;
+    --stone-100: #F5F5F4;
+    --stone-50:  #FAFAF9;
+
+    --bg: #F7F6F2;
+    --surface: #FFFFFF;
+    --border: #E8E5DE;
+    --border-strong: #D1CEC4;
+
+    --red: #DC2626;
+    --red-50: #FEF2F2;
+    --emerald: #059669;
+    --emerald-50: #ECFDF5;
+    --blue: #2563EB;
+    --blue-50: #EFF6FF;
+
+    --r-xs: 6px;
+    --r-sm: 10px;
+    --r-md: 14px;
+    --r-lg: 18px;
+    --r-xl: 24px;
+    --r-full: 999px;
+
+    --shadow-xs: 0 1px 2px rgba(28,25,23,0.04);
+    --shadow-sm: 0 2px 6px rgba(28,25,23,0.06), 0 1px 2px rgba(28,25,23,0.04);
+    --shadow-md: 0 4px 12px rgba(28,25,23,0.08), 0 2px 4px rgba(28,25,23,0.04);
+    --shadow-lg: 0 8px 24px rgba(28,25,23,0.10), 0 4px 8px rgba(28,25,23,0.06);
+
+    --ff-display: 'Fraunces', Georgia, serif;
+    --ff-body: 'DM Sans', system-ui, sans-serif;
+
+    --transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a1a;
+    font-family: var(--ff-body);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    text-align: center;
+    margin-bottom: 48px;
+    color: white;
+  }
+  .page-header h1 {
+    font-family: var(--ff-display);
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .page-header p {
+    color: #999;
+    font-size: 15px;
+  }
+  .page-header .pill {
+    display: inline-block;
+    background: var(--green);
+    color: white;
+    padding: 4px 14px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* ── SCREEN NAV ── */
+  .screen-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 40px;
+  }
+  .screen-btn {
+    background: #2a2a2a;
+    color: #ccc;
+    border: 1px solid #333;
+    padding: 8px 16px;
+    border-radius: var(--r-full);
+    font-family: var(--ff-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .screen-btn:hover { background: #333; color: white; }
+  .screen-btn.active { background: var(--green); color: white; border-color: var(--green); }
+
+  /* ── PHONE FRAME ── */
+  .phones-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 1500px;
+  }
+  .phone-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .phone-label {
+    color: #888;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .phone {
+    width: 375px;
+    height: 812px;
+    background: var(--surface);
+    border-radius: 48px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 10px #1a1a1a,
+      0 0 0 12px #333,
+      0 40px 80px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-screen {
+    flex: 1;
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+    position: relative;
+  }
+  .phone-screen.active { display: flex; }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    height: 44px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px 0;
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  .status-bar.light .sb-time,
+  .status-bar.light .sb-icons { color: white; }
+  .status-bar.dark .sb-time,
+  .status-bar.dark .sb-icons { color: var(--stone-900); }
+  .sb-time { font-weight: 700; font-size: 15px; }
+  .sb-icons { font-size: 13px; display: flex; gap: 4px; align-items: center; }
+  .sb-notch {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 126px; height: 34px;
+    background: #111;
+    border-radius: 0 0 20px 20px;
+  }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    height: 83px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .nav-icon {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    font-size: 18px;
+    transition: var(--transition);
+  }
+  .nav-item.active .nav-icon { background: var(--green-50); }
+  .nav-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--stone-400);
+    font-family: var(--ff-body);
+  }
+  .nav-item.active .nav-label { color: var(--green); font-weight: 600; }
+  .nav-collect .nav-icon {
+    width: 52px; height: 52px;
+    background: var(--green);
+    border-radius: 18px;
+    margin-top: -12px;
+    box-shadow: 0 4px 12px rgba(29,122,82,0.4);
+    font-size: 22px;
+    color: white;
+  }
+  .nav-collect .nav-label { color: var(--green); font-weight: 600; }
+
+  /* ── SCROLLABLE CONTENT ── */
+  .scroll-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scroll-content::-webkit-scrollbar { display: none; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 1: LOGIN
+  ══════════════════════════════════════════ */
+  .screen-login {
+    background: var(--bg);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .login-hero {
+    background: linear-gradient(160deg, var(--green-900) 0%, var(--green-700) 60%, var(--green-500) 100%);
+    padding: 60px 32px 52px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .login-hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+  .login-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: -40px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.03);
+  }
+  .login-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .logo-mark {
+    width: 48px; height: 48px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ff-display);
+    font-weight: 800;
+    color: white;
+    font-size: 20px;
+    letter-spacing: -1px;
+  }
+  .logo-text {
+    color: rgba(255,255,255,0.9);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+  }
+  .logo-text strong { display: block; font-size: 15px; font-weight: 700; color: white; letter-spacing: 0; }
+  .login-hero h1 {
+    font-family: var(--ff-display);
+    color: white;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    position: relative;
+    z-index: 1;
+  }
+  .login-hero p {
+    color: rgba(255,255,255,0.65);
+    font-size: 14px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .login-form-card {
+    flex: 1;
+    background: var(--surface);
+    border-radius: 28px 28px 0 0;
+    margin-top: -20px;
+    padding: 32px 24px 24px;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.06);
+  }
+  .form-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--stone-900);
+    margin-bottom: 4px;
+  }
+  .form-subtitle {
+    font-size: 13px;
+    color: var(--stone-500);
+    margin-bottom: 28px;
+  }
+  .field-group { margin-bottom: 16px; }
+  .field-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stone-600);
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .field-input {
+    width: 100%;
+    height: 50px;
+    background: var(--stone-50);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 0 16px;
+    font-family: var(--ff-body);
+    font-size: 15px;
+    color: var(--stone-900);
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .field-input.has-icon { padding-right: 48px; }
+  .field-input-inner {
+    width: 100%;
+    height: 50px;
+    background: var(--stone-50);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .field-input-inner.focused { border-color: var(--green); background: white; }
+  .fi-text { font-size: 15px; color: var(--stone-900); flex: 1; }
+  .fi-placeholder { color: var(--stone-400); }
+  .fi-icon { color: var(--stone-400); font-size: 18px; }
+
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    background: var(--green);
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: var(--ff-body);
+    letter-spacing: 0.2px;
+    margin-top: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(29,122,82,0.3);
+    border: none;
+    transition: var(--transition);
+  }
+  .btn-primary:hover { background: var(--green-800); }
+  .btn-accent {
+    background: var(--amber);
+    box-shadow: 0 4px 12px rgba(217,119,6,0.3);
+  }
+  .btn-accent:hover { background: var(--amber-700); }
+  .btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--border-strong);
+    color: var(--stone-700);
+    box-shadow: none;
+  }
+
+  .divider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 20px 0;
+  }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 12px; color: var(--stone-400); }
+
+  .text-link-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 4px; margin-top: 16px;
+  }
+  .text-muted { font-size: 13px; color: var(--stone-500); }
+  .text-link { font-size: 13px; color: var(--green); font-weight: 600; cursor: pointer; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 2: REGISTER
+  ══════════════════════════════════════════ */
+  .register-card {
+    flex: 1;
+    background: var(--surface);
+    border-radius: 28px 28px 0 0;
+    margin-top: -20px;
+    padding: 32px 24px 24px;
+    position: relative;
+    z-index: 2;
+  }
+  .step-indicator {
+    display: flex; gap: 6px; margin-bottom: 24px;
+  }
+  .step-dot {
+    height: 4px; border-radius: var(--r-full);
+    background: var(--border);
+    transition: var(--transition);
+  }
+  .step-dot.active { background: var(--green); }
+  .step-dot.done { background: var(--green-200); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .field-group { flex: 1; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 3: DASHBOARD
+  ══════════════════════════════════════════ */
+  .dash-header {
+    background: linear-gradient(160deg, var(--green-900) 0%, var(--green-700) 100%);
+    padding: 16px 20px 24px;
+    flex-shrink: 0;
+  }
+  .dash-top-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .dash-greeting {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .dash-name {
+    color: white;
+    font-family: var(--ff-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-top: 2px;
+  }
+  .avatar-btn {
+    width: 40px; height: 40px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .notif-btn {
+    position: relative;
+    width: 40px; height: 40px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .notif-badge {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 8px; height: 8px;
+    background: var(--amber);
+    border-radius: 50%;
+    border: 2px solid var(--green-900);
+  }
+
+  /* Stats pills — horizontal scroll */
+  .stats-scroll {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .stats-scroll::-webkit-scrollbar { display: none; }
+  .stat-pill {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--r-lg);
+    padding: 12px 16px;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+  .stat-pill-value {
+    font-family: var(--ff-display);
+    font-size: 26px;
+    font-weight: 700;
+    color: white;
+    line-height: 1;
+  }
+  .stat-pill-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .stat-pill-icon {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  /* Dashboard body */
+  .dash-body { padding: 20px; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--stone-900);
+    letter-spacing: -0.2px;
+  }
+  .section-action {
+    font-size: 13px;
+    color: var(--green);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .search-bar {
+    height: 46px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .search-icon { color: var(--stone-400); font-size: 16px; }
+  .search-text { font-size: 14px; color: var(--stone-400); }
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    padding: 6px 14px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--stone-600);
+    transition: var(--transition);
+  }
+  .filter-chip.active {
+    background: var(--green);
+    border-color: var(--green);
+    color: white;
+  }
+
+  /* Project Card — Redesigned */
+  .project-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .project-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .pc-accent-bar {
+    height: 3px;
+    background: var(--green);
+  }
+  .pc-accent-bar.amber { background: var(--amber); }
+  .pc-accent-bar.blue { background: var(--blue); }
+  .pc-body { padding: 16px; }
+  .pc-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  .pc-info { flex: 1; }
+  .pc-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--stone-900);
+    letter-spacing: -0.2px;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .pc-desc {
+    font-size: 12px;
+    color: var(--stone-500);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pc-status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--emerald);
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .pc-status-dot.pending { background: var(--amber); }
+  .pc-status-dot.error { background: var(--red); }
+  .pc-stats {
+    display: flex;
+    gap: 0;
+    background: var(--stone-50);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .pc-stat {
+    flex: 1;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .pc-stat + .pc-stat {
+    border-left: 1px solid var(--border);
+  }
+  .pc-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--stone-900);
+    font-family: var(--ff-display);
+    line-height: 1;
+  }
+  .pc-stat-label {
+    font-size: 10px;
+    color: var(--stone-400);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .pc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pc-badge {
+    padding: 3px 10px;
+    border-radius: var(--r-full);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pc-badge.synced { background: var(--emerald-50); color: var(--emerald); }
+  .pc-badge.pending { background: var(--amber-100); color: var(--amber-700); }
+  .pc-date { font-size: 11px; color: var(--stone-400); }
+  .pc-chevron { color: var(--stone-300); font-size: 16px; }
+
+  /* FAB */
+  .fab {
+    position: absolute;
+    right: 20px; bottom: 96px;
+    width: 56px; height: 56px;
+    background: var(--amber);
+    border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(217,119,6,0.4);
+    cursor: pointer;
+    z-index: 10;
+    font-size: 24px;
+    color: white;
+    transition: var(--transition);
+  }
+  .fab:hover { background: var(--amber-700); }
+
+  /* ══════════════════════════════════════════
+     SCREEN 4: PROJECT DETAILS
+  ══════════════════════════════════════════ */
+  .proj-hero {
+    background: linear-gradient(160deg, var(--green-900) 0%, var(--green-700) 100%);
+    padding: 16px 20px 28px;
+    flex-shrink: 0;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 6px;
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 16px;
+  }
+  .proj-hero-name {
+    font-family: var(--ff-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+    line-height: 1.2;
+  }
+  .proj-hero-desc {
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .proj-hero-stats {
+    display: flex;
+    gap: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  .proj-stat {
+    flex: 1;
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .proj-stat + .proj-stat {
+    border-left: 1px solid rgba(255,255,255,0.15);
+  }
+  .proj-stat-val {
+    font-family: var(--ff-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+  }
+  .proj-stat-lbl {
+    font-size: 10px;
+    color: rgba(255,255,255,0.55);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
+  }
+
+  .proj-body { padding: 20px; }
+
+  /* Tools Grid */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .tool-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--shadow-xs);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tool-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .tool-card.featured {
+    grid-column: span 2;
+    flex-direction: row;
+    align-items: center;
+    background: var(--green-50);
+    border-color: var(--green-200);
+  }
+  .tool-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .tool-card.featured .tool-icon { width: 48px; height: 48px; font-size: 24px; }
+  .tool-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--stone-900);
+    line-height: 1.3;
+  }
+  .tool-desc {
+    font-size: 11px;
+    color: var(--stone-500);
+    line-height: 1.4;
+  }
+  .tool-card.featured .tool-text { flex: 1; margin-left: 12px; }
+  .tool-card.featured .tool-title { font-size: 15px; }
+  .tool-card.featured .tool-desc { font-size: 13px; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 5: DATA COLLECTION
+  ══════════════════════════════════════════ */
+  .dc-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px 0;
+    flex-shrink: 0;
+  }
+  .dc-top {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+  }
+  .dc-back { font-size: 20px; color: var(--stone-600); cursor: pointer; }
+  .dc-project { flex: 1; }
+  .dc-project-name { font-size: 12px; color: var(--stone-400); font-weight: 500; }
+  .dc-respondent { font-size: 14px; font-weight: 700; color: var(--stone-900); }
+  .dc-save-btn {
+    padding: 6px 14px;
+    background: var(--green-50);
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green);
+    cursor: pointer;
+  }
+  .progress-bar-outer {
+    height: 4px;
+    background: var(--border);
+    border-radius: var(--r-full);
+    margin-bottom: 10px;
+  }
+  .progress-bar-inner {
+    height: 4px;
+    border-radius: var(--r-full);
+    background: linear-gradient(90deg, var(--green-700), var(--green-500));
+    transition: width 0.4s ease;
+  }
+  .progress-labels {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 0 12px;
+  }
+  .progress-text { font-size: 12px; color: var(--stone-500); }
+  .progress-pct { font-size: 12px; font-weight: 700; color: var(--green); }
+
+  .dc-body { padding: 20px; flex: 1; }
+  .category-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    background: var(--green-50);
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .q-number {
+    font-size: 11px;
+    color: var(--stone-400);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .q-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--stone-900);
+    line-height: 1.4;
+    letter-spacing: -0.2px;
+    margin-bottom: 6px;
+  }
+  .q-required {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--red);
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  /* Answer options */
+  .answer-option {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .answer-option:hover { border-color: var(--green); background: var(--green-50); }
+  .answer-option.selected { border-color: var(--green); background: var(--green-50); }
+  .radio-circle {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--stone-300);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: var(--transition);
+  }
+  .answer-option.selected .radio-circle {
+    border-color: var(--green);
+    background: var(--green);
+  }
+  .radio-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: white;
+  }
+  .answer-text { font-size: 14px; color: var(--stone-800); font-weight: 500; }
+
+  .dc-nav {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .dc-nav-btn {
+    flex: 1;
+    height: 48px;
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    gap: 6px;
+  }
+  .dc-nav-prev {
+    background: var(--stone-50);
+    border: 1.5px solid var(--border);
+    color: var(--stone-600);
+  }
+  .dc-nav-next {
+    background: var(--green);
+    color: white;
+    box-shadow: 0 4px 12px rgba(29,122,82,0.3);
+  }
+  .dc-nav-next.amber { background: var(--amber); box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
+
+  /* ══════════════════════════════════════════
+     SCREEN 6: FORMS / FORM BUILDER
+  ══════════════════════════════════════════ */
+  .forms-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    flex-shrink: 0;
+  }
+  .forms-header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .screen-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--stone-900);
+    font-family: var(--ff-display);
+    letter-spacing: -0.3px;
+  }
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: var(--stone-50);
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--stone-600);
+  }
+
+  .project-selector {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .project-selector::-webkit-scrollbar { display: none; }
+  .proj-chip {
+    padding: 8px 14px;
+    border-radius: var(--r-full);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--stone-600);
+    transition: var(--transition);
+  }
+  .proj-chip.active {
+    background: var(--green-900);
+    border-color: var(--green-900);
+    color: white;
+  }
+
+  /* Question card in form builder */
+  .q-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .q-card:hover { box-shadow: var(--shadow-md); }
+  .q-card-accent { height: 3px; }
+  .q-card-body {
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .q-type-badge {
+    padding: 3px 8px;
+    border-radius: var(--r-xs);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .q-card-info { flex: 1; }
+  .q-card-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--stone-900);
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
+  .q-card-meta { font-size: 11px; color: var(--stone-400); }
+  .q-card-actions { display: flex; gap: 4px; }
+  .q-action { font-size: 14px; color: var(--stone-400); cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+  .q-action:hover { background: var(--stone-50); color: var(--stone-700); }
+
+  .add-q-btn {
+    width: 100%;
+    height: 48px;
+    background: var(--surface);
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--r-lg);
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--stone-500);
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 4px;
+  }
+  .add-q-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-50); }
+
+  /* ══════════════════════════════════════════
+     SCREEN 7: ANALYTICS
+  ══════════════════════════════════════════ */
+  .analytics-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 0;
+    flex-shrink: 0;
+  }
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-top: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-item {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stone-400);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: var(--transition);
+  }
+  .tab-item.active { color: var(--green); border-bottom-color: var(--green); }
+
+  .analytics-body { padding: 20px; }
+
+  /* Summary stat cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 14px;
+    box-shadow: var(--shadow-xs);
+  }
+  .summary-card.full { grid-column: span 2; }
+  .sum-label { font-size: 11px; color: var(--stone-400); font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .sum-value { font-size: 28px; font-weight: 800; font-family: var(--ff-display); color: var(--stone-900); line-height: 1; }
+  .sum-sub { font-size: 11px; color: var(--stone-400); margin-top: 4px; }
+  .sum-change { font-size: 11px; font-weight: 600; color: var(--emerald); }
+
+  /* Mini chart bar */
+  .bar-chart { margin-top: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .bar-label { font-size: 11px; color: var(--stone-500); width: 70px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 8px; background: var(--stone-100); border-radius: var(--r-full); overflow: hidden; }
+  .bar-fill { height: 8px; border-radius: var(--r-full); }
+  .bar-val { font-size: 11px; font-weight: 600; color: var(--stone-600); width: 24px; }
+
+  /* Donut placeholder */
+  .donut-area {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: conic-gradient(
+      var(--green) 0% 60%,
+      var(--amber) 60% 80%,
+      var(--blue) 80% 92%,
+      var(--stone-200) 92% 100%
+    );
+    margin: 0 auto 12px;
+    position: relative;
+  }
+  .donut-hole {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 72px; height: 72px;
+    background: var(--surface);
+    border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .donut-center-val { font-size: 20px; font-weight: 800; font-family: var(--ff-display); color: var(--stone-900); }
+  .donut-center-lbl { font-size: 9px; color: var(--stone-400); text-transform: uppercase; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--stone-500); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 8: RESPONSES
+  ══════════════════════════════════════════ */
+  .responses-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 12px;
+    flex-shrink: 0;
+  }
+  .respondent-row {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--shadow-xs);
+  }
+  .respondent-row:hover { box-shadow: var(--shadow-md); }
+  .resp-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+  .resp-avatar {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: var(--green-50);
+    border: 1.5px solid var(--green-200);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--green);
+    font-family: var(--ff-display);
+    flex-shrink: 0;
+  }
+  .resp-info { flex: 1; }
+  .resp-id { font-size: 13px; font-weight: 700; color: var(--stone-900); margin-bottom: 2px; }
+  .resp-type { font-size: 11px; color: var(--stone-500); }
+  .resp-badge {
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .resp-meta {
+    display: flex;
+    gap: 12px;
+  }
+  .resp-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--stone-400); }
+
+  /* ══════════════════════════════════════════
+     SCREEN 9: MEMBERS
+  ══════════════════════════════════════════ */
+  .member-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow-xs);
+    cursor: pointer;
+  }
+  .member-avatar {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    font-family: var(--ff-display);
+    flex-shrink: 0;
+    color: white;
+  }
+  .member-info { flex: 1; }
+  .member-name { font-size: 14px; font-weight: 700; color: var(--stone-900); margin-bottom: 2px; }
+  .member-email { font-size: 12px; color: var(--stone-500); margin-bottom: 4px; }
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .role-owner { background: var(--green-50); color: var(--green); }
+  .role-member { background: var(--emerald-50); color: var(--emerald); }
+  .role-partner { background: var(--amber-100); color: var(--amber-700); }
+  .member-more { color: var(--stone-300); font-size: 16px; }
+
+  /* ══════════════════════════════════════════
+     SCREEN 10: SYNC
+  ══════════════════════════════════════════ */
+  .sync-hero {
+    background: linear-gradient(160deg, var(--green-900) 0%, var(--green) 100%);
+    padding: 24px 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .sync-icon-large {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .sync-status-text {
+    font-family: var(--ff-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 4px;
+  }
+  .sync-sub-text { font-size: 13px; color: rgba(255,255,255,0.6); }
+
+  .sync-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-xs);
+  }
+  .sync-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .sync-card-title { font-size: 14px; font-weight: 700; color: var(--stone-900); }
+  .sync-card-badge { font-size: 11px; font-weight: 600; color: var(--emerald); background: var(--emerald-50); padding: 2px 8px; border-radius: var(--r-full); }
+  .sync-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .sync-item-icon { font-size: 16px; }
+  .sync-item-text { flex: 1; font-size: 13px; color: var(--stone-700); }
+  .sync-item-val { font-size: 13px; font-weight: 600; color: var(--stone-900); }
+
+  /* ══════════════════════════════════════════
+     DESIGN SYSTEM PANEL
+  ══════════════════════════════════════════ */
+  .design-system-panel {
+    width: 100%;
+    max-width: 900px;
+    margin: 60px auto 0;
+    color: white;
+  }
+  .ds-section {
+    margin-bottom: 48px;
+  }
+  .ds-title {
+    font-family: var(--ff-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #333;
+  }
+  .color-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .color-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch-block {
+    width: 72px; height: 72px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .swatch-name { font-size: 11px; color: #888; text-align: center; }
+  .swatch-val { font-size: 10px; color: #555; font-family: monospace; }
+
+  .type-samples { display: flex; flex-direction: column; gap: 12px; }
+  .type-sample { display: flex; align-items: baseline; gap: 16px; }
+  .type-meta { font-size: 11px; color: #555; width: 140px; flex-shrink: 0; font-family: monospace; }
+
+  .comp-showcase { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  /* ── OFFLINE BANNER ── */
+  .offline-banner {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--amber-50);
+    border-bottom: 1px solid #FDE68A;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--amber-700);
+    font-weight: 500;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+  }
+  .empty-illustration {
+    width: 96px; height: 96px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, var(--green-50), var(--amber-50));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    margin-bottom: 20px;
+  }
+  .empty-title { font-size: 18px; font-weight: 700; color: var(--stone-900); margin-bottom: 6px; font-family: var(--ff-display); }
+  .empty-text { font-size: 13px; color: var(--stone-500); line-height: 1.6; margin-bottom: 20px; }
+  .btn-sm {
+    padding: 10px 20px;
+    border-radius: var(--r-md);
+    font-size: 13px;
+    font-weight: 700;
+    background: var(--green);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(29,122,82,0.3);
+  }
+
+  /* info tag below phone */
+  .phone-info-tags {
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 375px;
+  }
+  .info-tag {
+    background: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #888;
+  }
+  .info-tag strong { color: #ccc; }
+
+  /* Skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--stone-100) 25%, var(--stone-50) 50%, var(--stone-100) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--r-sm);
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Tooltip labels for design notes */
+  .design-note {
+    background: rgba(29,122,82,0.15);
+    border: 1px solid rgba(29,122,82,0.3);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--green-400);
+    margin-top: 16px;
+    line-height: 1.5;
+  }
+
+  /* Icon helper */
+  .i { font-style: normal; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="pill">Design Proposal</div>
+  <h1>FSDA — Redesign Mockup</h1>
+  <p>Interactive prototype across all 10 screens · Click tabs to switch views</p>
+</div>
+
+<!-- Screen navigation -->
+<div class="screen-nav">
+  <button class="screen-btn active" onclick="showScreen('login')">Login</button>
+  <button class="screen-btn" onclick="showScreen('register')">Register</button>
+  <button class="screen-btn" onclick="showScreen('dashboard')">Dashboard</button>
+  <button class="screen-btn" onclick="showScreen('project-details')">Project Details</button>
+  <button class="screen-btn" onclick="showScreen('data-collection')">Data Collection</button>
+  <button class="screen-btn" onclick="showScreen('forms')">Forms</button>
+  <button class="screen-btn" onclick="showScreen('analytics')">Analytics</button>
+  <button class="screen-btn" onclick="showScreen('responses')">Responses</button>
+  <button class="screen-btn" onclick="showScreen('members')">Members</button>
+  <button class="screen-btn" onclick="showScreen('sync')">Sync</button>
+  <button class="screen-btn" onclick="showScreen('accept-invitation')">Accept Invitation</button>
+  <button class="screen-btn" onclick="showScreen('bundle-completion')">Bundle Completion</button>
+  <button class="screen-btn" onclick="showScreen('data-collection-tablet')">Data Collection (Tablet)</button>
+</div>
+
+<!-- Phones row -->
+<div class="phones-row">
+
+  <!-- Primary phone -->
+  <div class="phone-wrap">
+    <div class="phone-label">Proposed Design</div>
+    <div class="phone">
+
+      <!-- ═══════════ LOGIN ═══════════ -->
+      <div class="phone-screen active" id="s-login">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="login-hero">
+          <div class="login-logo">
+            <div class="logo-mark">F</div>
+            <div class="logo-text">
+              <strong>FSDA</strong>
+              Field Survey & Data Analysis
+            </div>
+          </div>
+          <h1>Welcome back to your research.</h1>
+          <p>Sign in to access your projects and collected data.</p>
+        </div>
+        <div class="login-form-card">
+          <div class="form-title">Sign in</div>
+          <div class="form-subtitle">Enter your credentials to continue</div>
+          <div class="field-group">
+            <div class="field-label">Email address</div>
+            <div class="field-input-inner">
+              <span class="fi-text">e.azilafu@mcgill.ca</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Password</div>
+            <div class="field-input-inner focused">
+              <span class="fi-text">••••••••••</span>
+              <span class="fi-icon">👁</span>
+            </div>
+          </div>
+          <button class="btn-primary">Sign In</button>
+          <div class="text-link-row">
+            <span class="text-muted">New to FSDA?</span>
+            <span class="text-link">Create account</span>
+          </div>
+          <div class="divider-row"><div class="divider-line"></div><span class="divider-text">or</span><div class="divider-line"></div></div>
+          <button class="btn-primary btn-outline" style="font-size:13px;">✉ I have an invitation code</button>
+        </div>
+      </div>
+
+      <!-- ═══════════ REGISTER ═══════════ -->
+      <div class="phone-screen" id="s-register">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="login-hero" style="padding-bottom:40px;">
+          <div class="login-logo">
+            <div class="logo-mark">F</div>
+            <div class="logo-text"><strong>FSDA</strong>Create your account</div>
+          </div>
+          <h1>Join FSDA.</h1>
+          <p>Start collecting and analysing field data with your team.</p>
+        </div>
+        <div class="login-form-card" style="padding-top:24px;">
+          <div class="step-indicator">
+            <div class="step-dot active" style="flex:2;"></div>
+            <div class="step-dot" style="flex:1;"></div>
+            <div class="step-dot" style="flex:1;"></div>
+          </div>
+          <div class="form-title">Your identity</div>
+          <div class="form-subtitle" style="margin-bottom:20px;">Step 1 of 3 — Personal information</div>
+          <div class="form-row">
+            <div class="field-group">
+              <div class="field-label">First name</div>
+              <div class="field-input-inner focused"><span class="fi-text">Emmanuel</span></div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">Last name</div>
+              <div class="field-input-inner"><span class="fi-text fi-placeholder">Dotse</span></div>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Email address</div>
+            <div class="field-input-inner"><span class="fi-text fi-placeholder">you@institution.edu</span></div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Institution (optional)</div>
+            <div class="field-input-inner"><span class="fi-text fi-placeholder">McGill University</span></div>
+          </div>
+          <button class="btn-primary" style="margin-top:16px;">Continue →</button>
+          <div class="text-link-row">
+            <span class="text-muted">Already have an account?</span>
+            <span class="text-link">Sign in</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ DASHBOARD ═══════════ -->
+      <div class="phone-screen" id="s-dashboard" style="position:relative;">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="dash-header">
+          <div class="dash-top-row">
+            <div>
+              <div class="dash-greeting">Good morning</div>
+              <div class="dash-name">Emmanuel 👋</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div class="notif-btn">
+                🔔
+                <div class="notif-badge"></div>
+              </div>
+              <div class="avatar-btn">EA</div>
+            </div>
+          </div>
+          <div class="stats-scroll">
+            <div class="stat-pill">
+              <div class="stat-pill-icon">📁</div>
+              <div class="stat-pill-value">7</div>
+              <div class="stat-pill-label">Projects</div>
+            </div>
+            <div class="stat-pill">
+              <div class="stat-pill-icon">📋</div>
+              <div class="stat-pill-value">142</div>
+              <div class="stat-pill-label">Questions</div>
+            </div>
+            <div class="stat-pill">
+              <div class="stat-pill-icon">👥</div>
+              <div class="stat-pill-value">1,204</div>
+              <div class="stat-pill-label">Respondents</div>
+            </div>
+            <div class="stat-pill">
+              <div class="stat-pill-icon">🤝</div>
+              <div class="stat-pill-value">23</div>
+              <div class="stat-pill-label">Members</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scroll-content">
+          <div class="dash-body">
+            <div class="search-bar">
+              <span class="search-icon">🔍</span>
+              <span class="search-text">Search projects...</span>
+            </div>
+            <div class="filter-row">
+              <div class="filter-chip active">All (7)</div>
+              <div class="filter-chip">Synced</div>
+              <div class="filter-chip">Pending</div>
+              <div class="filter-chip">Error</div>
+            </div>
+
+            <div class="section-header">
+              <div class="section-title">Your Projects</div>
+              <div class="section-action">+ New</div>
+            </div>
+
+            <!-- Project Card 1 -->
+            <div class="project-card">
+              <div class="pc-accent-bar"></div>
+              <div class="pc-body">
+                <div class="pc-top">
+                  <div class="pc-info">
+                    <div class="pc-name">Ghana Cocoa Value Chain Survey</div>
+                    <div class="pc-desc">Mapping smallholder farmer income across Ashanti & Brong-Ahafo regions</div>
+                  </div>
+                  <div class="pc-status-dot"></div>
+                </div>
+                <div class="pc-stats">
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">48</div>
+                    <div class="pc-stat-label">Questions</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">312</div>
+                    <div class="pc-stat-label">Respondents</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">6</div>
+                    <div class="pc-stat-label">Members</div>
+                  </div>
+                </div>
+                <div class="pc-footer">
+                  <div class="pc-badge synced">Synced</div>
+                  <div class="pc-date">Updated May 24</div>
+                  <div class="pc-chevron">›</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Project Card 2 -->
+            <div class="project-card">
+              <div class="pc-accent-bar amber"></div>
+              <div class="pc-body">
+                <div class="pc-top">
+                  <div class="pc-info">
+                    <div class="pc-name">Nigeria Palm Oil Market Study</div>
+                    <div class="pc-desc">Processor & retailer survey across Cross River and Edo states</div>
+                  </div>
+                  <div class="pc-status-dot pending"></div>
+                </div>
+                <div class="pc-stats">
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">31</div>
+                    <div class="pc-stat-label">Questions</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">87</div>
+                    <div class="pc-stat-label">Respondents</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">4</div>
+                    <div class="pc-stat-label">Members</div>
+                  </div>
+                </div>
+                <div class="pc-footer">
+                  <div class="pc-badge pending">Pending</div>
+                  <div class="pc-date">Updated May 21</div>
+                  <div class="pc-chevron">›</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Project Card 3 -->
+            <div class="project-card">
+              <div class="pc-accent-bar blue"></div>
+              <div class="pc-body">
+                <div class="pc-top">
+                  <div class="pc-info">
+                    <div class="pc-name">EU Food Systems Consumer Perceptions</div>
+                    <div class="pc-desc">Household food security & purchasing behaviour in France and Germany</div>
+                  </div>
+                  <div class="pc-status-dot"></div>
+                </div>
+                <div class="pc-stats">
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">56</div>
+                    <div class="pc-stat-label">Questions</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">805</div>
+                    <div class="pc-stat-label">Respondents</div>
+                  </div>
+                  <div class="pc-stat">
+                    <div class="pc-stat-value">13</div>
+                    <div class="pc-stat-label">Members</div>
+                  </div>
+                </div>
+                <div class="pc-footer">
+                  <div class="pc-badge synced">Synced</div>
+                  <div class="pc-date">Updated May 20</div>
+                  <div class="pc-chevron">›</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="fab">+</div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ PROJECT DETAILS ═══════════ -->
+      <div class="phone-screen" id="s-project-details">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="proj-hero">
+          <div class="back-btn">← Dashboard</div>
+          <div class="proj-hero-name">Ghana Cocoa Value Chain Survey</div>
+          <div class="proj-hero-desc">Mapping smallholder farmer income across Ashanti & Brong-Ahafo regions</div>
+          <div class="proj-hero-stats">
+            <div class="proj-stat">
+              <div class="proj-stat-val">48</div>
+              <div class="proj-stat-lbl">Questions</div>
+            </div>
+            <div class="proj-stat">
+              <div class="proj-stat-val">312</div>
+              <div class="proj-stat-lbl">Respondents</div>
+            </div>
+            <div class="proj-stat">
+              <div class="proj-stat-val">6</div>
+              <div class="proj-stat-lbl">Members</div>
+            </div>
+          </div>
+        </div>
+        <div class="scroll-content">
+          <div class="proj-body">
+            <div class="section-header" style="margin-bottom:14px;">
+              <div class="section-title">Project Tools</div>
+              <div class="icon-btn">✏️</div>
+            </div>
+            <div class="tools-grid">
+              <!-- Featured: Collect Data -->
+              <div class="tool-card featured">
+                <div class="tool-icon" style="background:var(--green-50);">📝</div>
+                <div class="tool-text">
+                  <div class="tool-title">Collect Data</div>
+                  <div class="tool-desc">Begin a new survey session with a respondent</div>
+                </div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:var(--green-50);">🔨</div>
+                <div class="tool-title">Build Forms</div>
+                <div class="tool-desc">Create & manage questionnaires</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:#EFF6FF;">📊</div>
+                <div class="tool-title">Analytics</div>
+                <div class="tool-desc">Descriptive & inferential stats</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:#FEF3C7;">📋</div>
+                <div class="tool-title">View Responses</div>
+                <div class="tool-desc">Browse submitted data</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:#EDE9FE;">🔗</div>
+                <div class="tool-title">Response Links</div>
+                <div class="tool-desc">Share via web links</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:var(--emerald-50);">✅</div>
+                <div class="tool-title">Bundle Stats</div>
+                <div class="tool-desc">Completion tracking</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:#EFF6FF;">👥</div>
+                <div class="tool-title">Members</div>
+                <div class="tool-desc">Team & collaborators</div>
+              </div>
+              <div class="tool-card">
+                <div class="tool-icon" style="background:var(--amber-50);">☁️</div>
+                <div class="tool-title">Sync & Backup</div>
+                <div class="tool-desc">Offline & cloud sync</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ DATA COLLECTION ═══════════ -->
+      <div class="phone-screen" id="s-data-collection">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="dc-header">
+          <div class="dc-top">
+            <div class="dc-back">←</div>
+            <div class="dc-project">
+              <div class="dc-project-name">Ghana Cocoa Value Chain</div>
+              <div class="dc-respondent">Kofi Mensah · Farmer</div>
+            </div>
+            <div class="dc-save-btn">Save Draft</div>
+          </div>
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" style="width:35%;"></div>
+          </div>
+          <div class="progress-labels">
+            <span class="progress-text">Question 17 of 48</span>
+            <span class="progress-pct">35%</span>
+          </div>
+        </div>
+        <div class="scroll-content">
+          <div class="dc-body">
+            <div class="category-tag">🌱 Farm Characteristics</div>
+            <div class="q-number">Question 17</div>
+            <div class="q-text">What is the total area of land you use for cocoa farming?</div>
+            <span class="q-required">* Required</span>
+            <div class="answer-option selected">
+              <div class="radio-circle"><div class="radio-dot"></div></div>
+              <div class="answer-text">Less than 1 hectare</div>
+            </div>
+            <div class="answer-option">
+              <div class="radio-circle"></div>
+              <div class="answer-text">1 – 3 hectares</div>
+            </div>
+            <div class="answer-option">
+              <div class="radio-circle"></div>
+              <div class="answer-text">3 – 6 hectares</div>
+            </div>
+            <div class="answer-option">
+              <div class="radio-circle"></div>
+              <div class="answer-text">More than 6 hectares</div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-nav">
+          <div class="dc-nav-btn dc-nav-prev">← Previous</div>
+          <div class="dc-nav-btn dc-nav-next">Next →</div>
+        </div>
+      </div>
+
+      <!-- ═══════════ FORMS ═══════════ -->
+      <div class="phone-screen" id="s-forms">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="forms-header">
+          <div class="forms-header-top">
+            <div class="screen-title">Forms</div>
+            <div style="display:flex;gap:8px;">
+              <div class="icon-btn">🔍</div>
+              <div class="icon-btn" style="background:var(--green);border-color:var(--green);color:white;">+</div>
+            </div>
+          </div>
+          <div class="project-selector">
+            <div class="proj-chip active">Ghana Cocoa</div>
+            <div class="proj-chip">Nigeria Palm Oil</div>
+            <div class="proj-chip">EU Consumer</div>
+            <div class="proj-chip">Kenya Maize</div>
+          </div>
+        </div>
+        <div class="scroll-content">
+          <div style="padding:16px;">
+            <div class="section-header" style="margin-bottom:10px;">
+              <div class="section-title">48 Questions</div>
+              <div class="icon-btn">⇅</div>
+            </div>
+
+            <!-- Category group -->
+            <div style="font-size:11px;font-weight:700;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-left:4px;">
+              🌱 Farm Characteristics (12)
+            </div>
+            <div class="q-card">
+              <div class="q-card-accent" style="background:var(--green);"></div>
+              <div class="q-card-body">
+                <div class="q-type-badge" style="background:var(--green-50);color:var(--green);">Single choice</div>
+                <div class="q-card-info">
+                  <div class="q-card-text">What is your primary agricultural activity?</div>
+                  <div class="q-card-meta">4 options · Required</div>
+                </div>
+                <div class="q-card-actions">
+                  <div class="q-action">✏️</div>
+                  <div class="q-action">⋮</div>
+                </div>
+              </div>
+            </div>
+            <div class="q-card">
+              <div class="q-card-accent" style="background:var(--green);"></div>
+              <div class="q-card-body">
+                <div class="q-type-badge" style="background:var(--green-50);color:var(--green);">Number</div>
+                <div class="q-card-info">
+                  <div class="q-card-text">How many years have you been farming cocoa?</div>
+                  <div class="q-card-meta">Numeric · Required</div>
+                </div>
+                <div class="q-card-actions">
+                  <div class="q-action">✏️</div>
+                  <div class="q-action">⋮</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;padding-left:4px;">
+              💰 Income & Sales (8)
+            </div>
+            <div class="q-card">
+              <div class="q-card-accent" style="background:var(--amber);"></div>
+              <div class="q-card-body">
+                <div class="q-type-badge" style="background:var(--amber-100);color:var(--amber-700);">Multiple choice</div>
+                <div class="q-card-info">
+                  <div class="q-card-text">What are your main channels for selling cocoa?</div>
+                  <div class="q-card-meta">6 options · Required</div>
+                </div>
+                <div class="q-card-actions">
+                  <div class="q-action">✏️</div>
+                  <div class="q-action">⋮</div>
+                </div>
+              </div>
+            </div>
+            <div class="q-card">
+              <div class="q-card-accent" style="background:var(--amber);"></div>
+              <div class="q-card-body">
+                <div class="q-type-badge" style="background:var(--amber-100);color:var(--amber-700);">Text</div>
+                <div class="q-card-info">
+                  <div class="q-card-text">Describe any challenges you face accessing markets.</div>
+                  <div class="q-card-meta">Long text · Optional</div>
+                </div>
+                <div class="q-card-actions">
+                  <div class="q-action">✏️</div>
+                  <div class="q-action">⋮</div>
+                </div>
+              </div>
+            </div>
+            <div class="add-q-btn">+ Add Question</div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item active">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ ANALYTICS ═══════════ -->
+      <div class="phone-screen" id="s-analytics">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="analytics-header">
+          <div class="forms-header-top">
+            <div class="screen-title">Analytics</div>
+            <div class="icon-btn">⬇️</div>
+          </div>
+          <div class="project-selector" style="margin-top:12px;">
+            <div class="proj-chip active">Ghana Cocoa</div>
+            <div class="proj-chip">Nigeria Palm Oil</div>
+            <div class="proj-chip">EU Consumer</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-item active">Descriptive</div>
+            <div class="tab-item">Inferential</div>
+            <div class="tab-item">Qualitative</div>
+          </div>
+        </div>
+        <div class="scroll-content">
+          <div class="analytics-body">
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="sum-label">Total Respondents</div>
+                <div class="sum-value">312</div>
+                <div class="sum-change">↑ 14 this week</div>
+              </div>
+              <div class="summary-card">
+                <div class="sum-label">Avg Responses</div>
+                <div class="sum-value">41.2</div>
+                <div class="sum-sub">per respondent</div>
+              </div>
+              <div class="summary-card full">
+                <div class="sum-label" style="margin-bottom:12px;">Farm Size Distribution</div>
+                <div class="bar-chart">
+                  <div class="bar-row">
+                    <div class="bar-label">< 1 hectare</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:68%;background:var(--green);"></div></div>
+                    <div class="bar-val">68%</div>
+                  </div>
+                  <div class="bar-row">
+                    <div class="bar-label">1 – 3 ha</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:22%;background:var(--amber);"></div></div>
+                    <div class="bar-val">22%</div>
+                  </div>
+                  <div class="bar-row">
+                    <div class="bar-label">3 – 6 ha</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:7%;background:var(--blue);"></div></div>
+                    <div class="bar-val">7%</div>
+                  </div>
+                  <div class="bar-row">
+                    <div class="bar-label">> 6 ha</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:3%;background:var(--red);"></div></div>
+                    <div class="bar-val">3%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="summary-card full">
+                <div class="sum-label" style="margin-bottom:12px;">Respondent Type Breakdown</div>
+                <div class="donut-area">
+                  <div class="donut-hole">
+                    <div class="donut-center-val">312</div>
+                    <div class="donut-center-lbl">Total</div>
+                  </div>
+                </div>
+                <div class="legend">
+                  <div class="legend-item"><div class="legend-dot" style="background:var(--green);"></div>Farmers 60%</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:var(--amber);"></div>Processors 20%</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:var(--blue);"></div>Retailers 12%</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:var(--stone-200);"></div>Other 8%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item active">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ RESPONSES ═══════════ -->
+      <div class="phone-screen" id="s-responses">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="responses-header">
+          <div class="forms-header-top">
+            <div class="screen-title">Responses</div>
+            <div style="display:flex;gap:8px;">
+              <div class="icon-btn">🔍</div>
+              <div class="icon-btn">⬇️</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div class="search-bar" style="margin-bottom:0;">
+              <span class="search-icon">🔍</span>
+              <span class="search-text">Search by respondent ID or type...</span>
+            </div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-item active">All (312)</div>
+            <div class="tab-item">Farmers</div>
+            <div class="tab-item">Processors</div>
+            <div class="tab-item">Retailers</div>
+          </div>
+        </div>
+        <div class="scroll-content">
+          <div style="padding:16px;">
+            <div class="respondent-row">
+              <div class="resp-top">
+                <div class="resp-avatar">KM</div>
+                <div class="resp-info">
+                  <div class="resp-id">RESP-GH-001</div>
+                  <div class="resp-type">Farmer · Ashanti Region</div>
+                </div>
+                <div class="resp-badge" style="background:var(--emerald-50);color:var(--emerald);">Complete</div>
+              </div>
+              <div class="resp-meta">
+                <div class="resp-meta-item">📍 GPS captured</div>
+                <div class="resp-meta-item">📅 May 24, 2025</div>
+                <div class="resp-meta-item">⏱ 22 min</div>
+              </div>
+            </div>
+            <div class="respondent-row">
+              <div class="resp-top">
+                <div class="resp-avatar" style="background:var(--amber-100);border-color:#FDE68A;color:var(--amber-700);">AA</div>
+                <div class="resp-info">
+                  <div class="resp-id">RESP-GH-002</div>
+                  <div class="resp-type">Processor · Kumasi</div>
+                </div>
+                <div class="resp-badge" style="background:var(--amber-100);color:var(--amber-700);">Partial</div>
+              </div>
+              <div class="resp-meta">
+                <div class="resp-meta-item">📍 GPS captured</div>
+                <div class="resp-meta-item">📅 May 24, 2025</div>
+                <div class="resp-meta-item">⏱ 11 min</div>
+              </div>
+            </div>
+            <div class="respondent-row">
+              <div class="resp-top">
+                <div class="resp-avatar">OA</div>
+                <div class="resp-info">
+                  <div class="resp-id">RESP-GH-003</div>
+                  <div class="resp-type">Farmer · Brong-Ahafo</div>
+                </div>
+                <div class="resp-badge" style="background:var(--emerald-50);color:var(--emerald);">Complete</div>
+              </div>
+              <div class="resp-meta">
+                <div class="resp-meta-item">📍 No GPS</div>
+                <div class="resp-meta-item">📅 May 23, 2025</div>
+                <div class="resp-meta-item">⏱ 31 min</div>
+              </div>
+            </div>
+            <div class="respondent-row">
+              <div class="resp-top">
+                <div class="resp-avatar">BK</div>
+                <div class="resp-info">
+                  <div class="resp-id">RESP-GH-004</div>
+                  <div class="resp-type">Retailer · Accra</div>
+                </div>
+                <div class="resp-badge" style="background:var(--emerald-50);color:var(--emerald);">Complete</div>
+              </div>
+              <div class="resp-meta">
+                <div class="resp-meta-item">📍 GPS captured</div>
+                <div class="resp-meta-item">📅 May 22, 2025</div>
+                <div class="resp-meta-item">⏱ 18 min</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ MEMBERS ═══════════ -->
+      <div class="phone-screen" id="s-members">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="responses-header">
+          <div class="forms-header-top">
+            <div class="screen-title">Team</div>
+            <div class="icon-btn" style="background:var(--green);border-color:var(--green);color:white;font-size:18px;">+</div>
+          </div>
+          <div style="margin-top:4px;font-size:13px;color:var(--stone-500);">Ghana Cocoa Value Chain · 6 members</div>
+        </div>
+        <div class="scroll-content">
+          <div style="padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Owner</div>
+            <div class="member-card">
+              <div class="member-avatar" style="background:linear-gradient(135deg,var(--green-900),var(--green));">EA</div>
+              <div class="member-info">
+                <div class="member-name">Emmanuel Azilafu</div>
+                <div class="member-email">e.azilafu@mcgill.ca</div>
+                <span class="role-badge role-owner">Owner</span>
+              </div>
+              <div class="member-more">›</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;">Members (3)</div>
+            <div class="member-card">
+              <div class="member-avatar" style="background:linear-gradient(135deg,#0D9488,#2DD4BF);">AK</div>
+              <div class="member-info">
+                <div class="member-name">Abena Kusi</div>
+                <div class="member-email">a.kusi@ug.edu.gh</div>
+                <span class="role-badge role-member">Member</span>
+              </div>
+              <div class="member-more">›</div>
+            </div>
+            <div class="member-card">
+              <div class="member-avatar" style="background:linear-gradient(135deg,#2563EB,#60A5FA);">JB</div>
+              <div class="member-info">
+                <div class="member-name">Jean Bernard</div>
+                <div class="member-email">j.bernard@inrae.fr</div>
+                <span class="role-badge role-member">Member</span>
+              </div>
+              <div class="member-more">›</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;">Partner Organizations (2)</div>
+            <div class="member-card">
+              <div class="member-avatar" style="background:linear-gradient(135deg,var(--amber-900),var(--amber));">CO</div>
+              <div class="member-info">
+                <div class="member-name">Cocobod Ghana</div>
+                <div class="member-email">partner@cocobod.gh</div>
+                <span class="role-badge role-partner">Partner</span>
+              </div>
+              <div class="member-more">›</div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ SYNC ═══════════ -->
+      <div class="phone-screen" id="s-sync">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <div class="sync-hero">
+          <span class="sync-icon-large">☁️</span>
+          <div class="sync-status-text">All data synced</div>
+          <div class="sync-sub-text">Last synced: Today at 9:38 AM</div>
+        </div>
+        <div class="scroll-content">
+          <div style="padding:16px;">
+            <div class="sync-card">
+              <div class="sync-card-header">
+                <div class="sync-card-title">Sync Status</div>
+                <div class="sync-card-badge">● Online</div>
+              </div>
+              <div class="sync-item">
+                <span class="sync-item-icon">📤</span>
+                <span class="sync-item-text">Pending uploads</span>
+                <span class="sync-item-val">0</span>
+              </div>
+              <div class="sync-item">
+                <span class="sync-item-icon">📥</span>
+                <span class="sync-item-text">Pending downloads</span>
+                <span class="sync-item-val">3</span>
+              </div>
+              <div class="sync-item">
+                <span class="sync-item-icon">⚠️</span>
+                <span class="sync-item-text">Sync errors</span>
+                <span class="sync-item-val" style="color:var(--red);">1</span>
+              </div>
+            </div>
+
+            <div class="sync-card">
+              <div class="sync-card-header">
+                <div class="sync-card-title">Offline Cache</div>
+              </div>
+              <div class="sync-item">
+                <span class="sync-item-icon">📁</span>
+                <span class="sync-item-text">Projects cached</span>
+                <span class="sync-item-val">7</span>
+              </div>
+              <div class="sync-item">
+                <span class="sync-item-icon">💾</span>
+                <span class="sync-item-text">Cache size</span>
+                <span class="sync-item-val">14.2 MB</span>
+              </div>
+            </div>
+
+            <button class="btn-primary" style="width:100%;">⟳ Sync Now</button>
+            <button class="btn-primary btn-outline" style="width:100%;margin-top:10px;">🗑 Clear Cache</button>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Dashboard</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Forms</div>
+          </div>
+          <div class="nav-item nav-collect">
+            <div class="nav-icon">+</div>
+            <div class="nav-label">Collect</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Analytics</div>
+          </div>
+          <div class="nav-item">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ ACCEPT INVITATION ═══════════ -->
+      <div class="phone-screen" id="s-accept-invitation">
+        <div class="status-bar light">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <!-- Green hero -->
+        <div style="background:linear-gradient(160deg,var(--green-900) 0%,var(--green-700) 100%);padding:16px 20px 28px;flex-shrink:0;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+            <div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.8);font-size:16px;cursor:pointer;">←</div>
+            <div style="flex:1;"></div>
+          </div>
+          <div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:14px;">📨</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.6);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Project Invitation</div>
+          <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:white;line-height:1.2;letter-spacing:-0.3px;">You've been invited to collaborate</div>
+        </div>
+
+        <div class="scroll-content" style="background:var(--bg);">
+          <div style="padding:16px;">
+            <!-- Inviter info strip -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-xs);">
+              <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563EB,#60A5FA);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:white;font-family:'Fraunces',serif;flex-shrink:0;">JB</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;color:var(--stone-500);">Invited by</div>
+                <div style="font-size:15px;font-weight:700;color:var(--stone-900);">Jean Bernard</div>
+                <div style="font-size:12px;color:var(--stone-400);">j.bernard@inrae.fr · INRAE</div>
+              </div>
+            </div>
+
+            <!-- Project card -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);overflow:hidden;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+              <div style="height:4px;background:var(--green);"></div>
+              <div style="padding:16px;">
+                <div style="font-size:11px;color:var(--stone-400);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;">Project</div>
+                <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--stone-900);letter-spacing:-0.2px;margin-bottom:6px;line-height:1.3;">Ghana Cocoa Value Chain Survey</div>
+                <div style="font-size:13px;color:var(--stone-500);line-height:1.5;margin-bottom:14px;">Mapping smallholder farmer income across Ashanti &amp; Brong-Ahafo regions</div>
+
+                <!-- 2x2 stat grid -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+                  <div style="background:var(--stone-50);border-radius:var(--r-sm);padding:10px 12px;text-align:center;">
+                    <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--stone-900);">48</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;">Questions</div>
+                  </div>
+                  <div style="background:var(--stone-50);border-radius:var(--r-sm);padding:10px 12px;text-align:center;">
+                    <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--stone-900);">312</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;">Respondents</div>
+                  </div>
+                  <div style="background:var(--stone-50);border-radius:var(--r-sm);padding:10px 12px;text-align:center;">
+                    <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--stone-900);">6</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;">Members</div>
+                  </div>
+                  <div style="background:var(--green-50);border-radius:var(--r-sm);padding:10px 12px;text-align:center;border:1px solid var(--green-200);">
+                    <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:2px;">Member</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;">Your Role</div>
+                  </div>
+                </div>
+
+                <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:space-between;">
+                  <div style="font-size:11px;color:var(--stone-400);">Created by Emmanuel Azilafu</div>
+                  <div style="font-size:11px;color:var(--stone-400);">Mar 12, 2025</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Decision prompt -->
+            <div style="font-size:14px;color:var(--stone-500);text-align:center;margin-bottom:14px;line-height:1.5;">Would you like to join this project as a <strong style="color:var(--stone-800);">Member</strong>?</div>
+
+            <!-- Actions -->
+            <button class="btn-primary" style="width:100%;margin-bottom:10px;">✓ Accept &amp; Join Project</button>
+            <button class="btn-primary btn-outline" style="width:100%;border-color:var(--red);color:var(--red);">✕ Decline Invitation</button>
+            <div style="font-size:11px;color:var(--stone-400);text-align:center;margin-top:12px;font-style:italic;">You can leave the project at any time from your profile.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ BUNDLE COMPLETION ═══════════ -->
+      <div class="phone-screen" id="s-bundle-completion">
+        <div class="status-bar dark">
+          <span class="sb-time">9:41</span>
+          <div class="sb-notch"></div>
+          <div class="sb-icons">●●● 🔋</div>
+        </div>
+        <!-- Header -->
+        <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px 0;flex-shrink:0;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:32px;height:32px;background:var(--stone-50);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;">←</div>
+            <div style="flex:1;">
+              <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--stone-900);letter-spacing:-0.2px;">Bundle Stats</div>
+              <div style="font-size:12px;color:var(--stone-400);">Ghana Cocoa Value Chain</div>
+            </div>
+            <div style="width:32px;height:32px;background:var(--stone-50);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;">↻</div>
+          </div>
+          <!-- Toggle: Project / My Stats -->
+          <div style="display:flex;background:var(--stone-100);border-radius:var(--r-md);padding:3px;margin-bottom:14px;">
+            <div style="flex:1;background:var(--surface);border-radius:10px;padding:8px;text-align:center;font-size:13px;font-weight:700;color:var(--stone-900);box-shadow:var(--shadow-xs);">📊 Project Stats</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;color:var(--stone-400);">👤 My Stats</div>
+          </div>
+        </div>
+
+        <div class="scroll-content" style="background:var(--bg);">
+          <div style="padding:14px;">
+            <!-- Summary strip -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);padding:14px;margin-bottom:14px;display:flex;box-shadow:var(--shadow-xs);">
+              <div style="flex:1;text-align:center;border-right:1px solid var(--border);">
+                <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--stone-900);">4</div>
+                <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;margin-top:2px;">Bundles</div>
+              </div>
+              <div style="flex:1;text-align:center;border-right:1px solid var(--border);">
+                <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--stone-900);">192</div>
+                <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;margin-top:2px;">Questions</div>
+              </div>
+              <div style="flex:1;text-align:center;">
+                <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--emerald);">248</div>
+                <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;letter-spacing:0.3px;font-weight:500;margin-top:2px;">Completions</div>
+              </div>
+            </div>
+
+            <!-- Bundle card 1 — high completion -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);overflow:hidden;margin-bottom:10px;box-shadow:var(--shadow-xs);">
+              <div style="height:3px;background:var(--emerald);"></div>
+              <div style="padding:14px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+                  <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:var(--stone-900);margin-bottom:6px;">Farmer</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--emerald-50);border:1px solid #A7F3D0;font-size:10px;font-weight:600;color:var(--emerald);">🌿 Cocoa</span>
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--blue-50);border:1px solid #BFDBFE;font-size:10px;font-weight:600;color:var(--blue);">📍 Ghana</span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;font-weight:700;color:var(--emerald);background:var(--emerald-50);padding:4px 10px;border-radius:var(--r-full);">84%</div>
+                </div>
+                <!-- Stats row -->
+                <div style="display:flex;background:var(--stone-50);border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">48</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Questions</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--emerald);">184</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Completed</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">219</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Total</div>
+                  </div>
+                </div>
+                <!-- Progress bar -->
+                <div style="height:6px;background:var(--border);border-radius:var(--r-full);overflow:hidden;">
+                  <div style="width:84%;height:6px;background:linear-gradient(90deg,var(--emerald),#34D399);border-radius:var(--r-full);"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bundle card 2 — medium completion -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);overflow:hidden;margin-bottom:10px;box-shadow:var(--shadow-xs);">
+              <div style="height:3px;background:var(--amber);"></div>
+              <div style="padding:14px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+                  <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:var(--stone-900);margin-bottom:6px;">Processor</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--emerald-50);border:1px solid #A7F3D0;font-size:10px;font-weight:600;color:var(--emerald);">🌿 Cocoa</span>
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--blue-50);border:1px solid #BFDBFE;font-size:10px;font-weight:600;color:var(--blue);">📍 Nigeria</span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;font-weight:700;color:var(--amber-700);background:var(--amber-100);padding:4px 10px;border-radius:var(--r-full);">41%</div>
+                </div>
+                <div style="display:flex;background:var(--stone-50);border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">36</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Questions</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--amber);">38</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Completed</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">93</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Total</div>
+                  </div>
+                </div>
+                <div style="height:6px;background:var(--border);border-radius:var(--r-full);overflow:hidden;">
+                  <div style="width:41%;height:6px;background:linear-gradient(90deg,var(--amber),#FCD34D);border-radius:var(--r-full);"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bundle card 3 — low completion -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);">
+              <div style="height:3px;background:var(--red);"></div>
+              <div style="padding:14px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+                  <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:700;color:var(--stone-900);margin-bottom:6px;">Retailer / Food Vendor</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--emerald-50);border:1px solid #A7F3D0;font-size:10px;font-weight:600;color:var(--emerald);">🌿 Palm Oil</span>
+                      <span style="padding:3px 9px;border-radius:var(--r-full);background:var(--blue-50);border:1px solid #BFDBFE;font-size:10px;font-weight:600;color:var(--blue);">📍 Kenya</span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;font-weight:700;color:var(--red);background:var(--red-50);padding:4px 10px;border-radius:var(--r-full);">12%</div>
+                </div>
+                <div style="display:flex;background:var(--stone-50);border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">52</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Questions</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;border-right:1px solid var(--border);">
+                    <div style="font-size:18px;font-weight:700;color:var(--red);">26</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Completed</div>
+                  </div>
+                  <div style="flex:1;padding:8px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:var(--stone-900);">214</div>
+                    <div style="font-size:10px;color:var(--stone-400);text-transform:uppercase;font-weight:500;letter-spacing:0.2px;">Total</div>
+                  </div>
+                </div>
+                <div style="height:6px;background:var(--border);border-radius:var(--r-full);overflow:hidden;">
+                  <div style="width:12%;height:6px;background:linear-gradient(90deg,var(--red),#FCA5A5);border-radius:var(--r-full);"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /phone -->
+
+    <!-- ═══════ TABLET LANDSCAPE — DATA COLLECTION ═══════ -->
+    <div class="phone-wrap" id="tablet-wrap" style="display:none;">
+      <div class="phone-label">Tablet Landscape · Data Collection</div>
+      <div style="width:834px;height:500px;background:var(--surface);border-radius:28px;overflow:hidden;box-shadow:0 0 0 8px #1a1a1a,0 0 0 10px #333,0 40px 80px rgba(0,0,0,0.5);display:flex;flex-direction:column;position:relative;">
+        <!-- Status bar -->
+        <div style="height:28px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--stone-900);">9:41</div>
+          <div style="width:120px;height:18px;border-radius:9px;background:#111;"></div>
+          <div style="font-size:12px;color:var(--stone-500);">●●● 🔋</div>
+        </div>
+        <!-- Top bar -->
+        <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0;">
+          <div style="width:32px;height:32px;background:var(--stone-50);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;flex-shrink:0;">←</div>
+          <div style="flex:1;">
+            <div style="font-size:11px;color:var(--stone-400);font-weight:500;">Ghana Cocoa Value Chain · Kofi Mensah · Farmer</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+              <div style="flex:1;height:4px;background:var(--border);border-radius:var(--r-full);overflow:hidden;">
+                <div style="width:35%;height:4px;background:linear-gradient(90deg,var(--green-700),var(--green-500));border-radius:var(--r-full);"></div>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:var(--green);white-space:nowrap;">Q17 / 48 · 35%</div>
+            </div>
+          </div>
+          <div style="padding:6px 14px;background:var(--green-50);border-radius:var(--r-full);font-size:12px;font-weight:700;color:var(--green);cursor:pointer;flex-shrink:0;">Save Draft</div>
+        </div>
+        <!-- Two-column layout -->
+        <div style="flex:1;display:flex;overflow:hidden;">
+          <!-- Left — Question panel -->
+          <div style="width:420px;border-right:1px solid var(--border);padding:28px;display:flex;flex-direction:column;overflow-y:auto;background:var(--bg);">
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:var(--green-50);border-radius:var(--r-full);font-size:11px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:14px;align-self:flex-start;">🌱 Farm Characteristics</div>
+            <div style="font-size:11px;color:var(--stone-400);font-weight:500;margin-bottom:8px;">Question 17 of 48</div>
+            <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:var(--stone-900);line-height:1.35;letter-spacing:-0.3px;margin-bottom:8px;">What is the total area of land you use for cocoa farming?</div>
+            <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:24px;">* Required</div>
+            <!-- Helper text on tablet -->
+            <div style="background:var(--green-50);border:1px solid var(--green-200);border-radius:var(--r-md);padding:12px 14px;margin-top:auto;">
+              <div style="font-size:11px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;">Field Tip</div>
+              <div style="font-size:12px;color:var(--stone-600);line-height:1.5;">Ask the farmer to estimate using local land measurement units if they don't know in hectares. 1 acre ≈ 0.4 hectares.</div>
+            </div>
+          </div>
+          <!-- Right — Answer panel -->
+          <div style="flex:1;padding:28px;display:flex;flex-direction:column;overflow-y:auto;">
+            <div style="font-size:13px;font-weight:600;color:var(--stone-500);margin-bottom:16px;">Select one answer</div>
+            <div style="background:var(--green-50);border:2px solid var(--green);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:9px;height:9px;border-radius:50%;background:white;"></div></div>
+              <div style="font-size:16px;font-weight:600;color:var(--stone-900);">Less than 1 hectare</div>
+            </div>
+            <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;">
+              <div style="width:22px;height:22px;border-radius:50%;border:2px solid var(--stone-300);flex-shrink:0;"></div>
+              <div style="font-size:16px;font-weight:500;color:var(--stone-800);">1 – 3 hectares</div>
+            </div>
+            <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;">
+              <div style="width:22px;height:22px;border-radius:50%;border:2px solid var(--stone-300);flex-shrink:0;"></div>
+              <div style="font-size:16px;font-weight:500;color:var(--stone-800);">3 – 6 hectares</div>
+            </div>
+            <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;">
+              <div style="width:22px;height:22px;border-radius:50%;border:2px solid var(--stone-300);flex-shrink:0;"></div>
+              <div style="font-size:16px;font-weight:500;color:var(--stone-800);">More than 6 hectares</div>
+            </div>
+            <!-- Nav buttons at bottom right -->
+            <div style="display:flex;gap:10px;margin-top:auto;padding-top:16px;">
+              <div style="flex:1;height:48px;border-radius:var(--r-md);background:var(--stone-50);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--stone-600);cursor:pointer;gap:6px;">← Previous</div>
+              <div style="flex:2;height:48px;border-radius:var(--r-md);background:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:white;cursor:pointer;gap:6px;box-shadow:0 4px 12px rgba(29,122,82,0.3);">Next Question →</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-info-tags" style="max-width:834px;">
+        <div class="info-tag"><strong>Layout:</strong> Two-column landscape split</div>
+        <div class="info-tag"><strong>Left panel:</strong> Question + Field Tips</div>
+        <div class="info-tag"><strong>Right panel:</strong> Large touch-target answers</div>
+        <div class="info-tag"><strong>Trigger:</strong> Tablet screen width ≥ 600dp</div>
+        <div class="info-tag"><strong>Portrait fallback:</strong> Same as phone layout</div>
+      </div>
+    </div>
+
+    <div class="phone-info-tags" id="info-tags">
+      <div class="info-tag"><strong>Theme:</strong> Savanna Intelligence</div>
+      <div class="info-tag"><strong>Primary:</strong> #1D7A52 Forest Green</div>
+      <div class="info-tag"><strong>Accent:</strong> #D97706 Harvest Amber</div>
+      <div class="info-tag"><strong>Background:</strong> #F7F6F2 Warm Off-white</div>
+      <div class="info-tag"><strong>Display font:</strong> Fraunces</div>
+      <div class="info-tag"><strong>Body font:</strong> DM Sans</div>
+    </div>
+  </div><!-- /phone-wrap -->
+      <div class="info-tag"><strong>Theme:</strong> Savanna Intelligence</div>
+      <div class="info-tag"><strong>Primary:</strong> #1D7A52 Forest Green</div>
+      <div class="info-tag"><strong>Accent:</strong> #D97706 Harvest Amber</div>
+      <div class="info-tag"><strong>Background:</strong> #F7F6F2 Warm Off-white</div>
+      <div class="info-tag"><strong>Display font:</strong> Fraunces</div>
+      <div class="info-tag"><strong>Body font:</strong> DM Sans</div>
+    </div>
+  </div><!-- /phone-wrap -->
+
+</div><!-- /phones-row -->
+
+<!-- Design system notes -->
+<div class="design-system-panel">
+  <div class="ds-section">
+    <div class="ds-title">Key Design Changes vs. Current App</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="background:#1f1f1f;border:1px solid #333;border-radius:12px;padding:20px;">
+        <div style="font-size:12px;font-weight:700;color:#DC2626;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">❌ Current Problems</div>
+        <ul style="color:#888;font-size:13px;line-height:2;list-style:none;padding:0;">
+          <li>Generic Material Design — no brand identity</li>
+          <li>No bottom tab navigation</li>
+          <li>Sterile white + cold gray palette</li>
+          <li>System default fonts only</li>
+          <li>Stats cards use excessive padding/icons</li>
+          <li>ProjectCard is a 3-section spreadsheet</li>
+          <li>ProjectDetails is 8 vertical cards</li>
+          <li>Loading state = "Loading..." text</li>
+          <li>HomeScreen is redundant dead-end</li>
+          <li>Inline Alert() calls everywhere</li>
+          <li>Tablet-first design breaks on phones</li>
+          <li>AcceptInvitation buries role & project info</li>
+          <li>BundleCompletion has no progress bars</li>
+        </ul>
+      </div>
+      <div style="background:#1f1f1f;border:1px solid #333;border-radius:12px;padding:20px;">
+        <div style="font-size:12px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">✅ Proposed Solutions</div>
+        <ul style="color:#888;font-size:13px;line-height:2;list-style:none;padding:0;">
+          <li>Forest green brand — field research context</li>
+          <li>Bottom tab nav (Dashboard/Forms/Collect/Analytics/Profile)</li>
+          <li>Warm off-white + amber accent palette</li>
+          <li>Fraunces display + DM Sans body fonts</li>
+          <li>Compact horizontal stat pills in header</li>
+          <li>3-stat block + accent bar ProjectCard</li>
+          <li>2×4 tool grid in ProjectDetails</li>
+          <li>Skeleton screen loading states</li>
+          <li>HomeScreen removed — auth goes to Dashboard</li>
+          <li>Toast/banner notifications system</li>
+          <li>Phone-first Android design · tablet adaptive</li>
+          <li>Invitation: hero + inviter card + 2×2 stat grid</li>
+          <li>Bundle: color-coded progress bars per bundle</li>
+          <li>Tablet landscape: two-column split for DataCollection</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <div class="ds-title">Screen Targeting Strategy — Android-first</div>
+    <div style="background:#1f1f1f;border:1px solid #333;border-radius:12px;padding:20px;color:#aaa;font-size:13px;line-height:1.8;">
+      <strong style="color:white;">Primary target:</strong> Android phones in portrait mode (360–414dp wide). All layouts designed phone-first. Every element must work on a compact 360dp screen before being enhanced for larger sizes.<br><br>
+      <strong style="color:white;">Tablet adaptive (≥600dp):</strong> DataCollection switches to landscape two-column split — question panel on the left, answers on the right. This is preserved from the old tablet-first design because it genuinely improves the surveying experience on a tablet. All other screens simply reflow naturally. No forced landscape lock except for DataCollection on tablets.<br><br>
+      <strong style="color:white;">Large screens / foldables (≥840dp):</strong> Dashboard shows 2-column project grid. Analytics shows side-by-side charts. No special code needed — flexbox wrapping handles it.<br><br>
+      <strong style="color:white;">Implementation note:</strong> Use <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">useWindowDimensions()</code> to detect screen width and switch layouts. Threshold: <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">width &gt;= 600</code> = tablet. Lock DataCollection to landscape on tablet using <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">expo-screen-orientation</code>.
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <div class="ds-title">Color Palette</div>
+    <div class="color-grid">
+      <div class="color-swatch"><div class="swatch-block" style="background:#0A3D2B;"></div><div class="swatch-name">Green 900</div><div class="swatch-val">#0A3D2B</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#1D7A52;border:1px solid #333;"></div><div class="swatch-name">Primary</div><div class="swatch-val">#1D7A52</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#26A86E;border:1px solid #333;"></div><div class="swatch-name">Green 500</div><div class="swatch-val">#26A86E</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#EEF9F3;border:1px solid #333;"></div><div class="swatch-name">Green 50</div><div class="swatch-val">#EEF9F3</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#D97706;"></div><div class="swatch-name">Accent</div><div class="swatch-val">#D97706</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#FEF3C7;border:1px solid #333;"></div><div class="swatch-name">Amber 100</div><div class="swatch-val">#FEF3C7</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#F7F6F2;border:1px solid #333;"></div><div class="swatch-name">Background</div><div class="swatch-val">#F7F6F2</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#1C1917;"></div><div class="swatch-name">Text Primary</div><div class="swatch-val">#1C1917</div></div>
+      <div class="color-swatch"><div class="swatch-block" style="background:#78716C;border:1px solid #333;"></div><div class="swatch-name">Text Secondary</div><div class="swatch-val">#78716C</div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <div class="ds-title">Typography Scale</div>
+    <div class="type-samples">
+      <div class="type-sample"><div class="type-meta">Fraunces 700 / 32px</div><div style="font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:white;letter-spacing:-0.5px;">Field Research.</div></div>
+      <div class="type-sample"><div class="type-meta">Fraunces 700 / 24px</div><div style="font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:white;">Ghana Cocoa Survey</div></div>
+      <div class="type-sample"><div class="type-meta">DM Sans 700 / 17px</div><div style="font-family:'DM Sans',sans-serif;font-size:17px;font-weight:700;color:white;">Section Title</div></div>
+      <div class="type-sample"><div class="type-meta">DM Sans 500 / 15px</div><div style="font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;color:#ccc;">Body text — readable in field conditions, generous line height</div></div>
+      <div class="type-sample"><div class="type-meta">DM Sans 500 / 11px UPPER</div><div style="font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;">LABEL / CATEGORY</div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <div class="ds-title">Navigation Change — Stack → Bottom Tabs + Stack</div>
+    <div style="background:#1f1f1f;border:1px solid #333;border-radius:12px;padding:20px;color:#aaa;font-size:13px;line-height:1.8;">
+      <strong style="color:white;">Current:</strong> Single stack navigator. Every screen stacks on top. Users must back-navigate repeatedly. No persistent navigation landmarks.<br><br>
+      <strong style="color:white;">Proposed:</strong> Bottom tab navigator wraps <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">Dashboard</code>, <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">Forms</code>, <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">Collect</code>, <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">Analytics</code>, <code style="background:#111;padding:2px 6px;border-radius:4px;color:#6ee7b7;">Profile</code>. Each tab has its own nested stack. Users always know where they are. Project context passes through params, not forced navigation.
+      <br><br>
+      <strong style="color:white;">Package needed:</strong> <code style="background:#111;padding:2px 6px;border-radius:4px;color:#fbbf24;">@react-navigation/bottom-tabs</code>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:24px;padding-bottom:48px;">
+    <div style="color:#555;font-size:13px;">Ready to implement? Click a screen above to continue reviewing, then say the word.</div>
+  </div>
+</div>
+
+<script>
+  const screens = ['login','register','dashboard','project-details','data-collection','forms','analytics','responses','members','sync','accept-invitation','bundle-completion','data-collection-tablet'];
+
+  const screenNotes = {
+    'login': ['Theme: Savanna Intelligence', 'Primary: #1D7A52 Forest Green', 'Accent: #D97706 Harvest Amber', 'Background: #F7F6F2 Warm Off-white', 'Display font: Fraunces', 'Body font: DM Sans'],
+    'register': ['3-step flow', 'Step 1: Name + Email + Institution', 'Step 2: Username + Password', 'Step 3: Confirmation', 'Progress indicator dots'],
+    'dashboard': ['Bottom tab navigation', 'Stat pills horizontal scroll', 'Compact project cards', 'Amber FAB for new project', 'Offline banner when disconnected'],
+    'project-details': ['Green hero with project stats', '2×4 tool grid layout', '"Collect Data" featured full-width', 'Edit button in section header', 'No more 8-item vertical list'],
+    'data-collection': ['Persistent progress bar', 'Category badge above question', 'Large touch targets (48px answers)', 'Prev/Next buttons always visible', 'Save Draft quick action'],
+    'forms': ['Project switcher chips', 'Questions grouped by category', 'Color-coded by question type', '"+ Add Question" dashed button', 'Sort/filter controls'],
+    'analytics': ['Project switcher + tab bar', 'Descriptive / Inferential / Qualitative', 'Horizontal bar charts', 'Donut chart for type breakdown', 'Export button in header'],
+    'responses': ['Tab filter by respondent type', 'Respondent cards with metadata', 'GPS / No GPS indicator', 'Duration + date at a glance', 'Complete / Partial badges'],
+    'members': ['Grouped by role', 'Gradient avatars per person', 'Institution shown inline', 'Partner org section separate', 'Quick invite button in header'],
+    'sync': ['Online status indicator', 'Pending upload count', 'Cache size info', 'Sync Now primary action', 'Clear Cache secondary'],
+    'accept-invitation': ['Green hero matches project brand', 'Inviter identity shown upfront', 'Project stats in 2×2 grid', 'Role clearly highlighted in green', 'Decline is red-outlined (not hidden)'],
+    'bundle-completion': ['Segmented: Project Stats / My Stats', 'Summary strip (Bundles · Questions · Completions)', 'Per-bundle progress bar', 'Color-coded by completion rate: green/amber/red', 'Commodity + country tags per bundle'],
+    'data-collection-tablet': ['Landscape two-column split', 'Left: question + Field Tip panel', 'Right: large 48px+ answer targets', 'Progress bar in top bar (always visible)', 'Triggered at ≥600dp screen width'],
+  };
+
+  function showScreen(id) {
+    const isTablet = id === 'data-collection-tablet';
+
+    // Toggle main phone vs tablet frame
+    const phoneFrame = document.querySelector('.phone');
+    const tabletWrap = document.getElementById('tablet-wrap');
+    const mainPhoneWrap = document.querySelector('.phone-wrap');
+
+    if (isTablet) {
+      if (phoneFrame) phoneFrame.style.display = 'none';
+      if (tabletWrap) tabletWrap.style.display = 'flex';
+      // Hide the info-tags inside phone-wrap, show tablet's own tags
+      const phoneInfoTags = document.getElementById('info-tags');
+      if (phoneInfoTags) phoneInfoTags.style.display = 'none';
+    } else {
+      if (phoneFrame) phoneFrame.style.display = 'flex';
+      if (tabletWrap) tabletWrap.style.display = 'none';
+      const phoneInfoTags = document.getElementById('info-tags');
+      if (phoneInfoTags) phoneInfoTags.style.display = 'flex';
+    }
+
+    // Hide all phone screens
+    screens.filter(s => s !== 'data-collection-tablet').forEach(s => {
+      const el = document.getElementById('s-' + s);
+      if (el) {
+        el.style.display = 'none';
+        el.classList.remove('active');
+      }
+    });
+
+    if (!isTablet) {
+      const target = document.getElementById('s-' + id);
+      if (target) {
+        target.style.display = 'flex';
+        target.classList.add('active');
+      }
+    }
+
+    document.querySelectorAll('.screen-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', screens[i] === id);
+    });
+
+    // Update info tags
+    if (!isTablet) {
+      const notes = screenNotes[id] || [];
+      const tagsEl = document.getElementById('info-tags');
+      if (tagsEl) {
+        tagsEl.innerHTML = notes.map(n => {
+          const parts = n.split(':');
+          if (parts.length >= 2) {
+            return `<div class="info-tag"><strong>${parts[0]}:</strong>${parts.slice(1).join(':')}</div>`;
+          }
+          return `<div class="info-tag">${n}</div>`;
+        }).join('');
+      }
+    }
+  }
+</script>
+</body>
+</html>
