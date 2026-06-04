@@ -40,7 +40,7 @@ import {
   useRespondentDetails,
   useExport,
 } from '../hooks/responses';
-import { Respondent } from '../hooks/responses/useRespondents';
+import { Respondent, RespondentFilters } from '../hooks/responses/useRespondents';
 import { useAuthStore } from '../store/authStore';
 
 // Components
@@ -59,9 +59,9 @@ const ResponsesScreen: React.FC = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [selectedFilters, setSelectedFilters] = useState<{
-    respondent_type?: string;
-    commodity?: string;
-    country?: string;
+    respondent_type?: string[];
+    commodity?: string[];
+    country?: string[];
   }>({});
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
   const [filterMenusVisible, setFilterMenusVisible] = useState({
@@ -77,22 +77,61 @@ const ResponsesScreen: React.FC = () => {
   const exportHook = useExport(projectId, projectName);
   const { user } = useAuthStore();
 
-  // Load data on focus
+  // Debounce ref for search — avoids an API call on every keystroke
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build the combined server-side filter object from all active UI state
+  const buildActiveFilters = useCallback(
+    (overrideSearch?: string): RespondentFilters => {
+      const f: RespondentFilters = {};
+      if (selectedFilters.respondent_type?.length) f.respondent_type = selectedFilters.respondent_type;
+      if (selectedFilters.commodity?.length) f.commodity = selectedFilters.commodity;
+      if (selectedFilters.country?.length) f.country = selectedFilters.country;
+      if (filterMode === 'mine' && user?.id) f.created_by = String(user.id);
+      const q = overrideSearch !== undefined ? overrideSearch : searchQuery;
+      if (q.trim()) f.search = q.trim();
+      return f;
+    },
+    [selectedFilters, filterMode, user?.id, searchQuery]
+  );
+
+  // Load data + filter options on focus
   useFocusEffect(
     useCallback(() => {
       respondentsHook.loadData();
+      respondentsHook.loadFilterOptions();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
-  // Reload data when projectId changes
+  // Reload data when projectId changes, resetting all filter state
   useEffect(() => {
-    respondentsHook.loadData();
+    setSelectedFilters({});
+    setFilterMode('all');
+    setSearchQuery('');
     detailsHook.clearSelection();
     setViewMode('list');
-    setSearchQuery('');
+    respondentsHook.loadFilterOptions();
+    // setFilters({}) triggers a fresh page-1 fetch with no filters
+    respondentsHook.setFilters({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Re-fetch from page 1 whenever dropdown filters or filterMode change
+  useEffect(() => {
+    respondentsHook.setFilters(buildActiveFilters());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilters, filterMode]);
+
+  // Debounced re-fetch when search text changes
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      respondentsHook.setFilters(buildActiveFilters(text));
+    }, 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildActiveFilters]);
 
   // Handle respondent press
   const handleRespondentPress = async (respondent: Respondent) => {
@@ -106,66 +145,26 @@ const ResponsesScreen: React.FC = () => {
     setViewMode('list');
   };
 
-  // ----------- Filtering & search applied to loaded respondents -----------
+  // ----------- Filter options come from the backend (full dataset, not just current page) -----------
 
-  const filteredRespondents = useMemo(() => {
-    let data = respondentsHook.respondents;
-
-    // Text search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      data = data.filter(
-        r =>
-          r.respondent_id?.toLowerCase().includes(q) ||
-          r.created_by_details?.first_name?.toLowerCase().includes(q) ||
-          r.created_by_details?.last_name?.toLowerCase().includes(q) ||
-          r.respondent_type?.toLowerCase().includes(q) ||
-          r.commodity?.toLowerCase().includes(q) ||
-          r.country?.toLowerCase().includes(q)
-      );
-    }
-
-    if (selectedFilters.respondent_type) {
-      data = data.filter(r => r.respondent_type === selectedFilters.respondent_type);
-    }
-    if (selectedFilters.commodity) {
-      data = data.filter(r => r.commodity === selectedFilters.commodity);
-    }
-    if (selectedFilters.country) {
-      data = data.filter(r => r.country === selectedFilters.country);
-    }
-    if (filterMode === 'mine' && user?.id) {
-      data = data.filter(r => String(r.created_by) === String(user.id));
-    }
-
-    return data;
-  }, [respondentsHook.respondents, searchQuery, selectedFilters, filterMode, user?.id]);
-
-  // Unique filter values — derived from ALL loaded pages so far
-  const uniqueRespondentTypes = useMemo(() => {
-    const s = new Set<string>();
-    respondentsHook.respondents.forEach(r => { if (r.respondent_type) s.add(r.respondent_type); });
-    return Array.from(s).sort();
-  }, [respondentsHook.respondents]);
-
-  const uniqueCommodities = useMemo(() => {
-    const s = new Set<string>();
-    respondentsHook.respondents.forEach(r => { if (r.commodity) s.add(r.commodity); });
-    return Array.from(s).sort();
-  }, [respondentsHook.respondents]);
-
-  const uniqueCountries = useMemo(() => {
-    const s = new Set<string>();
-    respondentsHook.respondents.forEach(r => { if (r.country) s.add(r.country); });
-    return Array.from(s).sort();
-  }, [respondentsHook.respondents]);
+  const { respondent_types: uniqueRespondentTypes, commodities: uniqueCommodities, countries: uniqueCountries } =
+    respondentsHook.filterOptions;
 
   const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
-    setSelectedFilters(prev => ({
-      ...prev,
-      [filterType]: prev[filterType] === value ? undefined : value,
-    }));
-    setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
+    if (!value) {
+      // "All" — clear this filter and close the menu
+      setSelectedFilters(prev => ({ ...prev, [filterType]: undefined }));
+      setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
+      return;
+    }
+    setSelectedFilters(prev => {
+      const current = prev[filterType] ?? [];
+      const next = current.includes(value)
+        ? current.filter(v => v !== value)
+        : [...current, value];
+      return { ...prev, [filterType]: next.length > 0 ? next : undefined };
+    });
+    // Keep menu open so users can select multiple values
   };
 
   const clearFilters = () => setSelectedFilters({});
@@ -448,19 +447,19 @@ const ResponsesScreen: React.FC = () => {
             }
             contentStyle={styles.menuContent}>
             <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportExcel(selectedFilters); }}
+              onPress={() => { setMenuVisible(false); exportHook.handleExportExcel(buildActiveFilters()); }}
               title="Export to Excel"
               leadingIcon="file-excel"
               titleStyle={styles.menuItemText}
             />
             <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportCSV(selectedFilters); }}
+              onPress={() => { setMenuVisible(false); exportHook.handleExportCSV(buildActiveFilters()); }}
               title="Export to CSV"
               leadingIcon="file-delimited"
               titleStyle={styles.menuItemText}
             />
             <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportJSON(selectedFilters); }}
+              onPress={() => { setMenuVisible(false); exportHook.handleExportJSON(buildActiveFilters()); }}
               title="Export to JSON"
               leadingIcon="code-json"
               titleStyle={styles.menuItemText}
@@ -481,7 +480,7 @@ const ResponsesScreen: React.FC = () => {
           <View style={styles.searchContainer}>
             <Searchbar
               placeholder="Search respondents..."
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
               value={searchQuery}
               style={styles.searchBar}
               inputStyle={styles.searchInput}
@@ -506,10 +505,16 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('respondent_type')}
-                  style={[styles.filterButton, selectedFilters.respondent_type && styles.filterButtonActive]}
+                  style={[styles.filterButton, selectedFilters.respondent_type?.length && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
-                  Type: {selectedFilters.respondent_type || 'All'}
+                  {`Type: ${
+                    !selectedFilters.respondent_type?.length
+                      ? 'All'
+                      : selectedFilters.respondent_type.length === 1
+                        ? selectedFilters.respondent_type[0]
+                        : `${selectedFilters.respondent_type.length} selected`
+                  }`}
                 </Button>
               }
               contentStyle={styles.menuContent}>
@@ -519,8 +524,8 @@ const ResponsesScreen: React.FC = () => {
                   key={type}
                   onPress={() => toggleFilter('respondent_type', type)}
                   title={type}
-                  titleStyle={[styles.menuItemText, selectedFilters.respondent_type === type && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.respondent_type === type ? 'check' : undefined}
+                  titleStyle={[styles.menuItemText, selectedFilters.respondent_type?.includes(type) && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.respondent_type?.includes(type) ? 'checkbox-marked' : 'checkbox-blank-outline'}
                 />
               ))}
             </Menu>
@@ -533,10 +538,16 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('commodity')}
-                  style={[styles.filterButton, selectedFilters.commodity && styles.filterButtonActive]}
+                  style={[styles.filterButton, selectedFilters.commodity?.length && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
-                  Commodity: {selectedFilters.commodity || 'All'}
+                  {`Commodity: ${
+                    !selectedFilters.commodity?.length
+                      ? 'All'
+                      : selectedFilters.commodity.length === 1
+                        ? selectedFilters.commodity[0]
+                        : `${selectedFilters.commodity.length} selected`
+                  }`}
                 </Button>
               }
               contentStyle={styles.menuContent}>
@@ -546,8 +557,8 @@ const ResponsesScreen: React.FC = () => {
                   key={c}
                   onPress={() => toggleFilter('commodity', c)}
                   title={c}
-                  titleStyle={[styles.menuItemText, selectedFilters.commodity === c && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.commodity === c ? 'check' : undefined}
+                  titleStyle={[styles.menuItemText, selectedFilters.commodity?.includes(c) && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.commodity?.includes(c) ? 'checkbox-marked' : 'checkbox-blank-outline'}
                 />
               ))}
             </Menu>
@@ -560,10 +571,16 @@ const ResponsesScreen: React.FC = () => {
                 <Button
                   mode="outlined"
                   onPress={() => toggleFilterMenu('country')}
-                  style={[styles.filterButton, selectedFilters.country && styles.filterButtonActive]}
+                  style={[styles.filterButton, selectedFilters.country?.length && styles.filterButtonActive]}
                   labelStyle={styles.filterButtonLabel}
                   icon="chevron-down">
-                  Country: {selectedFilters.country || 'All'}
+                  {`Country: ${
+                    !selectedFilters.country?.length
+                      ? 'All'
+                      : selectedFilters.country.length === 1
+                        ? selectedFilters.country[0]
+                        : `${selectedFilters.country.length} selected`
+                  }`}
                 </Button>
               }
               contentStyle={styles.menuContent}>
@@ -573,13 +590,13 @@ const ResponsesScreen: React.FC = () => {
                   key={c}
                   onPress={() => toggleFilter('country', c)}
                   title={c}
-                  titleStyle={[styles.menuItemText, selectedFilters.country === c && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.country === c ? 'check' : undefined}
+                  titleStyle={[styles.menuItemText, selectedFilters.country?.includes(c) && styles.menuItemTextSelected]}
+                  leadingIcon={selectedFilters.country?.includes(c) ? 'checkbox-marked' : 'checkbox-blank-outline'}
                 />
               ))}
             </Menu>
 
-            {Object.values(selectedFilters).some(v => v) && (
+            {Object.values(selectedFilters).some(v => v?.length) && (
               <Button
                 mode="text"
                 onPress={clearFilters}
@@ -598,7 +615,7 @@ const ResponsesScreen: React.FC = () => {
         {viewMode === 'list' ? (
           <FlatList<Respondent>
             ref={flatListRef}
-            data={filteredRespondents}
+            data={respondentsHook.respondents}
             keyExtractor={item => item.id}
             renderItem={renderTableRow}
             ListHeaderComponent={ListHeader}

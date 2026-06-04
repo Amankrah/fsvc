@@ -646,10 +646,33 @@ class ApiService {
     return await this.get(`/responses/respondents/with_response_counts/?${queryParams}`);
   }
 
-  async getRespondentsPaginated(projectId: string, page: number = 1, pageSize: number = 50) {
-    return await this.get(
-      `/responses/respondents/?project_id=${projectId}&page=${page}&page_size=${pageSize}`
-    );
+  async getRespondentsPaginated(
+    projectId: string,
+    page: number = 1,
+    pageSize: number = 20,
+    filters?: {
+      respondent_type?: string[];
+      commodity?: string[];
+      country?: string[];
+      created_by?: string;
+      search?: string;
+    }
+  ) {
+    const params = new URLSearchParams({
+      project_id: projectId,
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    filters?.respondent_type?.forEach(v => params.append('respondent_type', v));
+    filters?.commodity?.forEach(v => params.append('commodity', v));
+    filters?.country?.forEach(v => params.append('country', v));
+    if (filters?.created_by) params.append('created_by', filters.created_by);
+    if (filters?.search) params.append('search', filters.search);
+    return await this.get(`/responses/respondents/?${params.toString()}`);
+  }
+
+  async getRespondentFilterOptions(projectId: string) {
+    return await this.get(`/responses/respondents/filter_options/?project_id=${projectId}`);
   }
 
 
@@ -701,16 +724,18 @@ class ApiService {
     projectId: string,
     format: 'csv' | 'json' | 'xlsx' = 'csv',
     filters?: {
-      respondent_type?: string;
-      commodity?: string;
-      country?: string;
+      respondent_type?: string[];
+      commodity?: string[];
+      country?: string[];
+      created_by?: string;
     }
   ) {
-    // Build query params
+    // Build query params — multi-value fields use repeated params
     const params = new URLSearchParams({ project_id: projectId });
-    if (filters?.respondent_type) params.append('respondent_type', filters.respondent_type);
-    if (filters?.commodity) params.append('commodity', filters.commodity);
-    if (filters?.country) params.append('country', filters.country);
+    filters?.respondent_type?.forEach(v => params.append('respondent_type', v));
+    filters?.commodity?.forEach(v => params.append('commodity', v));
+    filters?.country?.forEach(v => params.append('country', v));
+    if (filters?.created_by) params.append('created_by', filters.created_by);
 
     const queryString = params.toString();
 
