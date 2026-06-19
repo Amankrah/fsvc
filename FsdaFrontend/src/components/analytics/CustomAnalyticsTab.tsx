@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
-import { Text, ActivityIndicator, Snackbar } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import AnalyticsSelector, { AnalysisMethod } from './AnalyticsSelector';
 import AnalysisResults from './AnalysisResults';
 import { analyticsService } from '../../services/analyticsService';
+import { colors, typography, borderRadius, spacing } from '../../constants/theme';
 
 interface CustomAnalyticsTabProps {
   projectId: string;
@@ -638,11 +638,10 @@ const CustomAnalyticsTab: React.FC<CustomAnalyticsTabProps> = ({ projectId }) =>
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
         <View style={styles.header}>
-          <Text variant="titleLarge" style={styles.headerTitle}>
-            Custom Analytics
-          </Text>
-          <Text variant="bodyMedium" style={styles.headerSubtitle}>
+          <Text style={styles.headerTitle}>Custom Analytics</Text>
+          <Text style={styles.headerSubtitle}>
             Select an analysis method and configure parameters to run custom analytics
           </Text>
         </View>
@@ -656,23 +655,21 @@ const CustomAnalyticsTab: React.FC<CustomAnalyticsTabProps> = ({ projectId }) =>
         />
 
         {error && (
-          <Text variant="bodyMedium" style={styles.errorText}>
-            {error}
-          </Text>
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
         )}
       </ScrollView>
 
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
-        action={{
-          label: 'Close',
-          onPress: () => setSnackbarVisible(false),
-        }}
-      >
-        Analysis completed successfully!
-      </Snackbar>
+      {/* Success toast */}
+      {snackbarVisible && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>Analysis completed successfully!</Text>
+          <TouchableOpacity onPress={() => setSnackbarVisible(false)} activeOpacity={0.7}>
+            <Text style={styles.toastClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -682,24 +679,65 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: spacing.lg,
+    paddingBottom: 32,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   headerTitle: {
-    fontWeight: '600',
-    marginBottom: 8,
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: typography.fontSize.xxl,
+    color: colors.primary.dark,
+    marginBottom: 6,
   },
   headerSubtitle: {
-    color: '#666',
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  errorBox: {
+    marginTop: spacing.lg,
+    padding: 12,
+    backgroundColor: colors.status.errorSurface,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.status.error,
   },
   errorText: {
-    color: '#d32f2f',
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#ffebee',
-    borderRadius: 4,
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.status.error,
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    backgroundColor: colors.primary.dark,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: typography.fontSize.sm,
+    color: '#fff',
+    flex: 1,
+  },
+  toastClose: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    paddingLeft: 12,
   },
 });
 

@@ -9,6 +9,7 @@ type NetworkChangeCallback = (isConnected: boolean) => void;
 
 class NetworkMonitor {
   private isConnected: boolean = true;
+  private _forceOffline: boolean = false;
   private listeners: Set<NetworkChangeCallback> = new Set();
   private unsubscribe: (() => void) | null = null;
 
@@ -37,9 +38,24 @@ class NetworkMonitor {
   }
 
   /**
+   * Force offline mode for testing. When enabled, checkConnection and
+   * getConnectionStatus always return false, and listeners are notified.
+   */
+  setForceOffline(value: boolean): void {
+    this._forceOffline = value;
+    console.log(`Network force-offline: ${value ? 'ENABLED' : 'DISABLED'}`);
+    this.notifyListeners();
+  }
+
+  get forceOffline(): boolean {
+    return this._forceOffline;
+  }
+
+  /**
    * Check if device is currently connected to internet
    */
   async checkConnection(): Promise<boolean> {
+    if (this._forceOffline) return false;
     const state = await NetInfo.fetch();
     this.isConnected = state.isConnected ?? false;
     return this.isConnected;
@@ -49,6 +65,7 @@ class NetworkMonitor {
    * Get current connection status (synchronous)
    */
   getConnectionStatus(): boolean {
+    if (this._forceOffline) return false;
     return this.isConnected;
   }
 

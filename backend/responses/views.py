@@ -313,6 +313,36 @@ class RespondentViewSet(BaseModelViewSet):
         """Ensure created_by is set to the current user"""
         serializer.save(created_by=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """
+        Create a respondent, or return the existing one if (respondent_id, project)
+        already exists.  This prevents spurious 400 errors when the same device
+        re-submits or the app retries after a crash, and avoids routing the entire
+        response batch through the offline sync queue unnecessarily.
+        """
+        respondent_id = str(request.data.get('respondent_id', '')).strip()
+        project_id = request.data.get('project')
+
+        if respondent_id and project_id:
+            try:
+                existing = Respondent.objects.get(
+                    respondent_id=respondent_id,
+                    project_id=project_id,
+                )
+                logger.info(
+                    f"Respondent {respondent_id} already exists for project "
+                    f"{project_id} — returning existing record (id={existing.id})"
+                )
+                serializer = self.get_serializer(existing)
+                return DRFResponse(
+                    {**serializer.data, 'already_existed': True},
+                    status=status.HTTP_200_OK,
+                )
+            except Respondent.DoesNotExist:
+                pass  # New respondent — fall through to normal create
+
+        return super().create(request, *args, **kwargs)
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get summary statistics for respondents"""
@@ -434,6 +464,20 @@ class RespondentViewSet(BaseModelViewSet):
                     'completed_respondent_ids': [] # Information not needed for summary
                 })
                 
+            # Attach this user's personal collection targets to each bundle
+            from projects.models import CollectionTarget
+            targets = CollectionTarget.objects.filter(
+                project_id=project_id,
+                assigned_to=request.user,
+            )
+            target_lookup = {
+                (t.respondent_type, t.commodity, t.country): t.target_count
+                for t in targets
+            }
+            for bundle in bundles:
+                key = (bundle['respondent_type'], bundle['commodity'] or '', bundle['country'] or '')
+                bundle['target_count'] = target_lookup.get(key, None)
+
             return DRFResponse({
                 'bundles': bundles,
                 'total_bundles': len(bundles)

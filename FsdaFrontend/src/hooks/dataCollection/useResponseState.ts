@@ -13,6 +13,15 @@ import { Question } from '../../types';
 import { DEVICE_INFO } from '../../constants/dataCollection';
 import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import { autoSaveService, AutoSaveData } from '../../services/autoSaveService';
+import { computeQuestionSetHash } from '../../services/offlineDraftCache';
+
+/**
+ * Deterministic idempotency key for a response submission.
+ * Uses respondentId + questionId so retries of the same response
+ * always produce the same key, preventing duplicates server-side.
+ */
+const makeIdempotencyKey = (respondentId: string, questionId: string): string =>
+  `resp_${respondentId}_${questionId}`;
 
 interface ResponseData {
   [questionId: string]: string | string[];
@@ -63,11 +72,17 @@ export const useResponseState = (
   }, [projectId, respondentData, questions.length, existingRespondentDatabaseId, preExistingResponseQuestionIds]);
 
   const handleResponseChange = useCallback((questionId: string, value: string | string[]) => {
+    // Update state only — keep the updater fast and side-effect-free.
     setResponses(prev => {
       const updated = { ...prev, [questionId]: value };
       responsesRef.current = updated;
+      return updated;
+    });
 
-      // Trigger debounced auto-save (2s after last change)
+    // Schedule auto-save AFTER the render cycle so it doesn't block the UI.
+    // Using setTimeout(0) yields to the JS event loop, keeping swipes/input snappy.
+    setTimeout(() => {
+      const updated = responsesRef.current;
       const answeredCount = Object.keys(updated).length;
       const saveData: AutoSaveData = {
         projectId,
@@ -85,7 +100,7 @@ export const useResponseState = (
           : [],
       };
 
-      // Every 5 answered questions, save immediately
+      // Every 5 answered questions, save immediately; otherwise debounce 2s.
       if (autoSaveService.shouldSaveOnQuestionCount(answeredCount)) {
         autoSaveService.save(saveData);
       } else {
@@ -124,7 +139,7 @@ export const useResponseState = (
   }, [currentQuestionIndex]);
 
   const handleSubmit = useCallback(
-    async (onSuccess: () => void, onFinish?: () => void) => {
+    async (onSuccess: () => void, onFinish?: () => void, onSameProfile?: () => void) => {
       // Check if all required visible questions are answered
       const unansweredRequired = visibleQuestions.filter(
         q => q.is_required && !responses[q.id]
@@ -137,6 +152,10 @@ export const useResponseState = (
         );
         return;
       }
+
+      // Clear auto-save early — submission means we're committing the data.
+      autoSaveService.cancelPending();
+      autoSaveService.clearAll(projectId).catch(() => { });
 
       try {
         setSubmitting(true);
@@ -182,6 +201,7 @@ export const useResponseState = (
                 question: questionId,
                 respondent: respondent.id,
                 response_value: responseValue,
+                idempotency_key: makeIdempotencyKey(respondentData.respondentId, questionId),
                 device_info: {
                   platform: Platform.OS,
                   app_version: DEVICE_INFO.appVersion,
@@ -208,40 +228,39 @@ export const useResponseState = (
         console.log(`Response results: ${succeeded.length} succeeded, ${failedResults.length} failed`);
 
         if (failedResults.length > 0 && succeeded.length > 0) {
-          // Partial success: queue only the failed responses for offline sync
-          console.log(`Partial success: ${succeeded.length} saved, ${failedResults.length} failed — queuing failures for offline sync`);
+          // Partial success: queue each failed response individually.
+          // The respondent already exists on the server (created above), so
+          // we queue each response as a direct submission — the same shape
+          // the backend already handles for normal response creation.
+          console.log(`Partial success: ${succeeded.length} saved, ${failedResults.length} failed — queuing failures individually`);
 
-          const failedResponseData = {
-            projectId,
-            respondentData: {
-              respondentId: respondentData.respondentId,
-              respondentType: respondentData.respondentType,
-              commodities: respondentData.commodities,
-              country: respondentData.country,
-            },
-            responses: failedResults.map(r => {
-              const reason = (r as PromiseRejectedResult).reason;
-              return {
-                questionId: reason.questionId,
-                questionText: reason.questionText || '',
-                responseValue: reason.responseValue,
-              };
-            }),
-            timestamp: new Date().toISOString(),
-          };
-
-          try {
-            await syncManager.queueOperation(
-              'responses',
-              `partial_${Date.now()}`,
-              'create',
-              failedResponseData,
-              10
-            );
-            console.log(`Queued ${failedResults.length} failed responses for offline sync`);
-          } catch (queueError) {
-            console.error('Failed to queue partial responses:', queueError);
+          let queued = 0;
+          for (const r of failedResults) {
+            const reason = (r as PromiseRejectedResult).reason;
+            try {
+              await syncManager.queueOperation(
+                'responses',
+                `resp_${reason.questionId}_${Date.now()}`,
+                'create',
+                {
+                  project: projectId,
+                  question: reason.questionId,
+                  respondent: respondent.id,
+                  response_value: reason.responseValue,
+                  idempotency_key: makeIdempotencyKey(respondentData.respondentId, reason.questionId),
+                  device_info: {
+                    platform: Platform.OS,
+                    app_version: DEVICE_INFO.appVersion,
+                  },
+                },
+                10
+              );
+              queued++;
+            } catch (queueError) {
+              console.error(`Failed to queue response for question ${reason.questionId}:`, queueError);
+            }
           }
+          console.log(`Queued ${queued}/${failedResults.length} failed responses for offline sync`);
         } else if (failedResults.length > 0 && succeeded.length === 0) {
           // Total failure: throw to trigger the existing offline queue logic below
           const firstReason = (failedResults[0] as PromiseRejectedResult).reason;
@@ -265,8 +284,12 @@ export const useResponseState = (
           : 'Response submitted successfully! Ready for next respondent.';
 
         showAlert('Success', successMessage, [
+          ...(onSameProfile ? [{
+            text: 'Same Profile, New Respondent',
+            onPress: onSameProfile,
+          }] : []),
           {
-            text: 'Continue Collecting',
+            text: 'Different Profile',
             onPress: onSuccess,
           },
           {
@@ -276,7 +299,7 @@ export const useResponseState = (
                 onFinish();
               }
             },
-            style: 'cancel',
+            style: 'cancel' as const,
           },
         ]);
       } catch (error: any) {
@@ -319,6 +342,7 @@ export const useResponseState = (
                   questionId,
                   questionText: question?.question_text || '',
                   responseValue: Array.isArray(value) ? JSON.stringify(value) : value,
+                  idempotency_key: makeIdempotencyKey(respondentData.respondentId, questionId),
                 };
               }),
               timestamp: new Date().toISOString(),
@@ -336,8 +360,12 @@ export const useResponseState = (
               'Queued for Sync',
               'You are offline. Response has been saved and will be submitted when you reconnect to the internet.',
               [
+                ...(onSameProfile ? [{
+                  text: 'Same Profile, New Respondent',
+                  onPress: onSameProfile,
+                }] : []),
                 {
-                  text: 'Continue Collecting',
+                  text: 'Different Profile',
                   onPress: onSuccess,
                 },
                 {
@@ -347,7 +375,7 @@ export const useResponseState = (
                       onFinish();
                     }
                   },
-                  style: 'cancel',
+                  style: 'cancel' as const,
                 },
               ]
             );
@@ -383,6 +411,12 @@ export const useResponseState = (
         showAlert('No Responses', 'Please answer at least one question before saving.');
         return;
       }
+
+      // Cancel any pending auto-save and clear stored auto-save immediately.
+      // This prevents a race where the app crashes after the draft is saved
+      // but before auto-save is cleared, causing a stale recovery prompt.
+      autoSaveService.cancelPending();
+      autoSaveService.clearAll(projectId).catch(() => { });
 
       try {
         setSubmitting(true);
@@ -426,6 +460,7 @@ export const useResponseState = (
             completion_status: 'draft',
             created_at: new Date().toISOString(),
             last_response_at: new Date().toISOString(),
+            question_set_hash: computeQuestionSetHash(questions.map(q => q.id)),
           });
         } catch (cacheErr) {
           console.warn('Failed to cache draft locally:', cacheErr);
@@ -446,8 +481,7 @@ export const useResponseState = (
           ]
         );
 
-        // Clear auto-save since we now have a proper draft
-        autoSaveService.clearAll(projectId).catch(() => { });
+        // Auto-save already cleared at the start of handleSaveDraft.
       } catch (error: any) {
         console.error('Error saving draft:', error);
 
@@ -501,6 +535,7 @@ export const useResponseState = (
                 created_at: new Date().toISOString(),
                 last_response_at: new Date().toISOString(),
                 is_offline: true,
+                question_set_hash: computeQuestionSetHash(questions.map(q => q.id)),
               });
             } catch (cacheErr) {
               console.warn('Failed to cache draft locally:', cacheErr);

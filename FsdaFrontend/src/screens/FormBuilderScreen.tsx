@@ -16,12 +16,12 @@ import {
   FlatList,
   Platform,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Text,
-  FAB,
   ActivityIndicator,
   Portal,
   Dialog,
@@ -31,8 +31,9 @@ import {
   IconButton,
   Menu,
   Chip,
+  Icon,
 } from 'react-native-paper';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 
 // Custom Hooks
 import {
@@ -51,7 +52,7 @@ import { showAlert } from '../utils/alert';
 
 // Constants
 import { getCategorySortIndex } from '../constants/formBuilder';
-import { colors } from '../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../constants/theme';
 
 // Components
 import { QuestionCard, SearchFilterBar, QuestionFormDialog } from '../components/formBuilder';
@@ -71,6 +72,7 @@ type RootStackParamList = {
 type FormBuilderRouteProp = RouteProp<RootStackParamList, 'FormBuilder'>;
 
 const FormBuilderScreen: React.FC = () => {
+  const navigation = useNavigation();
   const route = useRoute<FormBuilderRouteProp>();
   const { projectId } = route.params;
   const insets = useSafeAreaInsets();
@@ -169,7 +171,14 @@ const FormBuilderScreen: React.FC = () => {
     setConditionOperator,
     conditionValue,
     setConditionValue,
+    sectionMode,
+    setSectionMode,
+    persistedSectionHeader,
+    setPersistedSectionHeader,
+    persistedSectionPreamble,
+    setPersistedSectionPreamble,
     resetForm,
+    resetFormFull,
     loadQuestionForEdit,
     validateQuestion,
     buildQuestionData,
@@ -472,63 +481,54 @@ const FormBuilderScreen: React.FC = () => {
   // Loading state - placed after all hooks to comply with Rules of Hooks
   if (loading) {
     return (
-      <ScreenWrapper style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
-          Loading form...
-        </Text>
+      <ScreenWrapper style={styles.container} edges={{ top: false }}>
+        <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+          <View style={styles.heroNav}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Icon source="chevron-left" size={24} color="#fff" />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.heroTitle}>Form Builder</Text>
+          <Text style={styles.heroSubtitle}>{route.params.projectName}</Text>
+        </View>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading form...</Text>
+        </View>
       </ScreenWrapper>
     );
   }
 
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false, bottom: false }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerTextContainer}>
-            <Text variant="headlineSmall" style={styles.title}>
-              Form Builder
-            </Text>
-            <Text variant="bodyMedium" style={styles.subtitle}>
-              Manage question templates and generated questions
-            </Text>
-            {/* Connection and Cache Status */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <Chip
-                icon={isOnline ? 'wifi' : 'wifi-off'}
-                compact
-                style={{
-                  backgroundColor: isOnline ? colors.status.success : colors.status.warning,
-                  height: 24,
-                }}>
-                <Text style={{ color: colors.primary.contrast, fontSize: 11 }}>
-                  {isOnline ? 'Online' : 'Offline'}
-                </Text>
-              </Chip>
-              <Chip
-                icon="database"
-                compact
-                style={{
-                  backgroundColor: colors.primary.faint,
-                  height: 24,
-                }}>
-                <Text style={{ color: colors.text.primary, fontSize: 11 }}>
-                  {cacheStats.questionBanksCount + cacheStats.generatedQuestionsCount} cached
-                </Text>
-              </Chip>
+      {/* ── Hero header ──────────────────────────────────────────────────── */}
+      <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+        <View style={styles.heroNav}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon source="chevron-left" size={24} color="#fff" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <View style={styles.heroRightRow}>
+            <View style={[styles.onlinePill, { backgroundColor: isOnline ? 'rgba(5,150,105,0.25)' : 'rgba(217,119,6,0.25)' }]}>
+              <Icon source={isOnline ? 'wifi' : 'wifi-off'} size={12} color={isOnline ? colors.status.success : colors.status.warning} />
+              <Text style={[styles.onlinePillText, { color: isOnline ? colors.status.success : colors.status.warning }]}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
+            </View>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>
+                {activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length} Qs
+              </Text>
             </View>
           </View>
-          <View style={styles.questionCountContainer}>
-            <Text variant="titleMedium" style={styles.questionCount}>
-              {activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length}
-            </Text>
-            <Text variant="bodySmall" style={styles.questionCountLabel}>
-              question{(activeTab === 'bank' ? totalCount : filteredGeneratedQuestions.length) !== 1 ? 's' : ''}
-            </Text>
-          </View>
         </View>
-        <View style={styles.headerDecoration} />
+        <Text style={styles.heroTitle}>Form Builder</Text>
+        <Text style={styles.heroSubtitle}>{route.params.projectName}</Text>
       </View>
 
       {/* Tab Switcher */}
@@ -787,116 +787,155 @@ const FormBuilderScreen: React.FC = () => {
         })}
       />
 
-      {/* FAB Actions */}
+      {/* FAB Actions — compact round buttons with label pills to the left */}
       <View style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}>
         {activeTab === 'bank' ? (
           <>
-            <FAB
-              icon="delete-sweep"
-              label="Delete All"
-              style={[styles.fab, styles.fabDelete]}
-              onPress={deleteAllQuestionBank}
-              theme={{ colors: { onPrimary: colors.primary.contrast } }}
-            />
-            <FAB
-              icon="upload"
-              label="Import/Export"
-              style={[styles.fab, styles.fabImport]}
-              onPress={() => setShowImportExportDialog(true)}
-              theme={{ colors: { onPrimary: '#ffffff' } }}
-            />
-            <FAB
-              icon="plus"
-              label="Add Question"
-              style={styles.fab}
-              onPress={() => setShowAddDialog(true)}
-              theme={{ colors: { onPrimary: '#ffffff' } }}
-            />
+            {/* Delete All */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>Delete All</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnDelete]}
+                onPress={deleteAllQuestionBank}
+                activeOpacity={0.82}
+              >
+                <Icon source="delete-sweep" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Import / Export */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>Import/Export</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnImport]}
+                onPress={() => setShowImportExportDialog(true)}
+                activeOpacity={0.82}
+              >
+                <Icon source="upload" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Add Question — primary, slightly larger */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>Add Question</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnPrimary]}
+                onPress={() => setShowAddDialog(true)}
+                activeOpacity={0.82}
+              >
+                <Icon source="plus" size={26} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </>
         ) : (
           <>
-            <FAB
-              icon="delete-sweep"
-              label="Delete All"
-              style={[styles.fab, styles.fabDelete]}
-              onPress={generatedQuestionsHook.deleteAllGeneratedQuestions}
-              theme={{ colors: { onPrimary: '#ffffff' } }}
-            />
-            <FAB
-              icon="cloud-download-outline"
-              label="Generate Offline"
-              style={[styles.fab, styles.fabImport]}
-              onPress={async () => {
-                if (!isOnline) {
-                  // When offline, generate using cached data
-                  if (!selectedGeneratedRespondentType || !selectedGeneratedCommodity || !selectedGeneratedCountry) {
-                    showAlert(
-                      'Filter Required',
-                      'Please select Respondent Type, Commodity, and Country to generate questions offline.'
-                    );
-                    return;
-                  }
+            {/* Delete All (generated) */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>Delete All</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnDelete]}
+                onPress={generatedQuestionsHook.deleteAllGeneratedQuestions}
+                activeOpacity={0.82}
+              >
+                <Icon source="delete-sweep" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
 
-                  await generatedQuestionsHook.generateQuestionsOffline(
-                    selectedGeneratedRespondentType,
-                    selectedGeneratedCommodity,
-                    selectedGeneratedCountry
-                  );
-                } else {
-                  showAlert(
-                    'Generate Offline',
-                    'You are currently online. This feature is for generating questions from cached Question Bank when offline. Would you like to cache the Question Bank for offline use?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Cache Now',
-                        onPress: async () => {
-                          await loadProjectAndQuestions();
-                          showAlert('Success', 'Question Bank cached for offline use!');
-                        },
-                      },
-                    ]
-                  );
-                }
-              }}
-              theme={{ colors: { onPrimary: '#ffffff' } }}
-            />
-            <FAB
-              icon={generatedQuestionsHook.isReorderMode ? 'check' : 'swap-vertical'}
-              label={generatedQuestionsHook.isReorderMode ? 'Done' : 'Reorder'}
-              style={styles.fab}
-              onPress={
-                generatedQuestionsHook.isReorderMode
-                  ? generatedQuestionsHook.saveQuestionOrder
-                  : () => {
-                    // Only allow reorder if questions are filtered to a specific bundle
-                    if (filteredGeneratedQuestions.length === 0) {
-                      showAlert('No Questions', 'There are no questions to reorder.');
-                      return;
-                    }
-
-                    // Check if all filtered questions belong to the same bundle
-                    const first = filteredGeneratedQuestions[0];
-                    const allSameBundle = filteredGeneratedQuestions.every(
-                      (q) =>
-                        q.assigned_respondent_type === first.assigned_respondent_type &&
-                        q.assigned_commodity === first.assigned_commodity &&
-                        q.assigned_country === first.assigned_country
-                    );
-
-                    if (!allSameBundle) {
+            {/* Generate Offline */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>Generate Offline</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnImport]}
+                onPress={async () => {
+                  if (!isOnline) {
+                    if (!selectedGeneratedRespondentType || !selectedGeneratedCommodity || !selectedGeneratedCountry) {
                       showAlert(
                         'Filter Required',
-                        'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering. Questions can only be reordered within their generation bundle.'
+                        'Please select Respondent Type, Commodity, and Country to generate questions offline.'
                       );
                       return;
                     }
-
-                    generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                    await generatedQuestionsHook.generateQuestionsOffline(
+                      selectedGeneratedRespondentType,
+                      selectedGeneratedCommodity,
+                      selectedGeneratedCountry
+                    );
+                  } else {
+                    showAlert(
+                      'Generate Offline',
+                      'You are currently online. This feature is for generating questions from cached Question Bank when offline. Would you like to cache the Question Bank for offline use?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Cache Now',
+                          onPress: async () => {
+                            await loadProjectAndQuestions();
+                            showAlert('Success', 'Question Bank cached for offline use!');
+                          },
+                        },
+                      ]
+                    );
                   }
-              }
-              theme={{ colors: { onPrimary: '#ffffff' } }}
-            />
+                }}
+                activeOpacity={0.82}
+              >
+                <Icon source="cloud-download-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Reorder / Done */}
+            <View style={styles.fabRow}>
+              <View style={styles.fabLabelPill}>
+                <Text style={styles.fabLabelText}>
+                  {generatedQuestionsHook.isReorderMode ? 'Done' : 'Reorder'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.fabBtn, styles.fabBtnPrimary]}
+                onPress={
+                  generatedQuestionsHook.isReorderMode
+                    ? generatedQuestionsHook.saveQuestionOrder
+                    : () => {
+                      if (filteredGeneratedQuestions.length === 0) {
+                        showAlert('No Questions', 'There are no questions to reorder.');
+                        return;
+                      }
+                      const first = filteredGeneratedQuestions[0];
+                      const allSameBundle = filteredGeneratedQuestions.every(
+                        (q) =>
+                          q.assigned_respondent_type === first.assigned_respondent_type &&
+                          q.assigned_commodity === first.assigned_commodity &&
+                          q.assigned_country === first.assigned_country
+                      );
+                      if (!allSameBundle) {
+                        showAlert(
+                          'Filter Required',
+                          'Please filter to a specific generation bundle (Respondent Type + Commodity + Country) before reordering.'
+                        );
+                        return;
+                      }
+                      generatedQuestionsHook.startReorderMode(filteredGeneratedQuestions);
+                    }
+                }
+                activeOpacity={0.82}
+              >
+                <Icon
+                  source={generatedQuestionsHook.isReorderMode ? 'check' : 'swap-vertical'}
+                  size={24}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
@@ -978,7 +1017,7 @@ const FormBuilderScreen: React.FC = () => {
         visible={showAddDialog}
         onDismiss={() => {
           setShowAddDialog(false);
-          resetForm();
+          resetFormFull();
         }}
         onSubmit={handleAddQuestion}
         isEditing={false}
@@ -1003,6 +1042,12 @@ const FormBuilderScreen: React.FC = () => {
         setConditionOperator={setConditionOperator}
         conditionValue={conditionValue}
         setConditionValue={setConditionValue}
+        sectionMode={sectionMode}
+        setSectionMode={setSectionMode}
+        persistedSectionHeader={persistedSectionHeader}
+        setPersistedSectionHeader={setPersistedSectionHeader}
+        persistedSectionPreamble={persistedSectionPreamble}
+        setPersistedSectionPreamble={setPersistedSectionPreamble}
         addOption={addOption}
         removeOption={removeOption}
         responseTypes={responseTypes}
@@ -1016,7 +1061,7 @@ const FormBuilderScreen: React.FC = () => {
         onDismiss={() => {
           setShowEditDialog(false);
           setEditingQuestion(null);
-          resetForm();
+          resetFormFull();
         }}
         onSubmit={handleUpdateQuestion}
         isEditing={true}
@@ -1041,6 +1086,12 @@ const FormBuilderScreen: React.FC = () => {
         setConditionOperator={setConditionOperator}
         conditionValue={conditionValue}
         setConditionValue={setConditionValue}
+        sectionMode={sectionMode}
+        setSectionMode={setSectionMode}
+        persistedSectionHeader={persistedSectionHeader}
+        setPersistedSectionHeader={setPersistedSectionHeader}
+        persistedSectionPreamble={persistedSectionPreamble}
+        setPersistedSectionPreamble={setPersistedSectionPreamble}
         addOption={addOption}
         removeOption={removeOption}
         responseTypes={responseTypes}
@@ -1061,62 +1112,77 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: colors.background.default,
   },
   loadingText: {
-    marginTop: 16,
-    color: colors.text.primary,
+    fontFamily: 'DMSans-Regular',
+    marginTop: spacing.md,
+    color: colors.text.secondary,
+    fontSize: typography.fontSize.sm,
   },
-  header: {
-    position: 'relative',
-    backgroundColor: colors.background.paper,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    zIndex: 2,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerDecoration: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
+
+  // ── Hero
+  hero: {
     backgroundColor: colors.primary.dark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
   },
-  title: {
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    fontSize: 24,
+  heroNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+  heroTitle: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.xxl,
+    color: '#fff',
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
-  subtitle: {
-    color: colors.text.secondary,
-    fontSize: 14,
+  heroSubtitle: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255,255,255,0.65)',
   },
-  questionCountContainer: {
-    backgroundColor: colors.primary.faint,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.primary.muted,
+  heroRightRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.xs,
   },
-  questionCount: {
-    color: colors.text.primary,
-    fontWeight: 'bold',
-    fontSize: 20,
+  onlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
-  questionCountLabel: {
-    color: colors.text.primary,
-    fontSize: 11,
+  onlinePillText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+  },
+  countBadge: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  countBadgeText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.xs,
+    color: '#fff',
   },
   scrollView: {
     flex: 1,
@@ -1158,15 +1224,56 @@ const styles = StyleSheet.create({
   fabContainer: {
     position: 'absolute',
     right: 16,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
     gap: 12,
   },
-  fab: {
+  // Compact FAB row: label pill (left) + round icon button (right)
+  fabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  fabLabelPill: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fabLabelText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.primary,
+  },
+  fabBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fabBtnPrimary: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary.dark,
   },
-  fabDelete: {
+  fabBtnDelete: {
     backgroundColor: colors.status.error,
   },
-  fabImport: {
+  fabBtnImport: {
     backgroundColor: colors.status.info,
   },
   dialog: {

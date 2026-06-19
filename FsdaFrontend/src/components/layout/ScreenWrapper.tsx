@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, StatusBar, Platform } from 'react-native';
-import { useSafeAreaInsets, EdgeInsets } from 'react-native-safe-area-context';
-import { colors } from '../../constants/theme';
+import { View, ViewStyle, StatusBar } from 'react-native';
+import { Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, typography, spacing } from '../../constants/theme';
 
 interface ScreenWrapperProps {
     children: React.ReactNode;
@@ -13,24 +14,20 @@ interface ScreenWrapperProps {
         left?: boolean;
         right?: boolean;
     };
+    /** Renders a standardised in-screen header. Use for screens that don't use the nav header. */
+    withHeader?: {
+        title: string;
+        subtitle?: string;
+        right?: React.ReactNode;
+    };
 }
 
-/**
- * ScreenWrapper
- * 
- * A reusable wrapper component that applies safe area insets to its children.
- * useful for ensuring content isn't hidden behind notches, status bars, or home indicators.
- * 
- * @param children - The content to wrap
- * @param style - Additional styles for the container
- * @param backgroundColor - Background color (defaults to theme background)
- * @param edges - Which edges to apply safe area padding to (default: all)
- */
 export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
     children,
     style,
     backgroundColor = colors.background.default,
     edges = { top: true, bottom: true, left: true, right: true },
+    withHeader,
 }) => {
     const insets = useSafeAreaInsets();
 
@@ -51,7 +48,51 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
                 backgroundColor="transparent"
                 translucent
             />
+            {withHeader && (
+                <View style={headerStyles.header}>
+                    <View style={headerStyles.textBlock}>
+                        <Text style={headerStyles.title}>{withHeader.title}</Text>
+                        {withHeader.subtitle && (
+                            <Text style={headerStyles.subtitle}>{withHeader.subtitle}</Text>
+                        )}
+                    </View>
+                    {withHeader.right && (
+                        <View style={headerStyles.right}>{withHeader.right}</View>
+                    )}
+                </View>
+            )}
             {children}
         </View>
     );
+};
+
+const headerStyles = {
+    header: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        justifyContent: 'space-between' as const,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border.light,
+        backgroundColor: colors.background.default,
+    },
+    textBlock: {
+        flex: 1,
+    },
+    title: {
+        fontFamily: 'Fraunces-Bold',
+        fontSize: typography.fontSize.xl,
+        color: colors.text.primary,
+        letterSpacing: -0.5,
+    },
+    subtitle: {
+        fontFamily: 'DMSans-Regular',
+        fontSize: typography.fontSize.sm,
+        color: colors.text.secondary,
+        marginTop: 2,
+    },
+    right: {
+        marginLeft: spacing.md,
+    },
 };

@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   menuHeader: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.neutral.gray100,
+    backgroundColor: colors.background.subtle,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },

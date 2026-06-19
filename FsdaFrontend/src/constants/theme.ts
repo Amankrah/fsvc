@@ -1,106 +1,161 @@
 /**
- * Application Theme - Color Palette and Design Tokens
+ * FSDA Application Theme — "Savanna Intelligence"
  *
- * Unified light theme with Indigo primary palette.
- * All screens should import from this file — no hardcoded hex values in screens.
+ * Design direction: Refined field instrument.
+ * Warm, trustworthy, precise. Built for researchers working across Africa
+ * and Europe — generous sizing, high contrast, earthy palette.
+ *
+ * Color story:
+ *   Forest green primary — anchors the agricultural/field research context.
+ *   Harvest amber accent — drives attention and warmth for CTAs.
+ *   Warm off-white backgrounds — life and warmth over sterile white.
+ *
+ * All existing color token paths are preserved for backward compatibility.
+ * New tokens are additive. No screen import should break after this update.
  */
 
 export const colors = {
-  // Primary colors - Indigo palette for a modern, professional feel
+  // ── Primary — Deep Forest Green ─────────────────────────────────────────
   primary: {
-    main: '#4338CA',      // Indigo 700 - primary actions, headers
-    light: '#6366F1',     // Indigo 500 - hover/focus states
-    dark: '#3730A3',      // Indigo 800 - pressed/active states
-    contrast: '#ffffff',  // Text on primary background
-    faint: 'rgba(67, 56, 202, 0.08)',  // Very subtle primary tint for backgrounds
-    muted: 'rgba(67, 56, 202, 0.15)',  // Slightly stronger primary tint for cards
+    main: '#1D7A52',                      // Forest green — primary actions, buttons
+    light: '#26A86E',                     // Lighter green — hover, active, unread dot
+    dark: '#0A3D2B',                      // Deep green — pressed, dark hero bands
+    contrast: '#FFFFFF',                  // Text on primary backgrounds
+    faint: 'rgba(29, 122, 82, 0.08)',    // Very subtle green tint (unread cards, etc.)
+    muted: 'rgba(29, 122, 82, 0.14)',    // Slightly stronger tint (selected states)
+    surface: '#EEF9F3',                   // Solid light green background
   },
 
-  // Secondary/Accent colors - Warm tones for CTAs and important actions
+  // ── Accent — Harvest Amber ───────────────────────────────────────────────
+  // Legacy paths (colors.accent.orange / amber / etc.) preserved for all existing
+  // screens that reference them. New code should prefer colors.accent.main.
   accent: {
-    orange: '#F59E0B',    // Amber 500 - primary CTAs
-    amber: '#FBBF24',     // Amber 400 - secondary CTAs
-    lightOrange: '#FCD34D', // Amber 300 - hover
-    darkOrange: '#D97706', // Amber 600 - active
+    main: '#D97706',                      // Harvest amber — FABs, CTAs
+    orange: '#D97706',                    // Legacy alias → same as main
+    amber: '#F59E0B',                     // Legacy alias → lighter amber
+    lightOrange: '#FCD34D',               // Legacy alias → amber-300
+    darkOrange: '#B45309',                // Legacy alias → amber-700 (pressed)
+    light: '#F59E0B',                     // Lighter amber
+    dark: '#B45309',                      // Deep amber — pressed
+    surface: '#FEF3C7',                   // Solid amber-tinted background
+    contrast: '#FFFFFF',
   },
 
-  // Status colors - Semantic feedback colors
+  // ── Status — Semantic feedback ───────────────────────────────────────────
   status: {
-    success: '#10B981',   // Emerald 500
-    warning: '#F59E0B',   // Amber 500
-    error: '#EF4444',     // Red 500
-    info: '#06B6D4',      // Cyan 500
+    success: '#059669',                   // Emerald
+    successSurface: '#D1FAE5',
+    warning: '#D97706',                   // Amber (reuse accent)
+    warningSurface: '#FEF3C7',
+    error: '#DC2626',                     // Red
+    errorSurface: '#FEE2E2',
+    info: '#2563EB',                      // Blue
+    infoSurface: '#EFF6FF',
   },
 
-  // Neutral colors - Slate scale for text and backgrounds
+  // ── Sync status ──────────────────────────────────────────────────────────
+  sync: {
+    synced: '#059669',
+    syncedSurface: '#D1FAE5',
+    pending: '#D97706',
+    pendingSurface: '#FEF3C7',
+    error: '#DC2626',
+    errorSurface: '#FEE2E2',
+    offline: '#78716C',
+    offlineSurface: '#F4F1EA',
+  },
+
+  // ── Neutrals — Warm stone scale ──────────────────────────────────────────
   neutral: {
-    white: '#ffffff',
-    black: '#000000',
-    gray100: '#F8FAFC',   // Slate 50 - page backgrounds
-    gray200: '#E2E8F0',   // Slate 200 - borders, dividers
-    gray300: '#CBD5E1',   // Slate 300 - disabled states
-    gray400: '#94A3B8',   // Slate 400 - placeholder text
-    gray500: '#64748B',   // Slate 500 - secondary text
-    gray600: '#475569',   // Slate 600 - body text
-    gray700: '#334155',   // Slate 700 - headings
-    gray800: '#1E293B',   // Slate 800 - primary text
+    white: '#FFFFFF',
+    black: '#0A0A0A',
+    // New warm-toned scale
+    50:  '#FAFAF7',
+    100: '#F4F1EA',
+    200: '#E8E3D8',
+    300: '#D4CDB8',
+    400: '#A89E89',
+    500: '#7A7060',
+    600: '#5C5340',
+    700: '#3D3828',
+    800: '#211E15',
+    900: '#100F0A',
+    // Legacy gray aliases (same structure, warm values)
+    gray100: '#F4F1EA',   // was Slate 50 — now warm cream
+    gray200: '#E8E3D8',   // was Slate 200 — now warm
+    gray300: '#D4CDB8',   // was Slate 300
+    gray400: '#A89E89',   // was Slate 400
+    gray500: '#7A7060',   // was Slate 500
+    gray600: '#5C5340',   // was Slate 600
+    gray700: '#3D3828',   // was Slate 700
+    gray800: '#211E15',   // was Slate 800
   },
 
-  // Semantic text colors
+  // ── Text ─────────────────────────────────────────────────────────────────
   text: {
-    primary: '#1E293B',   // Slate 800
-    secondary: '#64748B', // Slate 500
-    disabled: '#94A3B8',  // Slate 400
-    inverse: '#ffffff',
-    hint: '#94A3B8',      // Slate 400 - for placeholders
+    primary: '#1C1917',    // Warm near-black
+    secondary: '#78716C',  // Warm gray
+    tertiary: '#A8A29E',   // Light warm gray (new)
+    disabled: '#C4BCB4',   // Warm disabled
+    inverse: '#FFFFFF',
+    hint: '#A8A29E',       // Legacy alias for placeholders
+    accent: '#1D7A52',     // Green text for emphasis (new)
   },
 
-  // Background colors
+  // ── Backgrounds ──────────────────────────────────────────────────────────
   background: {
-    default: '#F8FAFC',   // Slate 50 - page background
-    paper: '#ffffff',     // Card/surface backgrounds
-    elevated: '#ffffff',  // Elevated surfaces (modals, dialogs)
-    subtle: '#F1F5F9',   // Slate 100 - slightly tinted sections
+    default: '#F7F6F2',    // Warm off-white page background
+    paper: '#FFFFFF',      // Card / surface
+    elevated: '#FFFFFF',   // Modals, dialogs
+    subtle: '#F4F1EA',     // Warm tinted sections
+    accent: '#EEF9F3',     // Green-tinted sections (new)
   },
 
-  // Data visualization colors - Diverse palette for charts and stats
-  visualization: {
-    purple: '#4338CA',    // Indigo 700
-    teal: '#14B8A6',      // Teal 500
-    orange: '#F59E0B',    // Amber 500
-    cyan: '#06B6D4',      // Cyan 500
-    green: '#10B981',     // Emerald 500
-    amber: '#FBBF24',     // Amber 400
-    blue: '#3B82F6',      // Blue 500
-    pink: '#EC4899',      // Pink 500
-    red: '#EF4444',       // Red 500
-    indigo: '#6366F1',    // Indigo 500
-  },
-
-  // Border colors
+  // ── Borders ──────────────────────────────────────────────────────────────
   border: {
-    light: '#E2E8F0',     // Slate 200
-    medium: '#CBD5E1',    // Slate 300
-    dark: '#94A3B8',      // Slate 400
-    focus: '#4338CA',     // Indigo 700 - focused inputs
+    light: '#EDE9E0',      // Warm light border
+    medium: '#D4CDB8',     // Warm medium border
+    dark: '#A89E89',       // Warm dark border
+    focus: '#1D7A52',      // Green focus ring
   },
 
-  // Shadow colors
-  shadow: {
-    light: 'rgba(0, 0, 0, 0.05)',
-    medium: 'rgba(0, 0, 0, 0.10)',
-    dark: 'rgba(0, 0, 0, 0.20)',
+  // ── Data visualization ───────────────────────────────────────────────────
+  // Legacy structure preserved. Colors updated to new warm palette.
+  visualization: {
+    purple: '#4F46E5',     // Indigo (was primary — now a vis color)
+    teal: '#0D9488',
+    orange: '#EA580C',
+    cyan: '#0891B2',
+    green: '#059669',
+    amber: '#D97706',
+    blue: '#2563EB',
+    pink: '#DB2777',
+    red: '#DC2626',
+    indigo: '#4F46E5',
+    forest: '#1D7A52',     // New — primary green as vis color
+    emerald: '#059669',    // New
+    violet: '#7C3AED',     // New
   },
 
-  // Role-specific colors (for MembersScreen etc.)
+  // ── Role colors ──────────────────────────────────────────────────────────
   roles: {
-    owner: '#4338CA',     // Indigo - primary
-    member: '#10B981',    // Emerald - success
-    partner: '#F59E0B',   // Amber - accent
+    owner: '#1D7A52',      // Forest green
+    member: '#059669',     // Emerald
+    partner: '#D97706',    // Amber
+    viewer: '#78716C',     // Stone (new)
+  },
+
+  // ── Shadow colors ────────────────────────────────────────────────────────
+  // Warm-tinted shadows (replaces pure black)
+  shadow: {
+    light: 'rgba(28, 25, 23, 0.04)',
+    medium: 'rgba(28, 25, 23, 0.08)',
+    dark: 'rgba(28, 25, 23, 0.14)',
   },
 };
 
-// Spacing system
+// ── Spacing ─────────────────────────────────────────────────────────────────
+// Generous for outdoor / field use. Base increased slightly.
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -109,39 +164,67 @@ export const spacing = {
   xl: 20,
   xxl: 24,
   xxxl: 32,
+  huge: 48,
 };
 
-// Typography
+// ── Typography ───────────────────────────────────────────────────────────────
+// Larger base for outdoor readability. Fraunces for display, DM Sans for body.
 export const typography = {
   fontSize: {
     xs: 11,
-    sm: 12,
-    md: 14,
-    lg: 16,
-    xl: 18,
-    xxl: 20,
-    xxxl: 24,
-    huge: 28,
+    sm: 13,
+    md: 15,     // Base body — bumped from 14
+    lg: 17,
+    xl: 19,
+    xxl: 22,
+    xxxl: 26,
+    huge: 32,
+    display: 40,
+  },
+  lineHeight: {
+    tight: 1.2,
+    normal: 1.5,
+    relaxed: 1.7,
   },
   fontWeight: {
+    light: '300' as const,
     regular: '400' as const,
     medium: '500' as const,
     semibold: '600' as const,
     bold: '700' as const,
+    heavy: '800' as const,
+  },
+  letterSpacing: {
+    tight: -0.5,
+    normal: 0,
+    wide: 0.3,
+    wider: 0.6,
+    widest: 1.2,
+  },
+  // Font families — loaded via @expo-google-fonts
+  fontFamily: {
+    display: 'Fraunces_700Bold',
+    displayLight: 'Fraunces_400Regular',
+    body: 'DMSans_400Regular',
+    bodyMedium: 'DMSans_500Medium',
+    bodySemibold: 'DMSans_600SemiBold',
+    bodyBold: 'DMSans_700Bold',
   },
 };
 
-// Border radius
+// ── Border radius ────────────────────────────────────────────────────────────
 export const borderRadius = {
-  sm: 4,
-  md: 8,
-  lg: 12,
-  xl: 16,
+  xs: 4,
+  sm: 6,
+  md: 10,
+  lg: 14,
+  xl: 18,
   xxl: 24,
-  round: 50,
+  xxxl: 32,
+  round: 999,
 };
 
-// Elevation/Shadow presets
+// ── Elevation / Shadow presets ───────────────────────────────────────────────
 export const elevation = {
   none: {
     shadowColor: 'transparent',
@@ -150,86 +233,149 @@ export const elevation = {
     shadowRadius: 0,
     elevation: 0,
   },
-  small: {
-    shadowColor: colors.shadow.light,
+  xs: {
+    shadowColor: '#1C1917',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
+    elevation: 1,
+  },
+  sm: {
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
     elevation: 2,
   },
-  medium: {
-    shadowColor: colors.shadow.medium,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
+  md: {
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 4,
   },
-  large: {
-    shadowColor: colors.shadow.dark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
+  lg: {
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
     elevation: 8,
   },
-};
-
-// Button style presets (for consistent button hierarchy)
-export const buttonPresets = {
-  primary: {
-    backgroundColor: colors.primary.main,
-    borderRadius: borderRadius.lg,
-    paddingVertical: 12,
-  },
-  secondary: {
-    backgroundColor: 'transparent',
-    borderRadius: borderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary.main,
-  },
-  danger: {
-    backgroundColor: 'transparent',
-    borderRadius: borderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.status.error,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderRadius: borderRadius.lg,
+  xl: {
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.14,
+    shadowRadius: 32,
+    elevation: 16,
   },
 };
 
-// Card style presets
+// ── Card presets ─────────────────────────────────────────────────────────────
 export const cardPresets = {
   default: {
     backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border.light,
-    ...elevation.small,
+    ...elevation.sm,
   },
   elevated: {
     backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.xl,
-    ...elevation.medium,
+    borderRadius: borderRadius.lg,
+    ...elevation.md,
   },
   outlined: {
     backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border.medium,
     ...elevation.none,
   },
+  tinted: {
+    backgroundColor: colors.background.accent,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary.muted,
+    ...elevation.xs,
+  },
 };
 
-// Export a default theme object
+// ── Button presets ───────────────────────────────────────────────────────────
+export const buttonPresets = {
+  primary: {
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  accent: {
+    backgroundColor: colors.accent.main,
+    borderRadius: borderRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  secondary: {
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary.main,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  outlined: {
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border.medium,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+  },
+  danger: {
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.status.error,
+  },
+};
+
+// ── React Native Paper MD3 theme override ────────────────────────────────────
+// Use this in App.tsx: <PaperProvider theme={paperTheme}>
+export const paperThemeColors = {
+  primary: colors.primary.main,
+  onPrimary: colors.primary.contrast,
+  primaryContainer: colors.primary.surface,
+  onPrimaryContainer: colors.primary.dark,
+  secondary: colors.accent.main,
+  onSecondary: colors.accent.contrast,
+  secondaryContainer: colors.accent.surface,
+  onSecondaryContainer: colors.accent.dark,
+  error: colors.status.error,
+  onError: '#FFFFFF',
+  errorContainer: colors.status.errorSurface,
+  background: colors.background.default,
+  onBackground: colors.text.primary,
+  surface: colors.background.paper,
+  onSurface: colors.text.primary,
+  surfaceVariant: colors.background.subtle,
+  onSurfaceVariant: colors.text.secondary,
+  outline: colors.border.medium,
+  outlineVariant: colors.border.light,
+  inverseSurface: colors.neutral[800],
+  inverseOnSurface: colors.neutral[50],
+  inversePrimary: colors.primary.light,
+};
+
 export const theme = {
   colors,
   spacing,
   typography,
   borderRadius,
   elevation,
-  buttonPresets,
   cardPresets,
+  buttonPresets,
+  paperThemeColors,
 };
 
 export default theme;

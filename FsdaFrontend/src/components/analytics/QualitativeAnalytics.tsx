@@ -81,13 +81,13 @@ export const QualitativeAnalytics: React.FC<QualitativeAnalyticsProps> = ({ proj
     const getSentimentColor = (sentiment: string) => {
       switch (sentiment?.toLowerCase()) {
         case 'positive':
-          return 'rgba(16, 185, 129, 0.15)';
+          return colors.status.successSurface;
         case 'negative':
-          return 'rgba(239, 68, 68, 0.15)';
+          return colors.status.errorSurface;
         case 'neutral':
           return colors.background.subtle;
         default:
-          return 'rgba(245, 158, 11, 0.15)';
+          return colors.status.warningSurface;
       }
     };
 

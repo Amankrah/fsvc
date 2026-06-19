@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, ProjectMember
+from .models import Project, ProjectMember, CollectionTarget
 from authentication.serializers import UserSerializer
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -287,4 +287,19 @@ class ProjectMemberUpdateSerializer(serializers.ModelSerializer):
                 'partner_organization': 'Partner organization can only be set for members with role="partner".'
             })
 
-        return attrs 
+        return attrs
+
+
+class CollectionTargetSerializer(serializers.ModelSerializer):
+    assigned_to_id = serializers.UUIDField(source='assigned_to.id', read_only=True)
+    assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True)
+    assigned_to_email = serializers.CharField(source='assigned_to.email', read_only=True)
+
+    class Meta:
+        model = CollectionTarget
+        fields = [
+            'id', 'respondent_type', 'commodity', 'country', 'target_count',
+            'assigned_to_id', 'assigned_to_username', 'assigned_to_email',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

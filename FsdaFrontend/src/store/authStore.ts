@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { secureStorage } from '../utils/secureStorage';
+import { syncManager } from '../services/syncManager';
 
 interface User {
   id: string;
@@ -52,6 +53,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       await secureStorage.setItem('auth_token', token);
       await secureStorage.setItem('user_data', JSON.stringify(user));
       set({ token, user, isAuthenticated: true, error: null });
+
+      // Re-enable sync in case it was paused due to auth expiration
+      syncManager.resumeAfterAuth();
     } catch (error) {
       console.error('Error storing auth:', error);
       set({ error: 'Failed to store authentication data' });
@@ -59,17 +63,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearAuth: async () => {
+    // Clear in-memory state synchronously first — this immediately triggers
+    // RootNavigator to swap to Login before any async storage work begins.
+    set({ user: null, token: null, isAuthenticated: false, error: null });
+
+    // Best-effort storage cleanup in the background (non-blocking).
     try {
       await secureStorage.removeItem('auth_token');
       await secureStorage.removeItem('user_data');
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        error: null,
-      });
     } catch (error) {
-      console.error('Error clearing auth:', error);
+      console.error('Error clearing auth storage:', error);
     }
   },
 

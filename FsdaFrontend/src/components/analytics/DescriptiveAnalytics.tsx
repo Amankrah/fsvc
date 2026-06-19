@@ -359,11 +359,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   normalChip: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: colors.status.successSurface,
     marginBottom: 8,
   },
   notNormalChip: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.status.errorSurface,
     marginBottom: 8,
   },
   categoricalItem: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   missingChip: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.status.errorSurface,
   },
   sectionLabel: {
     marginTop: 8,

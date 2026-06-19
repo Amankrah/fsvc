@@ -1,12 +1,16 @@
 /**
  * useQuestionForm Hook
- * Manages question form state and validation
+ * Manages question form state and validation.
+ * Section state persists across consecutive adds so users can batch-add
+ * questions to the same section without retyping.
  */
 
 import { useState, useCallback } from 'react';
 import { showAlert, showConfirm, showSuccess, showError, showInfo } from '../../utils/alert';
 import { Question, RespondentType, ResponseType } from '../../types';
 import { DEFAULT_QUESTION_STATE } from '../../constants/formBuilder';
+
+export type SectionMode = 'none' | 'existing' | 'new';
 
 export const useQuestionForm = () => {
   const [newQuestion, setNewQuestion] = useState<any>(DEFAULT_QUESTION_STATE);
@@ -22,7 +26,34 @@ export const useQuestionForm = () => {
   const [conditionOperator, setConditionOperator] = useState('equals');
   const [conditionValue, setConditionValue] = useState('');
 
+  // Section persistence — survives resetForm so users can batch-add to one section
+  const [sectionMode, setSectionMode] = useState<SectionMode>('none');
+  const [persistedSectionHeader, setPersistedSectionHeader] = useState('');
+  const [persistedSectionPreamble, setPersistedSectionPreamble] = useState('');
+
   const resetForm = useCallback(() => {
+    // Preserve section state so the next "Add" inherits the same section
+    const keepHeader = persistedSectionHeader;
+    const keepPreamble = persistedSectionPreamble;
+    const keepMode = sectionMode;
+
+    setNewQuestion({
+      ...DEFAULT_QUESTION_STATE,
+      section_header: keepMode !== 'none' ? keepHeader : '',
+      section_preamble: keepMode !== 'none' ? keepPreamble : '',
+    });
+    setOptionInput('');
+    setSelectedTargetedRespondents([]);
+    setSelectedCommodities([]);
+    setSelectedCountries([]);
+    setIsFollowUp(false);
+    setParentQuestionId('');
+    setConditionOperator('equals');
+    setConditionValue('');
+  }, [sectionMode, persistedSectionHeader, persistedSectionPreamble]);
+
+  /** Full reset including section — call when user explicitly dismisses the dialog */
+  const resetFormFull = useCallback(() => {
     setNewQuestion(DEFAULT_QUESTION_STATE);
     setOptionInput('');
     setSelectedTargetedRespondents([]);
@@ -32,6 +63,9 @@ export const useQuestionForm = () => {
     setParentQuestionId('');
     setConditionOperator('equals');
     setConditionValue('');
+    setSectionMode('none');
+    setPersistedSectionHeader('');
+    setPersistedSectionPreamble('');
   }, []);
 
   const loadQuestionForEdit = useCallback((question: Question) => {
@@ -58,6 +92,17 @@ export const useQuestionForm = () => {
     setSelectedCommodities(question.targeted_commodities || []);
     setSelectedCountries(question.targeted_countries || []);
 
+    // Set section mode based on loaded question
+    if (question.section_header) {
+      setSectionMode('existing');
+      setPersistedSectionHeader(question.section_header);
+      setPersistedSectionPreamble(question.section_preamble || '');
+    } else {
+      setSectionMode('none');
+      setPersistedSectionHeader('');
+      setPersistedSectionPreamble('');
+    }
+
     // Populate conditional logic fields
     const isFollowUpQuestion = question.is_follow_up || false;
     setIsFollowUp(isFollowUpQuestion);
@@ -75,6 +120,11 @@ export const useQuestionForm = () => {
   const validateQuestion = useCallback(() => {
     if (!newQuestion.question_text.trim()) {
       showAlert('Validation Error', 'Please enter a question text');
+      return false;
+    }
+
+    if (newQuestion.question_text.trim().length < 10) {
+      showAlert('Validation Error', 'Question text must be at least 10 characters.');
       return false;
     }
 
@@ -198,8 +248,17 @@ export const useQuestionForm = () => {
     conditionValue,
     setConditionValue,
 
+    // Section persistence
+    sectionMode,
+    setSectionMode,
+    persistedSectionHeader,
+    setPersistedSectionHeader,
+    persistedSectionPreamble,
+    setPersistedSectionPreamble,
+
     // Methods
     resetForm,
+    resetFormFull,
     loadQuestionForEdit,
     validateQuestion,
     buildQuestionData,

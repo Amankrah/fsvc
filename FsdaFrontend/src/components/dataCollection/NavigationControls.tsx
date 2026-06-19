@@ -1,35 +1,32 @@
 /**
  * NavigationControls Component
- * Previous, Next, and Submit buttons with progress indicator
+ * Previous / Next / Submit buttons for single-question survey mode.
+ * Progress display and Save Draft are handled by the parent screen header.
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Button, ProgressBar, Text } from 'react-native-paper';
+import React, { memo } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, ActivityIndicator, Icon } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 interface NavigationControlsProps {
   currentIndex: number;
   totalQuestions: number;
-  progress: number;
   onPrevious: () => void;
   onNext: () => void;
   onSubmit: () => void;
-  onSaveDraft?: () => void;
   submitting: boolean;
   canGoBack: boolean;
   isLastQuestion: boolean;
 }
 
-export const NavigationControls: React.FC<NavigationControlsProps> = ({
+const NavigationControlsInner: React.FC<NavigationControlsProps> = ({
   currentIndex,
   totalQuestions,
-  progress,
   onPrevious,
   onNext,
   onSubmit,
-  onSaveDraft,
   submitting,
   canGoBack,
   isLastQuestion,
@@ -37,124 +34,122 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressText}>
-          Question {currentIndex + 1} of {totalQuestions}
-        </Text>
-        <ProgressBar progress={progress} color={colors.primary.main} style={styles.progressBar} />
-        <Text style={styles.progressPercentage}>{Math.round(progress * 100)}% Complete</Text>
-      </View>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+      {/* Question counter */}
+      <Text style={styles.counter}>
+        Question {currentIndex + 1} of {totalQuestions}
+      </Text>
 
-      {/* Save for Later Button */}
-      {onSaveDraft && (
-        <Button
-          mode="text"
-          onPress={onSaveDraft}
-          disabled={submitting}
-          icon="content-save-outline"
-          style={styles.saveDraftButton}
-          textColor={colors.status.warning}
-          labelStyle={styles.saveDraftLabel}>
-          Save for Later
-        </Button>
-      )}
-
-      {/* Navigation Buttons */}
+      {/* Previous / Next (or Submit) */}
       <View style={styles.buttonRow}>
-        <Button
-          mode="outlined"
+        <TouchableOpacity
+          style={[styles.prevBtn, !canGoBack && styles.btnDisabled]}
           onPress={onPrevious}
           disabled={!canGoBack || submitting}
-          icon="arrow-left"
-          style={[styles.button, styles.previousButton]}
-          textColor={colors.primary.main}>
-          Previous
-        </Button>
+          activeOpacity={0.8}
+        >
+          <Icon source="arrow-left" size={18} color={canGoBack ? colors.primary.main : colors.text.tertiary} />
+          <Text style={[styles.prevBtnText, !canGoBack && styles.disabledText]}>Previous</Text>
+        </TouchableOpacity>
 
         {isLastQuestion ? (
-          <Button
-            mode="contained"
+          <TouchableOpacity
+            style={[styles.nextBtn, styles.submitBtn, submitting && styles.btnDisabled]}
             onPress={onSubmit}
-            loading={submitting}
             disabled={submitting}
-            icon="check-circle"
-            style={[styles.button, styles.submitButton]}
-            textColor="#FFFFFF">
-            Submit
-          </Button>
+            activeOpacity={0.82}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Icon source="check-circle" size={18} color="#fff" />
+                <Text style={styles.nextBtnText}>Submit</Text>
+              </>
+            )}
+          </TouchableOpacity>
         ) : (
-          <Button
-            mode="contained"
+          <TouchableOpacity
+            style={[styles.nextBtn, submitting && styles.btnDisabled]}
             onPress={onNext}
             disabled={submitting}
-            icon="arrow-right"
-            style={[styles.button, styles.nextButton]}
-            contentStyle={styles.nextButtonContent}
-            textColor="#FFFFFF">
-            Next
-          </Button>
+            activeOpacity={0.82}
+          >
+            <Text style={styles.nextBtnText}>Next</Text>
+            <Icon source="arrow-right" size={18} color="#fff" />
+          </TouchableOpacity>
         )}
       </View>
     </View>
   );
 };
 
+export const NavigationControls = memo(NavigationControlsInner);
+
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(75, 30, 133, 0.3)',
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressText: {
-    color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
     backgroundColor: colors.background.paper,
-    marginBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  progressPercentage: {
+
+  counter: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    fontSize: 12,
     textAlign: 'center',
+    marginBottom: spacing.md,
   },
-  saveDraftButton: {
-    marginBottom: 12,
-    alignSelf: 'center',
-  },
-  saveDraftLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
-  button: {
+
+  prevBtn: {
     flex: 1,
-  },
-  previousButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
     borderColor: colors.primary.main,
+    backgroundColor: colors.background.paper,
   },
-  nextButton: {
+  prevBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.primary.main,
+  },
+
+  nextBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: borderRadius.lg,
     backgroundColor: colors.primary.dark,
   },
-  nextButtonContent: {
-    flexDirection: 'row-reverse',
+  nextBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
   },
-  submitButton: {
+
+  submitBtn: {
     backgroundColor: colors.primary.main,
+  },
+
+  btnDisabled: {
+    opacity: 0.4,
+  },
+  disabledText: {
+    color: colors.text.tertiary,
   },
 });

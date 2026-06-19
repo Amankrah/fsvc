@@ -186,10 +186,7 @@ export const useQuestionBank = (projectId: string) => {
             setQuestions(questionsList);
           }
 
-          showAlert(
-            'Loaded from Cache',
-            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache.`
-          );
+          console.log(`✓ Loaded ${questionsList.length} questions from cache as fallback`);
           return questionsList;
         }
       } catch (cacheError) {
@@ -256,7 +253,30 @@ export const useQuestionBank = (projectId: string) => {
         return true;
       } catch (error: any) {
         console.error('Error adding question:', error);
-        showError(error.response?.data?.error || 'Failed to add question');
+        console.error('Error response data:', JSON.stringify(error.response?.data));
+        console.error('Error status:', error.response?.status);
+        const errorData = error.response?.data;
+        // Backend may return errors in different formats:
+        // - { error: "message" }
+        // - { detail: "message" }
+        // - { field_name: ["error1", "error2"] }  (DRF validation)
+        let errorMessage = 'Failed to add question';
+        if (errorData?.error) {
+          errorMessage = errorData.error;
+        } else if (errorData?.detail) {
+          errorMessage = errorData.detail;
+        } else if (typeof errorData === 'object' && errorData !== null) {
+          // DRF field validation errors — format as readable list
+          const messages = Object.entries(errorData)
+            .map(([field, errors]) => {
+              const errorList = Array.isArray(errors) ? errors.join(', ') : String(errors);
+              return `${field.replace(/_/g, ' ')}: ${errorList}`;
+            });
+          if (messages.length > 0) {
+            errorMessage = messages.join('\n');
+          }
+        }
+        showError(errorMessage);
         return false;
       } finally {
         setSaving(false);

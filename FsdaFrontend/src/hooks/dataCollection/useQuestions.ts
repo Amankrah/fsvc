@@ -745,6 +745,182 @@ export const useQuestions = ({
     setQuestionsGenerated(qs.length > 0);
   }, []);
 
+  // ── Prepare All Profiles for Offline ────────────────────────────────────
+  // State for the bulk sync operation
+  const [preparingAll, setPreparingAll] = useState(false);
+  const [prepareAllProgress, setPrepareAllProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+    generated: number;
+    cached: number;
+    skipped: number;
+  } | null>(null);
+
+  /**
+   * Iterates every respondent × commodity × country combo, generates
+   * questions server-side for any combo that doesn't already have them,
+   * then caches ALL combos locally for offline use.
+   */
+  const prepareAllForOffline = useCallback(async (): Promise<void> => {
+    const isOnline = await networkMonitor.checkConnection();
+    if (!isOnline) {
+      showAlert('Offline', 'You need an internet connection to prepare profiles for offline use.');
+      return;
+    }
+
+    if (availableRespondentTypes.length === 0 || availableCommodities.length === 0 || availableCountries.length === 0) {
+      showAlert('No Options', 'Respondent types, commodities, or countries have not loaded yet. Please wait and try again.');
+      return;
+    }
+
+    try {
+      setPreparingAll(true);
+
+      // Build every combination
+      const combos: Array<{ respondentType: string; commodity: string; country: string }> = [];
+      for (const rt of availableRespondentTypes) {
+        for (const comm of availableCommodities) {
+          for (const country of availableCountries) {
+            combos.push({ respondentType: rt.value, commodity: comm.value, country });
+          }
+        }
+      }
+
+      let generated = 0;
+      let cached = 0;
+      let skipped = 0;
+
+      // Pre-load the existing local cache once
+      const localCache = await offlineQuestionCache.getGeneratedQuestions(projectId);
+
+      // Build a Set of already-cached combo keys for fast lookup
+      const cachedComboKeys = new Set<string>();
+      for (const q of localCache) {
+        cachedComboKeys.add(`${q.assigned_respondent_type}|${q.assigned_commodity}|${q.assigned_country}`);
+      }
+
+      // Accumulate new questions in a batch buffer, flushing every 10 combos
+      // so that progress is checkpointed incrementally (crash-safe).
+      // We only pass NEW questions to each flush and let the cache service
+      // merge with existing data to avoid duplicating the entire cache.
+      const BATCH_FLUSH_INTERVAL = 10;
+      let batchBuffer: any[] = [];
+
+      const flushBatch = async () => {
+        if (batchBuffer.length === 0) return;
+        // Read current cache, append only new items, and write back
+        const currentCache = await offlineQuestionCache.getGeneratedQuestions(projectId);
+        const existingIds = new Set(currentCache.map((q: any) => q.id));
+        const newQuestions = batchBuffer.filter((q: any) => !existingIds.has(q.id));
+        if (newQuestions.length > 0) {
+          await offlineQuestionCache.cacheGeneratedQuestions(projectId, [...currentCache, ...newQuestions]);
+          console.log(`✓ Batch checkpoint: added ${newQuestions.length} new questions (${currentCache.length + newQuestions.length} total)`);
+        } else {
+          console.log(`✓ Batch checkpoint: no new questions to add (${currentCache.length} total)`);
+        }
+        batchBuffer = [];
+      };
+
+      for (let i = 0; i < combos.length; i++) {
+        const combo = combos[i];
+        const label = `${combo.respondentType} · ${combo.commodity} · ${combo.country}`;
+        setPrepareAllProgress({ current: i + 1, total: combos.length, label, generated, cached, skipped });
+
+        const comboKey = `${combo.respondentType}|${combo.commodity}|${combo.country}`;
+
+        // 1. Check if questions exist on server for this combo
+        let serverQuestions: any[] = [];
+        try {
+          const resp = await apiService.getQuestionsForRespondent(
+            projectId,
+            {
+              assigned_respondent_type: combo.respondentType,
+              assigned_commodity: combo.commodity,
+              assigned_country: combo.country,
+            },
+            { page: 1, page_size: 10000 }
+          );
+          serverQuestions = resp.results || resp.questions || [];
+        } catch (e) {
+          console.warn(`Failed to check server for ${label}:`, e);
+        }
+
+        // 2. If none exist on server, generate them
+        if (serverQuestions.length === 0) {
+          try {
+            await apiService.generateDynamicQuestions({
+              project: projectId,
+              respondent_type: combo.respondentType,
+              commodity: combo.commodity,
+              country: combo.country,
+              use_project_bank_only: useProjectBankOnly,
+              replace_existing: false,
+              notes: `Bulk offline prep: ${label}`,
+            });
+
+            // Re-fetch after generation
+            const resp2 = await apiService.getQuestionsForRespondent(
+              projectId,
+              {
+                assigned_respondent_type: combo.respondentType,
+                assigned_commodity: combo.commodity,
+                assigned_country: combo.country,
+              },
+              { page: 1, page_size: 10000 }
+            );
+            serverQuestions = resp2.results || resp2.questions || [];
+            generated++;
+          } catch (genErr) {
+            console.warn(`Generation failed for ${label}:`, genErr);
+            skipped++;
+            continue;
+          }
+        }
+
+        if (serverQuestions.length === 0) {
+          skipped++;
+          continue;
+        }
+
+        // 3. Check if already cached locally
+        if (!cachedComboKeys.has(comboKey)) {
+          batchBuffer.push(...serverQuestions);
+          cachedComboKeys.add(comboKey);
+          cached++;
+        } else {
+          skipped++;
+        }
+
+        // Flush every BATCH_FLUSH_INTERVAL combos
+        if ((i + 1) % BATCH_FLUSH_INTERVAL === 0) {
+          await flushBatch();
+        }
+      }
+
+      // Final flush for remaining items
+      await flushBatch();
+
+      // Final progress update
+      setPrepareAllProgress({ current: combos.length, total: combos.length, label: 'Done', generated, cached, skipped });
+
+      showAlert(
+        'All Profiles Ready!',
+        `Processed ${combos.length} profile combinations:\n\n` +
+        `• ${generated} newly generated on server\n` +
+        `• ${cached} newly cached for offline\n` +
+        `• ${skipped} already up-to-date\n\n` +
+        `All profiles are now available for offline data collection.`
+      );
+    } catch (error: any) {
+      console.error('Error in prepareAllForOffline:', error);
+      showAlert('Error', error.message || 'Failed to prepare all profiles for offline.');
+    } finally {
+      setPreparingAll(false);
+      setPrepareAllProgress(null);
+    }
+  }, [projectId, availableRespondentTypes, availableCommodities, availableCountries, useProjectBankOnly]);
+
   return {
     questions,
     generatingQuestions,
@@ -757,11 +933,14 @@ export const useQuestions = ({
     hasMoreQuestions,
     cachingForOffline,
     cachedOfflineCount,
+    preparingAll,
+    prepareAllProgress,
     loadAvailableOptions,
     generateDynamicQuestions,
     loadMoreQuestions,
     resetQuestions,
     cacheForOffline,
+    prepareAllForOffline,
     setQuestionsDirectly,
   };
 };

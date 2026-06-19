@@ -4,12 +4,10 @@ import {
   Text,
   Card,
   Button,
-  List,
   Chip,
   ActivityIndicator,
   Switch,
   Divider,
-  IconButton,
   Portal,
   Dialog,
   ProgressBar,
@@ -21,7 +19,9 @@ import { networkMonitor } from '../services/networkMonitor';
 import { offlineStorage, SyncQueueItem } from '../services/offlineStorage';
 import { syncApi } from '../services/syncApi';
 import apiService from '../services/api';
-import { colors } from '../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../constants/theme';
+import { TouchableOpacity } from 'react-native';
+import { Icon } from 'react-native-paper';
 import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -186,6 +186,18 @@ const SyncScreen: React.FC = () => {
     await loadData();
   };
 
+  const handleRetryItem = async (itemId: string) => {
+    await offlineStorage.retryItem(itemId);
+    await loadData();
+    // Trigger sync to process the retried item
+    syncManager.syncPendingItems();
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    await offlineStorage.removeFromQueue(itemId);
+    await loadData();
+  };
+
   const handleClearCompleted = async () => {
     await syncManager.clearCompleted();
     setShowClearDialog(false);
@@ -247,35 +259,53 @@ const SyncScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenWrapper style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
-          Loading sync status...
-        </Text>
+      <ScreenWrapper style={styles.container} edges={{ top: false }}>
+        <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+          <Text style={styles.heroTitle}>Sync & Backup</Text>
+          <Text style={styles.heroSubtitle}>Manage data synchronization</Text>
+        </View>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading sync status...</Text>
+        </View>
       </ScreenWrapper>
     );
   }
 
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerLeft}>
-          <Text variant="headlineMedium" style={styles.title}>
-            Sync & Offline
-          </Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            Manage data synchronization
-          </Text>
+      {/* ── Hero header ─────────────────────────────────────────────────── */}
+      <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+        <View style={styles.heroNav}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon source="chevron-left" size={24} color="#fff" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+
+          {/* Online badge */}
+          <View style={[styles.onlineBadge, { backgroundColor: isOnline ? colors.status.successSurface : colors.status.errorSurface }]}>
+            <View style={[styles.onlineDot, { backgroundColor: isOnline ? colors.status.success : colors.status.error }]} />
+            <Text style={[styles.onlineBadgeText, { color: isOnline ? colors.status.success : colors.status.error }]}>
+              {isOnline ? 'Online' : 'Offline'}
+            </Text>
+          </View>
         </View>
-        <IconButton icon="close" onPress={() => navigation.goBack()} />
+
+        <Text style={styles.heroTitle}>Sync & Backup</Text>
+        {lastSync ? (
+          <Text style={styles.heroSubtitle}>Last sync: {formatDate(lastSync)}</Text>
+        ) : (
+          <Text style={styles.heroSubtitle}>Manage data synchronization</Text>
+        )}
       </View>
 
       {/* Project Selector */}
-      <View style={styles.projectSelectorContainer}>
-        <Text variant="bodyMedium" style={styles.projectLabel}>
-          Filter by Project:
-        </Text>
+      <View style={styles.projectSelectorRow}>
+        <Text style={styles.projectLabel}>Project:</Text>
         <Menu
           visible={showProjectMenu}
           onDismiss={() => setShowProjectMenu(false)}
@@ -295,10 +325,7 @@ const SyncScreen: React.FC = () => {
           <Menu.Item
             onPress={() => handleProjectSelect(null, 'All Projects')}
             title="All Projects"
-            titleStyle={[
-              styles.menuItemText,
-              !selectedProjectId && styles.selectedMenuItemText,
-            ]}
+            titleStyle={[styles.menuItemText, !selectedProjectId && styles.selectedMenuItemText]}
             leadingIcon={!selectedProjectId ? 'check' : undefined}
           />
           <Divider />
@@ -307,10 +334,7 @@ const SyncScreen: React.FC = () => {
               key={project.id}
               onPress={() => handleProjectSelect(project.id, project.name)}
               title={project.name}
-              titleStyle={[
-                styles.menuItemText,
-                selectedProjectId === project.id && styles.selectedMenuItemText,
-              ]}
+              titleStyle={[styles.menuItemText, selectedProjectId === project.id && styles.selectedMenuItemText]}
               leadingIcon={selectedProjectId === project.id ? 'check' : undefined}
             />
           ))}
@@ -346,8 +370,8 @@ const SyncScreen: React.FC = () => {
             )}
 
             {isOnline && autoSync && (
-              <View style={[styles.offlineNotice, { backgroundColor: '#e8f5e9' }]}>
-                <Text variant="bodyMedium" style={{ color: colors.status.success }}>
+              <View style={[styles.offlineNotice, { backgroundColor: colors.status.successSurface }]}>
+                <Text style={{ fontFamily: 'DMSans-Regular', color: colors.status.success, fontSize: typography.fontSize.sm }}>
                   ✓ Auto-sync enabled. Offline data syncs and processes automatically when online.
                 </Text>
               </View>
@@ -543,6 +567,31 @@ const SyncScreen: React.FC = () => {
                       Attempts: {item.attempts}/{item.max_attempts}
                     </Text>
                   )}
+
+                  {item.status === 'failed' && item.next_retry_at && (
+                    <Text variant="bodySmall" style={styles.retryTimeText}>
+                      Auto-retry: {formatDate(item.next_retry_at)}
+                    </Text>
+                  )}
+
+                  {item.status === 'failed' && (
+                    <View style={styles.itemActions}>
+                      <TouchableOpacity
+                        style={styles.itemRetryBtn}
+                        onPress={() => handleRetryItem(item.id)}
+                      >
+                        <Icon source="refresh" size={14} color={colors.primary.main} />
+                        <Text style={styles.itemRetryText}>Retry Now</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.itemDeleteBtn}
+                        onPress={() => handleDeleteItem(item.id)}
+                      >
+                        <Icon source="delete-outline" size={14} color={colors.status.error} />
+                        <Text style={styles.itemDeleteText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))}
 
@@ -605,41 +654,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: colors.background.paper,
-    elevation: 2,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  title: {
-    fontWeight: 'bold',
-  },
-  subtitle: {
+  loadingText: {
+    fontFamily: 'DMSans-Regular',
+    marginTop: spacing.md,
     color: colors.text.secondary,
-    marginTop: 4,
+    fontSize: typography.fontSize.sm,
   },
-  projectSelectorContainer: {
+
+  // ── Hero
+  hero: {
+    backgroundColor: colors.primary.dark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  heroNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginBottom: spacing.md,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+  onlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  onlineBadgeText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+  },
+  heroTitle: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.xxl,
+    color: '#fff',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255,255,255,0.65)',
+  },
+
+  // ── Project selector
+  projectSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.background.paper,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.border.light,
   },
   projectLabel: {
+    fontFamily: 'DMSans-Medium',
     color: colors.text.secondary,
-    fontWeight: '500',
+    fontSize: typography.fontSize.sm,
   },
   projectButton: {
-    minWidth: 200,
-    borderColor: colors.visualization.blue,
+    minWidth: 180,
+    borderColor: colors.border.medium,
+    borderRadius: borderRadius.md,
   },
   projectButtonContent: {
     flexDirection: 'row-reverse',
@@ -647,29 +740,37 @@ const styles = StyleSheet.create({
   menuContent: {
     backgroundColor: colors.background.paper,
     maxHeight: 400,
+    borderRadius: borderRadius.lg,
   },
   menuItemText: {
-    fontSize: 14,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
   },
   selectedMenuItemText: {
-    color: colors.visualization.blue,
-    fontWeight: 'bold',
+    fontFamily: 'DMSans-Bold',
+    color: colors.primary.main,
   },
+
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: spacing.md,
+    paddingBottom: 100,
   },
   card: {
-    marginBottom: 16,
-    elevation: 2,
+    marginBottom: spacing.md,
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    elevation: 0,
   },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   statusIndicator: {
     flexDirection: 'row',
@@ -677,21 +778,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   lastSyncText: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
+    fontSize: typography.fontSize.xs,
   },
   offlineNotice: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#fff3e0',
-    borderRadius: 4,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.status.warningSurface,
+    borderRadius: borderRadius.md,
   },
   offlineText: {
+    fontFamily: 'DMSans-Regular',
     color: colors.accent.darkOrange,
+    fontSize: typography.fontSize.sm,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -704,79 +809,145 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   controlDescription: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
-    marginTop: 4,
+    marginTop: 2,
+    fontSize: typography.fontSize.xs,
   },
   divider: {
-    marginVertical: 16,
+    marginVertical: spacing.md,
+    backgroundColor: colors.border.light,
   },
   actionButton: {
-    marginTop: 8,
+    marginTop: spacing.xs,
+    borderRadius: borderRadius.lg,
   },
   syncingText: {
-    marginBottom: 12,
+    fontFamily: 'DMSans-Medium',
+    marginBottom: spacing.sm,
     textAlign: 'center',
+    color: colors.text.primary,
+    fontSize: typography.fontSize.md,
   },
   progressBar: {
     height: 4,
+    borderRadius: 2,
   },
   queueItem: {
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.border.light,
   },
   queueItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   statusChip: {
     height: 24,
   },
   queueItemTime: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
+    fontSize: typography.fontSize.xs,
   },
   queueItemText: {
-    marginBottom: 4,
+    fontFamily: 'DMSans-Medium',
+    marginBottom: 2,
+    color: colors.text.primary,
+    fontSize: typography.fontSize.sm,
   },
   queueItemId: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
+    fontSize: typography.fontSize.xs,
   },
   errorText: {
-    color: '#f44336',
-    marginTop: 4,
+    fontFamily: 'DMSans-Regular',
+    color: colors.status.error,
+    marginTop: 2,
+    fontSize: typography.fontSize.xs,
   },
   attemptsText: {
-    color: '#ff9800',
-    marginTop: 4,
+    fontFamily: 'DMSans-Regular',
+    color: colors.status.warning,
+    marginTop: 2,
+    fontSize: typography.fontSize.xs,
+  },
+  retryTimeText: {
+    fontFamily: 'DMSans-Regular',
+    color: colors.text.secondary,
+    marginTop: 2,
+    fontSize: typography.fontSize.xs,
+    fontStyle: 'italic',
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+  },
+  itemRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary.main + '12',
+  },
+  itemRetryText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.primary.main,
+  },
+  itemDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.status.error + '12',
+  },
+  itemDeleteText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.status.error,
   },
   moreItems: {
+    fontFamily: 'DMSans-Regular',
     textAlign: 'center',
     color: colors.text.secondary,
-    marginTop: 12,
+    marginTop: spacing.sm,
+    fontSize: typography.fontSize.xs,
   },
   emptyState: {
     alignItems: 'center',
-    padding: 32,
+    padding: spacing.xl,
   },
   emptyIcon: {
-    fontSize: 64,
-    color: '#4caf50',
-    marginBottom: 16,
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 56,
+    color: colors.status.success,
+    marginBottom: spacing.md,
   },
   emptyTitle: {
-    marginBottom: 8,
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+    letterSpacing: -0.2,
   },
   emptyText: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
     textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
+    fontSize: typography.fontSize.sm,
   },
 });
 

@@ -443,10 +443,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   significantChip: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: colors.status.successSurface,
   },
   notSignificantChip: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.status.errorSurface,
   },
 });
 

@@ -192,8 +192,33 @@ class ApiService {
   // Form/Question endpoints
   // Question endpoints (project-specific question instances)
   async getQuestions(projectId: string) {
-    // Set page_size to a large number to get all questions (backend max is 100, but we can request more)
-    return await this.get(`/forms/questions/?project_id=${projectId}&page_size=1000`);
+    // Fetch all questions by paginating in batches to avoid timeout on large datasets
+    const pageSize = 100;
+    let allResults: any[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const data = await this.get(
+        `/forms/questions/?project_id=${projectId}&page=${page}&page_size=${pageSize}`,
+        { timeout: 30000 }
+      );
+
+      if (data.results) {
+        // Paginated response
+        allResults = [...allResults, ...data.results];
+        hasMore = !!data.next || !!(data.links?.next);
+      } else if (Array.isArray(data)) {
+        // Non-paginated response — got everything
+        allResults = data;
+        hasMore = false;
+      } else {
+        hasMore = false;
+      }
+      page++;
+    }
+
+    return allResults;
   }
 
   async getQuestionsForRespondent(
@@ -338,6 +363,15 @@ class ApiService {
 
   async getMyCollectionStats(projectId: string) {
     return await this.get(`/responses/respondents/my_stats/?project_id=${projectId}`);
+  }
+
+  // Collection Targets
+  async getCollectionTargets(projectId: string) {
+    return await this.get(`/projects/projects/${projectId}/collection-targets/`);
+  }
+
+  async updateCollectionTargets(projectId: string, targets: { respondent_type: string; commodity: string; country: string; target_count: number; assigned_to: string }[]) {
+    return await this.put(`/projects/projects/${projectId}/collection-targets/`, { targets });
   }
 
   // Dynamic Question Generation endpoints
@@ -663,6 +697,10 @@ class ApiService {
 
   async getDraftResponses(projectId: string) {
     return await this.get(`/responses/respondents/get_drafts/?project_id=${projectId}`);
+  }
+
+  async deleteRespondent(respondentId: string) {
+    return await this.delete(`/responses/respondents/${respondentId}/`);
   }
 
   async updateRespondentStatus(respondentId: string, status: 'draft' | 'completed' | 'abandoned') {

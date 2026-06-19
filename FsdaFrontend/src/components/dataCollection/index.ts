@@ -9,3 +9,4 @@ export { LocationDialog } from './LocationDialog';
 export { ImagePickerComponent } from './ImagePickerComponent';
 export { NavigationControls } from './NavigationControls';
 export { SwipeableQuestionView } from './SwipeableQuestionView';
+export { SyncStatusBanner } from './SyncStatusBanner';

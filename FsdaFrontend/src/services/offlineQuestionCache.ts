@@ -181,42 +181,26 @@ class OfflineQuestionCacheService {
   }
 
   /**
-   * Cache Generated Questions for a project
+   * Cache Generated Questions for a project.
+   *
+   * Always uses per-project chunked storage to avoid Android's SQLite
+   * CursorWindow 2 MB limit. The old monolithic key is only read as a
+   * migration fallback in getGeneratedQuestions().
    */
   async cacheGeneratedQuestions(projectId: string, questions: CachedGeneratedQuestion[]): Promise<void> {
     try {
-      const cacheData = await this.getAllGeneratedQuestionsCache();
-
       // Deduplicate questions before caching to prevent duplicates
       const deduplicated = deduplicateGeneratedQuestions(questions);
 
       // Compress question data to reduce size
       const compressedQuestions = compressQuestionData(deduplicated);
-      cacheData[projectId] = compressedQuestions as any;
 
-      // Check size before saving
-      const dataSize = getObjectSize(cacheData);
+      const dataSize = getObjectSize(compressedQuestions);
       console.log(`📊 Generated questions cache size: ${formatBytes(dataSize)} (${deduplicated.length} questions after deduplication)`);
 
-      // If data is too large, implement chunking strategy
-      if (exceedsStorageLimit(cacheData, 4)) {
-        console.warn(`⚠️ Cache size exceeds 4MB, using chunked storage for project ${projectId}`);
-        await this.cacheGeneratedQuestionsChunked(projectId, compressedQuestions as any);
-      } else {
-        try {
-          await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(cacheData));
-          await this.updateLastCacheTime();
-          console.log(`✓ Cached ${deduplicated.length} generated questions for project ${projectId}`);
-        } catch (error: any) {
-          // Handle QuotaExceededError
-          if (error.name === 'QuotaExceededError' || error.message?.includes('quota')) {
-            console.warn(`⚠️ Storage quota exceeded, switching to chunked storage`);
-            await this.cacheGeneratedQuestionsChunked(projectId, compressedQuestions as any);
-          } else {
-            throw error;
-          }
-        }
-      }
+      // Always write per-project chunks (1 MB limit per chunk keeps
+      // every AsyncStorage row well under the 2 MB CursorWindow cap)
+      await this.cacheGeneratedQuestionsChunked(projectId, compressedQuestions as any);
     } catch (error) {
       console.error('Failed to cache generated questions:', error);
       throw error;
@@ -224,16 +208,20 @@ class OfflineQuestionCacheService {
   }
 
   /**
-   * Cache generated questions using chunked storage (for large datasets)
+   * Cache generated questions using per-project chunked storage.
+   * Each chunk stays under 1 MB to avoid Android CursorWindow errors.
    */
   private async cacheGeneratedQuestionsChunked(projectId: string, questions: CachedGeneratedQuestion[]): Promise<void> {
     try {
-      // Estimate chunk size based on sample item
+      // Clean up old chunks first (the count may differ between writes)
+      await this.clearGeneratedQuestionChunks(projectId);
+
+      // 1 MB per chunk — safely under 2 MB CursorWindow limit
       const sampleItem = questions[0] || {};
-      const chunkSize = estimateChunkSize(sampleItem, 2); // 2MB per chunk
+      const chunkSize = estimateChunkSize(sampleItem, 1);
 
       const chunks = chunkArray(questions, chunkSize);
-      console.log(`📦 Splitting ${questions.length} generated questions into ${chunks.length} chunks`);
+      console.log(`📦 Splitting ${questions.length} generated questions into ${chunks.length} chunks (≤1 MB each)`);
 
       // Save each chunk separately
       for (let i = 0; i < chunks.length; i++) {
@@ -259,16 +247,37 @@ class OfflineQuestionCacheService {
   }
 
   /**
+   * Remove existing chunk keys for a project so stale chunks don't linger
+   * when the new write produces fewer chunks than the previous one.
+   */
+  private async clearGeneratedQuestionChunks(projectId: string): Promise<void> {
+    try {
+      const metaKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`;
+      const metaStr = await AsyncStorage.getItem(metaKey);
+      if (!metaStr) return;
+
+      const meta = JSON.parse(metaStr);
+      const keysToRemove = [metaKey];
+      for (let i = 0; i < meta.totalChunks; i++) {
+        keysToRemove.push(`${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_chunk_${i}`);
+      }
+      await AsyncStorage.multiRemove(keysToRemove);
+    } catch (e) {
+      // Non-fatal — worst case we overwrite keys
+      console.warn('clearGeneratedQuestionChunks cleanup warning:', e);
+    }
+  }
+
+  /**
    * Get cached Generated Questions for a project
    */
   async getGeneratedQuestions(projectId: string): Promise<CachedGeneratedQuestion[]> {
     try {
-      // First check if chunked storage exists
+      // Prefer per-project chunked storage (the only write path now)
       const metadataKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`;
       const metadataStr = await AsyncStorage.getItem(metadataKey);
 
       if (metadataStr) {
-        // Load from chunked storage
         const metadata = JSON.parse(metadataStr);
         const allQuestions: CachedGeneratedQuestion[] = [];
 
@@ -282,16 +291,57 @@ class OfflineQuestionCacheService {
         }
 
         console.log(`📦 Loaded ${allQuestions.length} generated questions from ${metadata.totalChunks} chunks`);
+
+        // Opportunistically delete the stale monolithic key so the
+        // CursorWindow warning never fires again on future reads.
+        this.purgeMonolithicKey();
+
         return allQuestions;
       }
 
-      // Fall back to regular cache
-      const cacheData = await this.getAllGeneratedQuestionsCache();
-      return cacheData[projectId] || [];
+      // Migration fallback: try the old monolithic key (may fail on
+      // Android if the row has grown past 2 MB — handle gracefully)
+      try {
+        const cacheData = await this.getAllGeneratedQuestionsCache();
+        const projectQuestions = cacheData[projectId] || [];
+
+        // If found, migrate to chunked storage and clear from monolithic key
+        if (projectQuestions.length > 0) {
+          console.log(`🔄 Migrating ${projectQuestions.length} questions from monolithic cache to chunked storage`);
+          await this.cacheGeneratedQuestionsChunked(projectId, projectQuestions);
+
+          // Remove this project from the monolithic key
+          delete cacheData[projectId];
+          try {
+            await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(cacheData));
+          } catch (_) {
+            // If the monolithic key is already too big to write back, just delete it entirely
+            await AsyncStorage.removeItem(CACHE_KEYS.GENERATED_QUESTIONS).catch(() => {});
+          }
+
+          return projectQuestions;
+        }
+      } catch (legacyErr) {
+        // Monolithic key is unreadable (CursorWindow overflow) — delete it
+        // so it doesn't keep producing warnings on every future read.
+        console.warn('Legacy monolithic cache unreadable, removing it.');
+        await AsyncStorage.removeItem(CACHE_KEYS.GENERATED_QUESTIONS).catch(() => {});
+      }
+
+      return [];
     } catch (error) {
       console.error('Failed to get cached generated questions:', error);
       return [];
     }
+  }
+
+  /**
+   * Delete the old monolithic generated-questions key (fire-and-forget).
+   * Called once after a successful chunked read so the stale blob doesn't
+   * linger and produce CursorWindow warnings on future fallback attempts.
+   */
+  private purgeMonolithicKey(): void {
+    AsyncStorage.removeItem(CACHE_KEYS.GENERATED_QUESTIONS).catch(() => {});
   }
 
   /**
@@ -436,24 +486,33 @@ class OfflineQuestionCacheService {
   }> {
     try {
       const questionBanks = await this.getAllQuestionBanksCache();
-      const generatedQuestions = await this.getAllGeneratedQuestionsCache();
       const projects = await this.getAllProjectsCache();
       const lastUpdate = await this.getLastCacheTime();
 
-      const stats = {
+      // For generated questions, read per-project chunk metadata instead
+      // of the monolithic key (which may exceed CursorWindow on Android)
+      const generatedQuestionsCounts: { [key: string]: number } = {};
+      const allKeys = await AsyncStorage.getAllKeys();
+      const metaKeys = allKeys.filter(k => k.startsWith(CACHE_KEYS.GENERATED_QUESTIONS) && k.endsWith('_meta'));
+      for (const metaKey of metaKeys) {
+        try {
+          const metaStr = await AsyncStorage.getItem(metaKey);
+          if (metaStr) {
+            const meta = JSON.parse(metaStr);
+            generatedQuestionsCounts[meta.projectId] = meta.totalItems;
+          }
+        } catch (_) { /* skip unreadable meta */ }
+      }
+
+      return {
         questionBanks: Object.keys(questionBanks).reduce((acc, key) => {
           acc[key] = questionBanks[key].length;
           return acc;
         }, {} as { [key: string]: number }),
-        generatedQuestions: Object.keys(generatedQuestions).reduce((acc, key) => {
-          acc[key] = generatedQuestions[key].length;
-          return acc;
-        }, {} as { [key: string]: number }),
+        generatedQuestions: generatedQuestionsCounts,
         projects: Object.keys(projects).length,
         lastUpdate,
       };
-
-      return stats;
     } catch (error) {
       console.error('Failed to get cache stats:', error);
       return {
@@ -505,21 +564,18 @@ class OfflineQuestionCacheService {
         await AsyncStorage.multiRemove(keysToRemove);
       }
 
-      // Clear generated questions (regular cache)
-      const gqCache = await this.getAllGeneratedQuestionsCache();
-      delete gqCache[projectId];
-      await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(gqCache));
+      // Clear generated questions (chunked per-project storage)
+      await this.clearGeneratedQuestionChunks(projectId);
 
-      // Clear generated questions (chunked cache)
-      const gqMetaKey = `${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_meta`;
-      const gqMetaStr = await AsyncStorage.getItem(gqMetaKey);
-      if (gqMetaStr) {
-        const gqMeta = JSON.parse(gqMetaStr);
-        const keysToRemove = [gqMetaKey];
-        for (let i = 0; i < gqMeta.totalChunks; i++) {
-          keysToRemove.push(`${CACHE_KEYS.GENERATED_QUESTIONS}_${projectId}_chunk_${i}`);
+      // Clear generated questions (legacy monolithic cache — best effort)
+      try {
+        const gqCache = await this.getAllGeneratedQuestionsCache();
+        if (gqCache[projectId]) {
+          delete gqCache[projectId];
+          await AsyncStorage.setItem(CACHE_KEYS.GENERATED_QUESTIONS, JSON.stringify(gqCache));
         }
-        await AsyncStorage.multiRemove(keysToRemove);
+      } catch (_) {
+        // Monolithic key may be too large to read — that's fine, chunked is authoritative
       }
 
       // Clear project data

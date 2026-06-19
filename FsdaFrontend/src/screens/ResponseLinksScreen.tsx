@@ -1,23 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl, Share, Alert } from 'react-native';
 import {
+  View,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  Share,
+  Alert,
+  TouchableOpacity,
   Text,
-  Card,
-  Button,
-  FAB,
-  Chip,
-  IconButton,
-  Portal,
-  Dialog,
+  Modal,
   ActivityIndicator,
-  Divider,
-} from 'react-native-paper';
+  Platform,
+  Dimensions,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Icon } from 'react-native-paper';
 import apiService from '../services/api';
 import { ResponseLink } from '../types';
-import { colors } from '../constants/theme';
+import { colors, typography, borderRadius, spacing } from '../constants/theme';
 import { ScreenWrapper } from '../components/layout/ScreenWrapper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const ResponseLinksScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -38,13 +42,12 @@ const ResponseLinksScreen: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiService.getResponseLinks();
-      // Handle both array responses and paginated responses
       const linksData = Array.isArray(response) ? response : (response?.results || []);
       setLinks(linksData);
     } catch (error) {
       console.error('Error loading links:', error);
       Alert.alert('Error', 'Failed to load response links');
-      setLinks([]); // Set empty array on error
+      setLinks([]);
     } finally {
       setLoading(false);
     }
@@ -61,7 +64,7 @@ const ResponseLinksScreen: React.FC = () => {
       await Share.share({
         message: `${link.title || 'Survey'}\n\n${link.description || 'Please complete this survey'}\n\n${link.share_url}`,
         url: link.share_url,
-        title: link.title || 'Survey Link'
+        title: link.title || 'Survey Link',
       });
     } catch (error) {
       console.error('Error sharing link:', error);
@@ -109,8 +112,6 @@ const ResponseLinksScreen: React.FC = () => {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
     });
   };
 
@@ -127,270 +128,306 @@ const ResponseLinksScreen: React.FC = () => {
     return 'Active';
   };
 
+  const getAccentColor = (link: ResponseLink) => {
+    if (!link.is_valid) return colors.status.error;
+    if (link.statistics.days_until_expiration <= 1) return colors.status.warning;
+    return colors.primary.main;
+  };
+
+  // ── Totals for hero pills ──────────────────────────────────────────────────
+  const totalViews = links.reduce((s, l) => s + (l.access_count || 0), 0);
+  const totalResponses = links.reduce((s, l) => s + (l.response_count || 0), 0);
+  const activeCount = links.filter((l) => l.is_valid).length;
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <ScreenWrapper style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>Loading links...</Text>
+      <ScreenWrapper style={styles.container} edges={{ top: false }}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Icon source="arrow-left" size={20} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerMeta}>
+              <Text style={styles.headerTitle}>Web Links</Text>
+              <Text style={styles.headerSub}>Share surveys via public URL</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading links…</Text>
+        </View>
       </ScreenWrapper>
     );
   }
 
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <IconButton
-          icon="arrow-left"
-          iconColor={colors.primary.contrast}
-          size={24}
-          onPress={() => navigation.goBack()}
-        />
-        <View style={styles.headerContent}>
-          <Text variant="headlineMedium" style={styles.title}>Response Links</Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            Share surveys via web link
-          </Text>
+      {/* ── Hero header ── */}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Icon source="arrow-left" size={20} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerMeta}>
+            <Text style={styles.headerTitle}>Web Links</Text>
+            <Text style={styles.headerSub}>Share surveys via public URL</Text>
+          </View>
+          <TouchableOpacity style={styles.headerBtn} onPress={onRefresh} activeOpacity={0.7}>
+            <Icon source="refresh" size={20} color="rgba(255,255,255,0.8)" />
+          </TouchableOpacity>
         </View>
-        <View style={{ width: 48 }} />
+
+        {/* Stat pills */}
+        <View style={styles.pillRow}>
+          <View style={styles.pill}>
+            <Text style={styles.pillValue}>{activeCount}</Text>
+            <Text style={styles.pillLabel}>ACTIVE</Text>
+          </View>
+          <View style={styles.pill}>
+            <Text style={styles.pillValue}>{totalViews}</Text>
+            <Text style={styles.pillLabel}>VIEWS</Text>
+          </View>
+          <View style={styles.pill}>
+            <Text style={styles.pillValue}>{totalResponses}</Text>
+            <Text style={styles.pillLabel}>RESPONSES</Text>
+          </View>
+        </View>
       </View>
 
+      {/* ── List ── */}
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary.main]} />}
+        showsVerticalScrollIndicator={false}
       >
         {links.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Card.Content>
-              <Text variant="headlineSmall" style={styles.emptyTitle}>No Links Yet</Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Create shareable links to collect responses without requiring the mobile app.
-              </Text>
-            </Card.Content>
-          </Card>
+          <View style={styles.emptyCard}>
+            <Icon source="link-variant" size={44} color={colors.text.tertiary} />
+            <Text style={styles.emptyTitle}>No Links Yet</Text>
+            <Text style={styles.emptyBody}>
+              Create shareable links to collect responses without requiring the mobile app.
+            </Text>
+          </View>
         ) : (
-          links.map((link) => (
-            <Card key={link.id} style={styles.linkCard}>
-              <Card.Content>
-                {/* Header */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.titleSection}>
-                    <Text variant="titleMedium" style={styles.linkTitle}>
-                      {link.title || 'Untitled Survey'}
-                    </Text>
-                    <Chip
-                      icon={link.is_valid ? 'check-circle' : 'alert-circle'}
-                      style={[styles.statusChip, { backgroundColor: getStatusColor(link) + '20' }]}
-                      textStyle={{ color: getStatusColor(link), fontSize: 11 }}
-                    >
-                      {getStatusText(link)}
-                    </Chip>
+          links.map((link) => {
+            const accent = getAccentColor(link);
+            const statusText = getStatusText(link);
+            const statusColor = getStatusColor(link);
+            const isExpiredOrInactive = !link.is_valid;
+
+            return (
+              <View key={link.id} style={styles.card}>
+                {/* Left accent bar */}
+                <View style={[styles.accentBar, { backgroundColor: accent }]} />
+
+                <View style={styles.cardBody}>
+                  {/* Title row */}
+                  <View style={styles.titleRow}>
+                    <View style={styles.titleMeta}>
+                      <Text style={styles.linkTitle} numberOfLines={1}>
+                        {link.title || 'Untitled Survey'}
+                      </Text>
+                      <Text style={styles.projectName} numberOfLines={1}>
+                        {link.project_name}
+                      </Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                      <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* Description */}
-                {link.description && (
-                  <Text variant="bodyMedium" style={styles.description}>
-                    {link.description}
-                  </Text>
-                )}
+                  {/* Description */}
+                  {link.description ? (
+                    <Text style={styles.description} numberOfLines={2}>{link.description}</Text>
+                  ) : null}
 
-                {/* Project */}
-                <Text variant="bodySmall" style={styles.projectName}>
-                  Project: {link.project_name}
-                </Text>
-
-                {/* Tags for Respondent Type, Commodity, Country */}
-                {(link.respondent_type_display || link.commodity_display || link.country_display) && (
-                  <View style={styles.tagsContainer}>
-                    {link.respondent_type_display && (
-                      <Chip
-                        icon="account"
-                        style={styles.tag}
-                        textStyle={styles.tagText}
-                        compact
-                      >
-                        {link.respondent_type_display}
-                      </Chip>
-                    )}
-                    {link.commodity_display && (
-                      <Chip
-                        icon="package-variant"
-                        style={styles.tag}
-                        textStyle={styles.tagText}
-                        compact
-                      >
-                        {link.commodity_display}
-                      </Chip>
-                    )}
-                    {link.country_display && (
-                      <Chip
-                        icon="map-marker"
-                        style={styles.tag}
-                        textStyle={styles.tagText}
-                        compact
-                      >
-                        {link.country_display}
-                      </Chip>
-                    )}
-                  </View>
-                )}
-
-                <Divider style={styles.divider} />
-
-                {/* Statistics */}
-                <View style={styles.statsRow}>
-                  <View style={styles.statItem}>
-                    <Text variant="bodySmall" style={styles.statLabel}>Responses</Text>
-                    <Text variant="titleMedium" style={styles.statValue}>
-                      {link.response_count}/{link.remaining_responses === null ? '∞' : link.max_responses}
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text variant="bodySmall" style={styles.statLabel}>Views</Text>
-                    <Text variant="titleMedium" style={styles.statValue}>
-                      {link.access_count}
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text variant="bodySmall" style={styles.statLabel}>Rate</Text>
-                    <Text variant="titleMedium" style={styles.statValue}>
-                      {link.statistics.response_rate.toFixed(0)}%
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text variant="bodySmall" style={styles.statLabel}>Expires</Text>
-                    <Text variant="titleMedium" style={styles.statValue}>
-                      {link.statistics.days_until_expiration}d
-                    </Text>
-                  </View>
-                </View>
-
-                <Divider style={styles.divider} />
-
-                {/* Timestamps */}
-                <View style={styles.timestampsRow}>
-                  <Text variant="bodySmall" style={styles.timestamp}>
-                    Created: {formatDate(link.created_at)}
-                  </Text>
-                  {link.last_accessed_at && (
-                    <Text variant="bodySmall" style={styles.timestamp}>
-                      Last access: {formatDate(link.last_accessed_at)}
-                    </Text>
+                  {/* Tag chips */}
+                  {(link.respondent_type_display || link.commodity_display || link.country_display) && (
+                    <View style={styles.tagRow}>
+                      {link.respondent_type_display ? (
+                        <View style={styles.tag}>
+                          <Text style={styles.tagText}>👤 {link.respondent_type_display}</Text>
+                        </View>
+                      ) : null}
+                      {link.commodity_display ? (
+                        <View style={styles.tag}>
+                          <Text style={styles.tagText}>📦 {link.commodity_display}</Text>
+                        </View>
+                      ) : null}
+                      {link.country_display ? (
+                        <View style={styles.tag}>
+                          <Text style={styles.tagText}>📍 {link.country_display}</Text>
+                        </View>
+                      ) : null}
+                    </View>
                   )}
-                </View>
 
-                {/* Actions */}
-                <View style={styles.actionsRow}>
-                  <Button
-                    mode="contained"
-                    icon="share-variant"
-                    onPress={() => handleShareLink(link)}
-                    style={styles.actionButton}
-                    disabled={!link.is_valid}
-                  >
-                    Share
-                  </Button>
-                  {link.is_valid && (
-                    <Button
-                      mode="outlined"
-                      icon="clock-plus"
-                      onPress={() => {
-                        setSelectedLink(link);
-                        setShowExtendDialog(true);
-                      }}
-                      style={styles.actionButton}
+                  {/* Stats row */}
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={[styles.statValue, { color: accent }]}>
+                        {link.response_count}/{link.remaining_responses === null ? '∞' : link.max_responses}
+                      </Text>
+                      <Text style={styles.statLabel}>RESPONSES</Text>
+                    </View>
+                    <View style={[styles.statItem, styles.statBorder]}>
+                      <Text style={styles.statValue}>{link.access_count}</Text>
+                      <Text style={styles.statLabel}>VIEWS</Text>
+                    </View>
+                    <View style={[styles.statItem, styles.statBorder]}>
+                      <Text style={styles.statValue}>
+                        {link.statistics.response_rate.toFixed(0)}%
+                      </Text>
+                      <Text style={styles.statLabel}>RATE</Text>
+                    </View>
+                    <View style={[styles.statItem, styles.statBorder]}>
+                      <Text style={[
+                        styles.statValue,
+                        link.statistics.days_until_expiration <= 3 && { color: colors.status.warning },
+                        link.statistics.days_until_expiration <= 0 && { color: colors.status.error },
+                      ]}>
+                        {link.statistics.days_until_expiration}d
+                      </Text>
+                      <Text style={styles.statLabel}>LEFT</Text>
+                    </View>
+                  </View>
+
+                  {/* Dates */}
+                  <Text style={styles.dateText}>Created {formatDate(link.created_at)}</Text>
+
+                  {/* Action buttons */}
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={[styles.actionBtnPrimary, isExpiredOrInactive && styles.actionBtnDisabled]}
+                      onPress={() => handleShareLink(link)}
+                      disabled={isExpiredOrInactive}
+                      activeOpacity={0.8}
                     >
-                      Extend
-                    </Button>
-                  )}
-                  {link.is_active && (
-                    <Button
-                      mode="text"
-                      icon="cancel"
-                      onPress={() => handleDeactivate(link)}
-                      style={styles.actionButton}
+                      <Icon source="share-variant" size={14} color="#fff" />
+                      <Text style={styles.actionBtnPrimaryText}>Share</Text>
+                    </TouchableOpacity>
+
+                    {link.is_valid ? (
+                      <TouchableOpacity
+                        style={styles.actionBtnOutlined}
+                        onPress={() => { setSelectedLink(link); setShowExtendDialog(true); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.actionBtnOutlinedText}>Extend</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.actionBtnGreen}
+                        onPress={() => { setSelectedLink(link); setShowExtendDialog(true); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.actionBtnGreenText}>Extend</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {link.is_active ? (
+                      <TouchableOpacity
+                        style={styles.actionBtnGhost}
+                        onPress={() => handleDeactivate(link)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.actionBtnGhostText}>Deactivate</Text>
+                      </TouchableOpacity>
+                    ) : null}
+
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => { setSelectedLink(link); setShowDeleteDialog(true); }}
+                      activeOpacity={0.7}
                     >
-                      Deactivate
-                    </Button>
-                  )}
-                  <IconButton
-                    icon="delete"
-                    iconColor={colors.status.error}
-                    size={20}
-                    onPress={() => {
-                      setSelectedLink(link);
-                      setShowDeleteDialog(true);
-                    }}
-                  />
+                      <Icon source="delete" size={17} color={colors.status.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </Card.Content>
-            </Card>
-          ))
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
-      {/* FAB for creating new link */}
-      <FAB
-        icon="plus"
+      {/* ── FAB ── */}
+      <TouchableOpacity
         style={styles.fab}
-        onPress={() => {
-          // Navigate to create link screen
-          Alert.alert('Info', 'Create link from Data Collection or Forms screen');
-        }}
-      />
+        activeOpacity={0.85}
+        onPress={() => Alert.alert('Info', 'Create a link from the Data Collection or Forms screen')}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
 
-      {/* Delete Confirmation Dialog */}
-      <Portal>
-        <Dialog visible={showDeleteDialog} onDismiss={() => setShowDeleteDialog(false)}>
-          <Dialog.Title>Delete Link?</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">
+      {/* ── Delete confirmation modal ── */}
+      <Modal
+        visible={showDeleteDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.dialogCard}>
+            <Text style={styles.dialogTitle}>Delete Link?</Text>
+            <Text style={styles.dialogBody}>
               This will permanently delete this response link. This action cannot be undone.
             </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowDeleteDialog(false)}>Cancel</Button>
-            <Button onPress={() => selectedLink && handleDelete(selectedLink)} textColor={colors.status.error}>
-              Delete
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
+            <View style={styles.dialogActions}>
+              <TouchableOpacity style={styles.dialogCancel} onPress={() => setShowDeleteDialog(false)} activeOpacity={0.7}>
+                <Text style={styles.dialogCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dialogDestructive}
+                onPress={() => selectedLink && handleDelete(selectedLink)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dialogDestructiveText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
-        {/* Extend Dialog */}
-        <Dialog visible={showExtendDialog} onDismiss={() => setShowExtendDialog(false)}>
-          <Dialog.Title>Extend Expiration</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
-              Extend link expiration by:
-            </Text>
-            <Button
-              mode="outlined"
-              onPress={() => selectedLink && handleExtend(selectedLink, 7)}
-              style={{ marginBottom: 8 }}
-            >
-              7 Days
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() => selectedLink && handleExtend(selectedLink, 30)}
-              style={{ marginBottom: 8 }}
-            >
-              30 Days
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() => selectedLink && handleExtend(selectedLink, 90)}
-            >
-              90 Days
-            </Button>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowExtendDialog(false)}>Cancel</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      {/* ── Extend modal ── */}
+      <Modal
+        visible={showExtendDialog}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExtendDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.bottomSheet, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 16 : 24 }]}>
+            <View style={styles.handleBar} />
+            <Text style={styles.sheetTitle}>Extend Expiration</Text>
+            <Text style={styles.sheetBody}>Choose how many days to extend the link:</Text>
+
+            {[7, 30, 90].map((days) => (
+              <TouchableOpacity
+                key={days}
+                style={styles.extendOption}
+                onPress={() => selectedLink && handleExtend(selectedLink, days)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.extendOptionLeft}>
+                  <Text style={styles.extendDays}>{days} Days</Text>
+                  <Text style={styles.extendDesc}>
+                    {days === 7 ? 'One week extension' : days === 30 ? 'One month extension' : 'Three months extension'}
+                  </Text>
+                </View>
+                <Icon source="chevron-right" size={18} color={colors.primary.main} />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.cancelSheetBtn} onPress={() => setShowExtendDialog(false)} activeOpacity={0.7}>
+              <Text style={styles.cancelSheetText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScreenWrapper>
   );
 };
@@ -398,140 +435,444 @@ const ResponseLinksScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.subtle,
+    backgroundColor: colors.background.default,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
+
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
+    backgroundColor: colors.primary.dark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary.main,
-    paddingBottom: 16,
-    paddingHorizontal: 8,
-    elevation: 4,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  headerContent: {
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerMeta: {
     flex: 1,
+  },
+  headerTitle: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: typography.fontSize.xl,
+    color: '#fff',
+    letterSpacing: -0.3,
+  },
+  headerSub: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.xs,
+    color: 'rgba(255,255,255,0.65)',
+    marginTop: 1,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pill: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     alignItems: 'center',
   },
-  title: {
-    color: colors.primary.contrast,
-    fontWeight: 'bold',
+  pillValue: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: 18,
+    color: '#fff',
   },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
+  pillLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.5,
+    marginTop: 1,
   },
-  scrollView: {
+
+  // ── Scroll ───────────────────────────────────────────────────────────────
+  scroll: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 80,
+    padding: spacing.md,
+    paddingBottom: 100,
   },
-  linkCard: {
-    marginBottom: 16,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  titleSection: {
+
+  // ── Loading / empty ──────────────────────────────────────────────────────
+  centered: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  linkTitle: {
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  statusChip: {
-    alignSelf: 'flex-start',
-  },
-  description: {
-    marginBottom: 8,
-    color: colors.text.secondary,
-  },
-  projectName: {
-    color: colors.text.secondary,
-    marginBottom: 8,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  tag: {
-    backgroundColor: colors.primary.faint,
-  },
-  tagText: {
-    color: colors.primary.main,
-    fontSize: 11,
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    color: colors.text.secondary,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontWeight: 'bold',
-    color: colors.primary.main,
-  },
-  timestampsRow: {
-    gap: 4,
-  },
-  timestamp: {
-    color: colors.text.disabled,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  actionButton: {
-    marginRight: 8,
-  },
-  emptyCard: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: colors.text.secondary,
+    justifyContent: 'center',
+    padding: spacing.xxl,
   },
   loadingText: {
-    marginTop: 16,
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
   },
+  emptyCard: {
+    alignItems: 'center',
+    padding: 48,
+  },
+  emptyTitle: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  emptyBody: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  // ── Card ─────────────────────────────────────────────────────────────────
+  card: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    shadowColor: '#1C1917',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  accentBar: {
+    width: 4,
+    backgroundColor: colors.primary.main,
+  },
+  cardBody: {
+    flex: 1,
+    padding: 12,
+  },
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    gap: 8,
+  },
+  titleMeta: {
+    flex: 1,
+  },
+  linkTitle: {
+    fontFamily: 'DMSans_700Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+  },
+  projectName: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: borderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 4,
+    flexShrink: 0,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontFamily: 'DMSans_700Bold',
+    fontSize: 10,
+  },
+
+  description: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginBottom: 10,
+  },
+  tag: {
+    backgroundColor: colors.primary.surface,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tagText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 10,
+    color: colors.primary.main,
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.background.subtle,
+    paddingTop: 8,
+    marginBottom: 6,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: colors.background.subtle,
+  },
+  statValue: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: 15,
+    color: colors.text.primary,
+  },
+  statLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 9,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginTop: 1,
+  },
+
+  dateText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginBottom: 10,
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.background.subtle,
+    paddingTop: 10,
+  },
+  actionBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    gap: 5,
+  },
+  actionBtnDisabled: {
+    opacity: 0.45,
+  },
+  actionBtnPrimaryText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 11,
+    color: '#fff',
+  },
+  actionBtnOutlined: {
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    borderRadius: borderRadius.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  actionBtnOutlinedText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 11,
+    color: colors.text.secondary,
+  },
+  actionBtnGreen: {
+    backgroundColor: colors.primary.surface,
+    borderWidth: 1,
+    borderColor: colors.primary.muted,
+    borderRadius: borderRadius.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  actionBtnGreenText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 11,
+    color: colors.primary.main,
+  },
+  actionBtnGhost: {
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+  },
+  actionBtnGhostText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 11,
+    color: colors.text.secondary,
+  },
+  deleteBtn: {
+    marginLeft: 'auto',
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.status.errorSurface,
+    backgroundColor: colors.status.errorSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── FAB ──────────────────────────────────────────────────────────────────
   fab: {
     position: 'absolute',
     right: 16,
-    bottom: 16,
-    backgroundColor: colors.primary.main,
+    bottom: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.accent.main,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  fabIcon: {
+    fontSize: 26,
+    color: '#fff',
+    lineHeight: 30,
+  },
+
+  // ── Modals ────────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 61, 43, 0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  dialogCard: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.xl,
+    padding: 24,
+  },
+  dialogTitle: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    marginBottom: 10,
+  },
+  dialogBody: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  dialogCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  dialogCancelText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  dialogDestructive: {
+    backgroundColor: colors.status.errorSurface,
+    borderRadius: borderRadius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  dialogDestructiveText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: typography.fontSize.sm,
+    color: colors.status.error,
+  },
+
+  // ── Extend bottom sheet ───────────────────────────────────────────────────
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background.paper,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border.medium,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.primary.dark,
+    marginBottom: 6,
+  },
+  sheetBody: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: 16,
+  },
+  extendOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
+  },
+  extendOptionLeft: {
+    flex: 1,
+  },
+  extendDays: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+  },
+  extendDesc: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginTop: 1,
+  },
+  cancelSheetBtn: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  cancelSheetText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
 });
 

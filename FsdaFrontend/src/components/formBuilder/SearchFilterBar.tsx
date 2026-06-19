@@ -1,12 +1,13 @@
 /**
  * SearchFilterBar Component
- * Collapsible search and filter interface
+ * Collapsible search and filter interface.
+ * Savanna Intelligence design: theme tokens, no legacy purple colors.
  */
 
 import React from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Text, TextInput, IconButton, Chip } from 'react-native-paper';
-import { colors } from '../../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 interface SearchFilterBarProps {
   isExpanded: boolean;
@@ -45,11 +46,12 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      {/* Filter Toggle Bar */}
+      {/* ── Toggle bar ── */}
       <TouchableOpacity
         style={styles.filterToggle}
         onPress={onToggleExpanded}
-        activeOpacity={0.7}>
+        activeOpacity={0.7}
+      >
         <View style={styles.filterToggleLeft}>
           <IconButton
             icon={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -67,7 +69,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         )}
       </TouchableOpacity>
 
-      {/* Collapsible Filter Content */}
+      {/* ── Expanded filter panel ── */}
       {isExpanded && (
         <View style={styles.filterContent}>
           <TextInput
@@ -82,64 +84,77 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               ) : undefined
             }
             style={styles.searchBar}
+            outlineStyle={styles.searchBarOutline}
             textColor={colors.text.primary}
-            placeholderTextColor="rgba(255, 255, 255, 0.5)"
+            placeholderTextColor={colors.text.tertiary}
             theme={{
               colors: {
                 primary: colors.primary.main,
                 onSurfaceVariant: colors.text.secondary,
-                outline: 'transparent',
+                outline: colors.border.medium,
               },
             }}
           />
 
-          {/* Category Filters - Multi-Select */}
+          {/* Category filters */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>
-              Categories {selectedCategoryFilters.length > 0 && `(${selectedCategoryFilters.length})`}
+              Categories{selectedCategoryFilters.length > 0 ? ` (${selectedCategoryFilters.length})` : ''}
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipsContainer}>
-              {categories.map((cat) => (
-                <Chip
-                  key={cat.value}
-                  selected={selectedCategoryFilters.includes(cat.value)}
-                  onPress={() => onToggleCategoryFilter(cat.value)}
-                  style={[
-                    styles.filterChip,
-                    selectedCategoryFilters.includes(cat.value) && styles.selectedFilterChip,
-                  ]}
-                  textStyle={styles.filterChipText}>
-                  {cat.label}
-                </Chip>
-              ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterChipsScroll}
+            >
+              {categories.map((cat) => {
+                const selected = selectedCategoryFilters.includes(cat.value);
+                return (
+                  <Chip
+                    key={cat.value}
+                    selected={selected}
+                    onPress={() => onToggleCategoryFilter(cat.value)}
+                    style={[styles.filterChip, selected && styles.selectedFilterChip]}
+                    textStyle={[styles.filterChipText, selected && styles.selectedFilterChipText]}
+                    selectedColor={colors.primary.main}
+                  >
+                    {cat.label}
+                  </Chip>
+                );
+              })}
             </ScrollView>
           </View>
 
-          {/* Respondent Filters - Multi-Select */}
+          {/* Respondent type filters */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>
-              Respondent Types {selectedRespondentFilters.length > 0 && `(${selectedRespondentFilters.length})`}
+              Respondent Types{selectedRespondentFilters.length > 0 ? ` (${selectedRespondentFilters.length})` : ''}
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipsContainer}>
-              {respondentTypes.map((resp) => (
-                <Chip
-                  key={resp.value}
-                  selected={selectedRespondentFilters.includes(resp.value)}
-                  onPress={() => onToggleRespondentFilter(resp.value)}
-                  style={[
-                    styles.filterChip,
-                    selectedRespondentFilters.includes(resp.value) && styles.selectedFilterChip,
-                  ]}
-                  textStyle={styles.filterChipText}>
-                  {resp.label}
-                </Chip>
-              ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterChipsScroll}
+            >
+              {respondentTypes.map((resp) => {
+                const selected = selectedRespondentFilters.includes(resp.value);
+                return (
+                  <Chip
+                    key={resp.value}
+                    selected={selected}
+                    onPress={() => onToggleRespondentFilter(resp.value)}
+                    style={[styles.filterChip, selected && styles.selectedFilterChip]}
+                    textStyle={[styles.filterChipText, selected && styles.selectedFilterChipText]}
+                    selectedColor={colors.primary.main}
+                  >
+                    {resp.label}
+                  </Chip>
+                );
+              })}
             </ScrollView>
           </View>
 
-          {/* Active Filters Summary */}
+          {/* Active filters summary + clear */}
           {hasActiveFilters && (
-            <View style={styles.activeFiltersContainer}>
+            <View style={styles.activeFiltersRow}>
               <Text style={styles.activeFiltersText}>
                 Showing {filteredCount} of {totalCount} questions
               </Text>
@@ -151,7 +166,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
         </View>
       )}
 
-      {/* Compact Active Filters Display when collapsed */}
+      {/* ── Compact active-filter chips when collapsed ── */}
       {!isExpanded && hasActiveFilters && (
         <View style={styles.compactFiltersDisplay}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
@@ -159,8 +174,9 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
               <Chip
                 style={styles.compactFilterChip}
                 textStyle={styles.compactFilterText}
-                onClose={() => onSearchChange('')}>
-                🔍 "{searchQuery.substring(0, 20)}{searchQuery.length > 20 ? '...' : ''}"
+                onClose={() => onSearchChange('')}
+              >
+                🔍 "{searchQuery.substring(0, 20)}{searchQuery.length > 20 ? '…' : ''}"
               </Chip>
             )}
             {selectedCategoryFilters.map((cat) => (
@@ -168,7 +184,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                 key={cat}
                 style={styles.compactFilterChip}
                 textStyle={styles.compactFilterText}
-                onClose={() => onToggleCategoryFilter(cat)}>
+                onClose={() => onToggleCategoryFilter(cat)}
+              >
                 {categories.find((c) => c.value === cat)?.label || cat}
               </Chip>
             ))}
@@ -177,7 +194,8 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
                 key={resp}
                 style={styles.compactFilterChip}
                 textStyle={styles.compactFilterText}
-                onClose={() => onToggleRespondentFilter(resp)}>
+                onClose={() => onToggleRespondentFilter(resp)}
+              >
                 {respondentTypes.find((r) => r.value === resp)?.label || resp}
               </Chip>
             ))}
@@ -193,112 +211,130 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(75, 30, 133, 0.1)',
+    backgroundColor: colors.background.paper,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(75, 30, 133, 0.3)',
+    borderBottomColor: colors.border.light,
   },
+
+  // ── Toggle bar
   filterToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   filterToggleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   filterToggleText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
     color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   activeFilterBadge: {
     backgroundColor: colors.primary.main,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
     minWidth: 24,
     alignItems: 'center',
   },
   activeFilterBadgeText: {
-    color: colors.background.default,
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.xs,
+    color: '#fff',
   },
+
+  // ── Expanded panel
   filterContent: {
-    padding: 16,
-    paddingTop: 8,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    paddingTop: 0,
   },
   searchBar: {
-    marginBottom: 16,
-    backgroundColor: colors.background.paper,
+    backgroundColor: colors.background.subtle,
+    marginBottom: spacing.md,
+  },
+  searchBarOutline: {
+    borderRadius: borderRadius.lg,
+    borderColor: colors.border.light,
   },
   filterSection: {
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   filterSectionTitle: {
-    color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
-  filterChipsContainer: {
+  filterChipsScroll: {
     flexDirection: 'row',
   },
   filterChip: {
-    marginRight: 8,
+    marginRight: spacing.sm,
     backgroundColor: colors.background.subtle,
-    borderRadius: 8,
+    borderRadius: borderRadius.round,
     borderWidth: 1,
     borderColor: colors.border.light,
   },
   selectedFilterChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.3)',
-    borderColor: colors.primary.main,
+    backgroundColor: colors.primary.surface,
+    borderColor: colors.primary.muted,
   },
   filterChipText: {
-    color: colors.text.primary,
-    fontSize: 12,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
   },
-  activeFiltersContainer: {
+  selectedFilterChipText: {
+    fontFamily: 'DMSans-Medium',
+    color: colors.primary.main,
+  },
+  activeFiltersRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border.light,
-    marginTop: 12,
+    marginTop: spacing.xs,
   },
   activeFiltersText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 13,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
   clearFiltersText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
     color: colors.primary.main,
-    fontSize: 13,
-    fontWeight: '600',
   },
+
+  // ── Compact chips (collapsed state with active filters)
   compactFiltersDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
   },
   compactFilterChip: {
-    marginRight: 8,
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    marginRight: spacing.sm,
+    backgroundColor: colors.primary.surface,
     borderWidth: 1,
-    borderColor: colors.primary.main,
+    borderColor: colors.primary.muted,
   },
   compactFilterText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
     color: colors.primary.main,
-    fontSize: 11,
   },
   compactResultsText: {
-    color: colors.text.secondary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
   },
 });

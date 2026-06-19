@@ -108,7 +108,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
+          color={data.significant ? colors.status.successSurface : colors.status.errorSurface}
         />
         {data.confidence_interval && (
           <View style={styles.ciContainer}>
@@ -140,7 +140,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
+          color={data.significant ? colors.status.successSurface : colors.status.errorSurface}
         />
         {data.eta_squared && <StatisticDisplay label="Eta Squared (η²)" value={(data.eta_squared || 0).toFixed(3)} />}
         {data.post_hoc_results && (
@@ -229,7 +229,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
+          color={data.significant ? colors.status.successSurface : colors.status.errorSurface}
         />
         {data.cramers_v && (
           <StatisticDisplay label="Cramér's V (Effect Size)" value={(data.cramers_v || 0).toFixed(3)} />
@@ -263,7 +263,7 @@ export const InferentialAnalytics: React.FC<InferentialAnalyticsProps> = ({ proj
           label="Result"
           value={data.significant ? 'Statistically Significant' : 'Not Significant'}
           variant="chip"
-          color={data.significant ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}
+          color={data.significant ? colors.status.successSurface : colors.status.errorSurface}
         />
         <StatisticDisplay label="Test Type" value={data.test_type || 'N/A'} variant="chip" />
         {data.interpretation && (
@@ -439,10 +439,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sigChip: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: colors.status.successSurface,
   },
   notSigChip: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.status.errorSurface,
   },
   coefficientsTitle: {
     marginBottom: 8,

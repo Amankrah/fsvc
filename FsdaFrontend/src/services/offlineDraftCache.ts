@@ -29,6 +29,22 @@ export interface CachedDraft {
     created_at: string;
     last_response_at: string;
     is_offline?: boolean; // true if saved while offline and not yet synced
+    question_set_hash?: string; // hash of question IDs at time of save, for staleness detection
+}
+
+/**
+ * Compute a simple deterministic hash of question IDs.
+ * Sorted so order doesn't matter — the hash represents the *set* of questions.
+ */
+export function computeQuestionSetHash(questionIds: string[]): string {
+    const sorted = [...questionIds].sort();
+    // Simple djb2 hash — fast and good enough for change detection
+    let hash = 5381;
+    const str = sorted.join('|');
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash + str.charCodeAt(i)) & 0xffffffff;
+    }
+    return hash.toString(36);
 }
 
 class OfflineDraftCacheService {

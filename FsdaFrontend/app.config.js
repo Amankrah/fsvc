@@ -4,7 +4,7 @@ module.exports = {
     slug: "FsdaFrontend",
     owner: "sasel-mcgill",
     version: "1.0.1",
-    orientation: "landscape",
+    orientation: "default",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     updates: {
@@ -34,8 +34,10 @@ module.exports = {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: "com.fsda.frontend",
-      softwareKeyboardLayoutMode: "pan",
-      runtimeVersion: "1.0.0"
+      softwareKeyboardLayoutMode: "resize",
+      runtimeVersion: "1.0.0",
+      usesCleartextTraffic: true,
+      jsEngine: "hermes"
     },
     web: {
       favicon: "./assets/web-favicon.png",
