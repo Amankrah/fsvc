@@ -11,6 +11,8 @@ from .serializers import ResponseSerializer, ResponseLightSerializer, Respondent
 from .database_router import get_database_router
 import csv
 import json
+import re
+from collections import defaultdict
 from io import StringIO
 from datetime import datetime
 import logging
@@ -692,6 +694,244 @@ class RespondentViewSet(BaseModelViewSet):
                 'error': f'Failed to get user stats: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @staticmethod
+    def _identify_sociodem_export(response_value, question_text):
+        """Match orphaned sociodemographic answers to question intent by value patterns."""
+        value = str(response_value or '').strip()
+        if not value:
+            return None
+        text_lower = (question_text or '').lower()
+
+        if re.match(r'^\d+\s*[–-]\s*\d+$', value) or value in [
+            '18 – 29', '30 – 39', '40 – 49', '50 – 59', '60 and above',
+        ]:
+            if 'age' in text_lower or 'old' in text_lower:
+                return 'age'
+
+        if value.lower() in ('male', 'female') and 'gender' in text_lower:
+            return 'gender'
+
+        education_keywords = [
+            'primary', 'secondary', 'education', 'university',
+            'tertiary', 'post-secondary', 'formal',
+        ]
+        if any(keyword in value.lower() for keyword in education_keywords) and 'education' in text_lower:
+            return 'education'
+
+        if (
+            re.search(r'ghc|cedi|₵', value.lower())
+            or (value.replace(',', '').replace('.', '').isdigit() and int(value.replace(',', '').replace('.', '')) > 100)
+        ) and ('income' in text_lower or 'revenue' in text_lower or 'earning' in text_lower):
+            return 'income'
+
+        if value.isdigit() and 1 <= int(value) <= 30:
+            if 'household' in text_lower and 'people' in text_lower:
+                return 'household_size'
+            if 'children' in text_lower:
+                return 'children'
+
+        if value.lower() in ('ghana', 'nigeria', 'ivory coast', 'cameroon') and 'country' in text_lower:
+            return 'country'
+
+        if (
+            '/' in value
+            or any(region in value.lower() for region in [
+                'northern', 'ashanti', 'greater', 'volta', 'eastern', 'western', 'central',
+            ])
+        ) and ('region' in text_lower or 'district' in text_lower):
+            return 'region'
+
+        if value.lower() in ('rural', 'urban') and ('rural' in text_lower or 'urban' in text_lower):
+            return 'rural_urban'
+
+        if not re.search(r'\d', value) and len(value.split()) <= 3:
+            if 'language' in text_lower and 'speak' in text_lower:
+                return 'language_speak'
+
+        if value.startswith('[') and value.endswith(']'):
+            if 'language' in text_lower and (
+                'writing' in text_lower or 'reading' in text_lower or 'comfortable' in text_lower
+            ):
+                return 'languages_comfortable'
+
+        return None
+
+    def _build_sociodem_type_to_qb(self, question_bank_items, qb_by_category):
+        """Map sociodemographic field types to QuestionBank column ids."""
+        sociodem_type_to_qb = {}
+        qb_id_to_item = {str(qb.id): qb for qb in question_bank_items}
+        for qb_id in qb_by_category.get('Sociodemographics', []):
+            qb = qb_id_to_item.get(qb_id)
+            if not qb:
+                continue
+            text_lower = qb.question_text.lower()
+            if 'age' in text_lower or 'old' in text_lower:
+                sociodem_type_to_qb['age'] = qb_id
+            elif 'gender' in text_lower:
+                sociodem_type_to_qb['gender'] = qb_id
+            elif 'education' in text_lower:
+                sociodem_type_to_qb['education'] = qb_id
+            elif 'income' in text_lower or 'revenue' in text_lower or 'earning' in text_lower:
+                sociodem_type_to_qb['income'] = qb_id
+            elif 'household' in text_lower and 'people' in text_lower:
+                sociodem_type_to_qb['household_size'] = qb_id
+            elif 'children' in text_lower:
+                sociodem_type_to_qb['children'] = qb_id
+            elif 'country' in text_lower:
+                sociodem_type_to_qb['country'] = qb_id
+            elif 'region' in text_lower or 'district' in text_lower:
+                sociodem_type_to_qb['region'] = qb_id
+            elif 'rural' in text_lower or 'urban' in text_lower:
+                sociodem_type_to_qb['rural_urban'] = qb_id
+            elif 'language' in text_lower and 'speak' in text_lower:
+                sociodem_type_to_qb['language_speak'] = qb_id
+            elif 'language' in text_lower and (
+                'comfortable' in text_lower or 'writing' in text_lower or 'reading' in text_lower
+            ):
+                sociodem_type_to_qb['languages_comfortable'] = qb_id
+        return sociodem_type_to_qb
+
+    def _qb_columns_by_category(self, question_bank_items, respondent):
+        """QuestionBank column ids grouped by category for a respondent's targeting bundle."""
+        qb_by_category = defaultdict(list)
+        for qb in question_bank_items:
+            if qb.targeted_respondents and respondent.respondent_type not in qb.targeted_respondents:
+                continue
+            if qb.targeted_commodities and respondent.commodity not in qb.targeted_commodities:
+                continue
+            if qb.targeted_countries and respondent.country not in qb.targeted_countries:
+                continue
+            qb_by_category[qb.question_category or 'general'].append(str(qb.id))
+        return qb_by_category
+
+    def _get_respondent_bundle_questions(self, project_id, respondent):
+        """Ordered project questions for this respondent's type/commodity/country bundle."""
+        from forms.models import Question
+
+        return list(
+            Question.objects.filter(
+                project_id=project_id,
+                assigned_respondent_type=respondent.respondent_type,
+                assigned_commodity=respondent.commodity or '',
+                assigned_country=respondent.country or '',
+            ).exclude(
+                Q(assigned_respondent_type__isnull=True)
+                | Q(assigned_respondent_type='')
+                | Q(assigned_commodity__isnull=True)
+                | Q(assigned_commodity='')
+                | Q(assigned_country__isnull=True)
+                | Q(assigned_country='')
+            ).order_by('order_index')
+        )
+
+    def _response_type_for_export(self, response):
+        if response.question and getattr(response.question, 'response_type', None):
+            return response.question.response_type
+        if response.response_type and getattr(response.response_type, 'name', None):
+            return response.response_type.name
+        return 'text_short'
+
+    def _build_respondent_export_maps(
+        self,
+        respondent,
+        project_id,
+        question_bank_items,
+        question_map,
+        orphaned_questions,
+    ):
+        """
+        Map a respondent's answers onto export columns.
+
+        Uses direct question links first, then QuestionBank source ids, then
+        category-aware heuristics/position matching for orphaned responses
+        (common when questions were regenerated after collection).
+        """
+        qb_responses = {}
+        orphaned_responses = {}
+        included_qb_ids = {str(qb.id) for qb in question_bank_items}
+        orphaned_ids = {str(q.id) for q in orphaned_questions}
+        qb_by_category = self._qb_columns_by_category(question_bank_items, respondent)
+        sociodem_type_to_qb = self._build_sociodem_type_to_qb(question_bank_items, qb_by_category)
+        qb_id_to_item = {str(qb.id): qb for qb in question_bank_items}
+        category_positions = defaultdict(int)
+        bundle_questions = self._get_respondent_bundle_questions(project_id, respondent)
+
+        responses = sorted(
+            respondent.responses.all(),
+            key=lambda r: r.collected_at or r.created_at,
+        )
+
+        for position, response in enumerate(responses):
+            formatted_value = self.format_response_for_csv(
+                response.response_value,
+                self._response_type_for_export(response),
+            )
+            if not formatted_value:
+                continue
+
+            matched = False
+
+            if response.question_id:
+                q_id = str(response.question_id)
+                if q_id in question_map:
+                    qb_responses[question_map[q_id]] = formatted_value
+                    matched = True
+                elif q_id in orphaned_ids:
+                    orphaned_responses[q_id] = formatted_value
+                    matched = True
+                elif response.question and response.question.question_bank_source_id:
+                    qb_id = str(response.question.question_bank_source_id)
+                    if qb_id in included_qb_ids:
+                        qb_responses[qb_id] = formatted_value
+                        matched = True
+
+            if matched:
+                continue
+
+            category = ''
+            if response.question_bank_context:
+                category = (
+                    response.question_bank_context.get('question_category', '')
+                    or response.question_bank_context.get('category', '')
+                )
+            if not category:
+                category = response.question_category or ''
+
+            if category == 'Sociodemographics':
+                for qb_id in qb_by_category.get('Sociodemographics', []):
+                    qb = qb_id_to_item.get(qb_id)
+                    if not qb:
+                        continue
+                    qtype = self._identify_sociodem_export(response.response_value, qb.question_text)
+                    if qtype and qtype in sociodem_type_to_qb:
+                        target_qb = sociodem_type_to_qb[qtype]
+                        if not qb_responses.get(target_qb):
+                            qb_responses[target_qb] = formatted_value
+                            matched = True
+                            break
+
+            if not matched and category in qb_by_category:
+                applicable = qb_by_category[category]
+                pos = category_positions[category]
+                category_positions[category] += 1
+                if pos < len(applicable):
+                    qb_id = applicable[pos]
+                    if not qb_responses.get(qb_id):
+                        qb_responses[qb_id] = formatted_value
+                        matched = True
+
+            if not matched and position < len(bundle_questions):
+                q = bundle_questions[position]
+                q_id = str(q.id)
+                if q_id in question_map:
+                    qb_id = question_map[q_id]
+                    if not qb_responses.get(qb_id):
+                        qb_responses[qb_id] = formatted_value
+                elif q_id in orphaned_ids and not orphaned_responses.get(q_id):
+                    orphaned_responses[q_id] = formatted_value
+
+        return qb_responses, orphaned_responses
+
     def format_response_for_csv(self, response_value, question_type):
         """Format response value based on question type for CSV export"""
         if not response_value or response_value in ['null', 'undefined', 'None']:
@@ -890,8 +1130,10 @@ class RespondentViewSet(BaseModelViewSet):
                     # Fetch respondents in chunk with prefetched responses and related questions
                     chunk_respondents = Respondent.objects.filter(id__in=chunk_ids).prefetch_related(
                         Prefetch(
-                            'responses', 
-                            queryset=Response.objects.filter(project_id=project_id).select_related('question')
+                            'responses',
+                            queryset=Response.objects.filter(project_id=project_id)
+                            .select_related('question', 'response_type')
+                            .order_by('collected_at')
                         )
                     )
                     
@@ -909,25 +1151,13 @@ class RespondentViewSet(BaseModelViewSet):
                             respondent.completion_status or 'draft'
                         ]
 
-                        qb_responses = {}
-                        orphaned_responses = {}
-
-                        # Iterate pre-fetched responses without triggering N+1
-                        for response in respondent.responses.all():
-                            if not response.question:
-                                continue
-                            
-                            q_id = str(response.question_id)
-                            formatted_value = self.format_response_for_csv(
-                                response.response_value,
-                                response.question.response_type
-                            )
-
-                            if q_id in question_map:
-                                qb_id = question_map[q_id]
-                                qb_responses[qb_id] = formatted_value
-                            elif response.question in orphaned_questions:
-                                orphaned_responses[q_id] = formatted_value
+                        qb_responses, orphaned_responses = self._build_respondent_export_maps(
+                            respondent,
+                            project_id,
+                            question_bank_items,
+                            question_map,
+                            orphaned_questions,
+                        )
 
                         # 1. Fill Question Bank Columns
                         for qb in question_bank_items:
@@ -1084,7 +1314,9 @@ class RespondentViewSet(BaseModelViewSet):
                 chunk_respondents = Respondent.objects.filter(id__in=chunk_ids).prefetch_related(
                     Prefetch(
                         'responses',
-                        queryset=Response.objects.filter(project_id=project_id).select_related('question')
+                        queryset=Response.objects.filter(project_id=project_id)
+                        .select_related('question', 'response_type')
+                        .order_by('collected_at')
                     )
                 )
                 id_to_respondent = {r.id: r for r in chunk_respondents}
@@ -1099,22 +1331,13 @@ class RespondentViewSet(BaseModelViewSet):
                         respondent.completion_status or 'draft',
                     ]
 
-                    qb_responses = {}
-                    orphaned_responses = {}
-
-                    for response in respondent.responses.all():
-                        if not response.question:
-                            continue
-                        q_id = str(response.question_id)
-                        formatted_value = self.format_response_for_csv(
-                            response.response_value,
-                            response.question.response_type
-                        )
-                        if q_id in question_map:
-                            qb_id = question_map[q_id]
-                            qb_responses[qb_id] = formatted_value
-                        elif response.question in orphaned_questions:
-                            orphaned_responses[q_id] = formatted_value
+                    qb_responses, orphaned_responses = self._build_respondent_export_maps(
+                        respondent,
+                        project_id,
+                        question_bank_items,
+                        question_map,
+                        orphaned_questions,
+                    )
 
                     for qb in question_bank_items:
                         row.append(qb_responses.get(str(qb.id), ''))
