@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    padding: spacing.md,
+    padding: spacing.lg,
   },
   badgeRow: {
     flexDirection: 'row',

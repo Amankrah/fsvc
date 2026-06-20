@@ -8,8 +8,8 @@ LogBox.ignoreLogs([
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Fraunces_700Bold, Fraunces_400Regular } from '@expo-google-fonts/fraunces';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
-import { Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
+import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import { Provider as PaperProvider, MD3LightTheme, configureFonts } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -19,12 +19,37 @@ import { ToastProvider } from './src/components/Toast';
 
 // "Savanna Intelligence" — all Paper components inherit these tokens.
 // Screens must NOT hardcode hex values; import from src/constants/theme.ts instead.
+//
+// Paper's MD3 typescale defaults to System font; we override every role so
+// Searchbar, Dialog, Chip, Text variant="…" etc. all render in DM Sans
+// to match the hand-styled headings used throughout the screens.
+const paperFonts = configureFonts({
+  config: {
+    displayLarge:    { fontFamily: 'DMSans-Bold' },
+    displayMedium:   { fontFamily: 'DMSans-Bold' },
+    displaySmall:    { fontFamily: 'DMSans-Bold' },
+    headlineLarge:   { fontFamily: 'DMSans-Bold' },
+    headlineMedium:  { fontFamily: 'DMSans-Bold' },
+    headlineSmall:   { fontFamily: 'DMSans-Bold' },
+    titleLarge:      { fontFamily: 'DMSans-SemiBold' },
+    titleMedium:     { fontFamily: 'DMSans-SemiBold' },
+    titleSmall:      { fontFamily: 'DMSans-SemiBold' },
+    labelLarge:      { fontFamily: 'DMSans-Medium' },
+    labelMedium:     { fontFamily: 'DMSans-Medium' },
+    labelSmall:      { fontFamily: 'DMSans-Medium' },
+    bodyLarge:       { fontFamily: 'DMSans-Regular' },
+    bodyMedium:      { fontFamily: 'DMSans-Regular' },
+    bodySmall:       { fontFamily: 'DMSans-Regular' },
+  },
+});
+
 const paperTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
     ...paperThemeColors,
   },
+  fonts: paperFonts,
 };
 
 export default function App() {
@@ -33,6 +58,7 @@ export default function App() {
     'Fraunces-Regular': Fraunces_400Regular,
     'DMSans-Regular': DMSans_400Regular,
     'DMSans-Medium': DMSans_500Medium,
+    'DMSans-SemiBold': DMSans_600SemiBold,
     'DMSans-Bold': DMSans_700Bold,
   });
 

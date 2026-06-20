@@ -36,6 +36,7 @@ import { Project, RespondentType, CommodityType, PartnerOrganization } from '../
 import { colors, spacing, borderRadius, typography } from '../constants/theme';
 import { offlineProjectCache, networkMonitor, syncManager } from '../services';
 import { useToast } from '../components/Toast';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -476,7 +477,12 @@ const DashboardScreen: React.FC = () => {
   const renderHeader = () => (
     <View>
       {/* ── Green hero band ─────────────────────────────────────────────── */}
-      <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+      <LinearGradient
+        colors={[colors.primary.dark, colors.primary.main]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + spacing.md }]}
+      >
         {/* Top row: greeting + actions */}
         <View style={styles.heroTop}>
           <View style={styles.heroGreeting}>
@@ -521,7 +527,7 @@ const DashboardScreen: React.FC = () => {
             <StatPill icon="account-group-outline" value={stats.totalMembers}   label="Members"     onDark />
           </ScrollView>
         )}
-      </View>
+      </LinearGradient>
 
       {/* ── Search + filters ────────────────────────────────────────────── */}
       <View style={styles.controls}>
@@ -913,9 +919,9 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   heroSub: {
-    fontFamily: 'DMSans-Regular',
-    fontSize: typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.6)',
+    fontFamily: 'Fraunces-Regular',
+    fontSize: typography.fontSize.md,
+    color: 'rgba(255,255,255,0.7)',
   },
   heroActions: {
     flexDirection: 'row',

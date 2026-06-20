@@ -14,6 +14,7 @@ import ResponseLinksScreen from '../screens/ResponseLinksScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import FormsScreen from '../screens/FormsScreen';
 import FormBuilderScreen from '../screens/FormBuilderScreen';
+import CollectScreen from '../screens/CollectScreen';
 import DataCollectionScreen from '../screens/DataCollectionScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import BundleCompletionScreen from '../screens/BundleCompletionScreen';
@@ -49,6 +50,14 @@ export type FormsStackParamList = {
   FormBuilder: { projectId: string; projectName: string };
 };
 
+// ─── Collect stack ────────────────────────────────────────────────────────────
+
+export type CollectStackParamList = {
+  Collect: undefined;
+  DataCollection: { projectId: string; projectName: string };
+  BundleCompletion: { projectId: string; projectName: string; isOwner?: boolean };
+};
+
 // ─── Profile stack ────────────────────────────────────────────────────────────
 
 export type ProfileStackParamList = {
@@ -60,7 +69,7 @@ export type ProfileStackParamList = {
 export type TabParamList = {
   DashboardTab: NavigatorScreenParams<DashboardStackParamList> | undefined;
   FormsTab: NavigatorScreenParams<FormsStackParamList> | undefined;
-  CollectTab: undefined;
+  CollectTab: NavigatorScreenParams<CollectStackParamList> | undefined;
   AnalyticsTab: undefined;
   ProfileTab: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
@@ -166,18 +175,31 @@ function FormsStackNavigator() {
   );
 }
 
-// ─── Collect placeholder ──────────────────────────────────────────────────────
-// Phase 4 will replace this with a proper project-picker → DataCollection flow.
+// ─── CollectStack ─────────────────────────────────────────────────────────────
+// Picker → DataCollection → BundleCompletion. The picker is the entry screen;
+// DataCollection navigates to BundleCompletion on completion.
 
-function CollectPlaceholder() {
+const CollectStack = createNativeStackNavigator<CollectStackParamList>();
+
+function CollectStackNavigator() {
   return (
-    <View style={placeholderStyles.container}>
-      <Icon source="clipboard-text-outline" size={48} color={colors.text.tertiary} />
-      <Text style={placeholderStyles.title}>Start Collecting</Text>
-      <Text style={placeholderStyles.body}>
-        Open a project from the Home tab, then tap "Collect Data" to begin a survey session.
-      </Text>
-    </View>
+    <CollectStack.Navigator screenOptions={sharedHeaderStyle}>
+      <CollectStack.Screen
+        name="Collect"
+        component={CollectScreen}
+        options={{ headerShown: false }}
+      />
+      <CollectStack.Screen
+        name="DataCollection"
+        component={DataCollectionScreen}
+        options={{ headerShown: false }}
+      />
+      <CollectStack.Screen
+        name="BundleCompletion"
+        component={BundleCompletionScreen}
+        options={{ headerShown: false }}
+      />
+    </CollectStack.Navigator>
   );
 }
 
@@ -272,7 +294,7 @@ export default function TabNavigator() {
       />
       <Tab.Screen
         name="CollectTab"
-        component={CollectPlaceholder}
+        component={CollectStackNavigator}
         options={{
           tabBarLabel: '',
           tabBarButton: (props) => <CollectTabButton {...props} />,

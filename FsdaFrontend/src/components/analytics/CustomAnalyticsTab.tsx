@@ -686,13 +686,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
   headerTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: typography.fontSize.xxl,
     color: colors.primary.dark,
     marginBottom: 6,
   },
   headerSubtitle: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     lineHeight: 18,
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.status.error,
   },
   errorText: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.status.error,
   },
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   toastText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: typography.fontSize.sm,
     color: '#fff',
     flex: 1,

@@ -335,9 +335,9 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.xxl,
     color: '#fff',
-    lineHeight: typography.fontSize.xl + 4,
+    lineHeight: typography.fontSize.xxl + 4,
   },
   statLabel: {
     fontFamily: 'DMSans-Regular',

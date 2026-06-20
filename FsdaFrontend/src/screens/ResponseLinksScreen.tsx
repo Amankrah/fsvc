@@ -464,13 +464,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: typography.fontSize.xl,
     color: '#fff',
     letterSpacing: -0.3,
   },
   headerSub: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.xs,
     color: 'rgba(255,255,255,0.65)',
     marginTop: 1,
@@ -488,12 +488,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pillValue: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: 18,
     color: '#fff',
   },
   pillLabel: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 9,
     color: 'rgba(255,255,255,0.6)',
     letterSpacing: 0.5,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
   },
   loadingText: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginTop: spacing.md,
@@ -527,14 +527,14 @@ const styles = StyleSheet.create({
     padding: 48,
   },
   emptyTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: typography.fontSize.lg,
     color: colors.text.primary,
     marginTop: 14,
     marginBottom: 8,
   },
   emptyBody: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     textAlign: 'center',
@@ -576,12 +576,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   linkTitle: {
-    fontFamily: 'DMSans_700Bold',
+    fontFamily: 'DMSans-Bold',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
   },
   projectName: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     marginTop: 1,
@@ -601,12 +601,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusText: {
-    fontFamily: 'DMSans_700Bold',
+    fontFamily: 'DMSans-Bold',
     fontSize: 10,
   },
 
   description: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: 8,
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   tagText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: 10,
     color: colors.primary.main,
   },
@@ -647,12 +647,12 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.background.subtle,
   },
   statValue: {
-    fontFamily: 'Fraunces_700Bold',
-    fontSize: 15,
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
     color: colors.text.primary,
   },
   statLabel: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 9,
     color: colors.text.tertiary,
     textTransform: 'uppercase',
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   },
 
   dateText: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.xs,
     color: colors.text.tertiary,
     marginBottom: 10,
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   actionBtnPrimaryText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: 11,
     color: '#fff',
   },
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   actionBtnOutlinedText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: 11,
     color: colors.text.secondary,
   },
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   actionBtnGreenText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: 11,
     color: colors.primary.main,
   },
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   actionBtnGhostText: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 11,
     color: colors.text.secondary,
   },
@@ -774,13 +774,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   dialogTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: typography.fontSize.lg,
     color: colors.text.primary,
     marginBottom: 10,
   },
   dialogBody: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     lineHeight: 20,
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dialogCancelText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dialogDestructiveText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.sm,
     color: colors.status.error,
   },
@@ -832,13 +832,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sheetTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: typography.fontSize.lg,
     color: colors.primary.dark,
     marginBottom: 6,
   },
   sheetBody: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: 16,
@@ -854,12 +854,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   extendDays: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
   },
   extendDesc: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.xs,
     color: colors.text.tertiary,
     marginTop: 1,
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   cancelSheetText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },

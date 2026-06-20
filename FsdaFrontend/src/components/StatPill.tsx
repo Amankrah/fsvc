@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
   },
   value: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: typography.fontSize.xl,
-    lineHeight: typography.fontSize.xl + 4,
+    fontSize: typography.fontSize.xxl,
+    lineHeight: typography.fontSize.xxl + 4,
   },
   valueLight: {
     color: colors.text.primary,

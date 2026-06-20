@@ -551,9 +551,9 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: 22,
+    fontSize: typography.fontSize.xxl,
     color: colors.text.primary,
-    lineHeight: 26,
+    lineHeight: typography.fontSize.xxl + 4,
   },
   statLabel: {
     fontFamily: 'DMSans-Medium',

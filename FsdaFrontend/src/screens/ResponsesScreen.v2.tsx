@@ -38,6 +38,7 @@ import { useAuthStore } from '../store/authStore';
 
 // Components
 import { StatsCards, ResponseCard } from '../components/responses';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Types
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -300,7 +301,7 @@ const ResponsesScreen: React.FC = () => {
             onPress={() => setFilterMode('all')}
             activeOpacity={0.8}
           >
-            <Icon source="account-group" size={14} color={filterMode === 'all' ? '#fff' : colors.text.secondary} />
+            <Icon source="account-group" size={16} color={filterMode === 'all' ? '#fff' : colors.text.secondary} />
             <Text style={[styles.toggleBtnText, filterMode === 'all' && styles.toggleBtnTextActive]}>
               All Responses
             </Text>
@@ -310,7 +311,7 @@ const ResponsesScreen: React.FC = () => {
             onPress={() => setFilterMode('mine')}
             activeOpacity={0.8}
           >
-            <Icon source="account" size={14} color={filterMode === 'mine' ? '#fff' : colors.text.secondary} />
+            <Icon source="account" size={16} color={filterMode === 'mine' ? '#fff' : colors.text.secondary} />
             <Text style={[styles.toggleBtnText, filterMode === 'mine' && styles.toggleBtnTextActive]}>
               My Responses
             </Text>
@@ -368,7 +369,12 @@ const ResponsesScreen: React.FC = () => {
   if (respondentsHook.loading && respondentsHook.respondents.length === 0) {
     return (
       <ScreenWrapper style={styles.container} edges={{ top: false }}>
-        <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+        <LinearGradient
+          colors={[colors.primary.dark, colors.primary.main]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}
+        >
           <View style={styles.heroNav}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Icon source="chevron-left" size={24} color="#fff" />
@@ -377,7 +383,7 @@ const ResponsesScreen: React.FC = () => {
           </View>
           <Text style={styles.heroTitle}>Responses</Text>
           <Text style={styles.heroSubtitle}>{projectName}</Text>
-        </View>
+        </LinearGradient>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary.main} />
           <Text style={styles.loadingText}>Loading responses...</Text>
@@ -462,7 +468,12 @@ const ResponsesScreen: React.FC = () => {
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+      <LinearGradient
+        colors={[colors.primary.dark, colors.primary.main]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}
+      >
         <View style={styles.heroNav}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -495,7 +506,7 @@ const ResponsesScreen: React.FC = () => {
                 detailsHook.selectedRespondent?.commodity ?? detailsHook.selectedRespondent?.country,
               ].filter(Boolean).join(' · ') || projectName}
         </Text>
-      </View>
+      </LinearGradient>
 
       {/* ── Search & Filter chips (list only) ─────────────────────────────── */}
       {viewMode === 'list' && (
@@ -533,7 +544,7 @@ const ResponsesScreen: React.FC = () => {
             >
               <Icon
                 source="tag-outline"
-                size={13}
+                size={15}
                 color={selectedFilters.respondent_type?.length ? colors.primary.main : colors.text.secondary}
               />
               <Text style={[styles.filterChipBtnText, selectedFilters.respondent_type?.length && styles.filterChipBtnTextActive]}>
@@ -541,7 +552,7 @@ const ResponsesScreen: React.FC = () => {
               </Text>
               <Icon
                 source="chevron-down"
-                size={13}
+                size={15}
                 color={selectedFilters.respondent_type?.length ? colors.primary.main : colors.text.secondary}
               />
             </TouchableOpacity>
@@ -554,7 +565,7 @@ const ResponsesScreen: React.FC = () => {
             >
               <Icon
                 source="sprout-outline"
-                size={13}
+                size={15}
                 color={selectedFilters.commodity?.length ? colors.primary.main : colors.text.secondary}
               />
               <Text style={[styles.filterChipBtnText, selectedFilters.commodity?.length && styles.filterChipBtnTextActive]}>
@@ -562,7 +573,7 @@ const ResponsesScreen: React.FC = () => {
               </Text>
               <Icon
                 source="chevron-down"
-                size={13}
+                size={15}
                 color={selectedFilters.commodity?.length ? colors.primary.main : colors.text.secondary}
               />
             </TouchableOpacity>
@@ -575,7 +586,7 @@ const ResponsesScreen: React.FC = () => {
             >
               <Icon
                 source="earth"
-                size={13}
+                size={15}
                 color={selectedFilters.country?.length ? colors.primary.main : colors.text.secondary}
               />
               <Text style={[styles.filterChipBtnText, selectedFilters.country?.length && styles.filterChipBtnTextActive]}>
@@ -583,7 +594,7 @@ const ResponsesScreen: React.FC = () => {
               </Text>
               <Icon
                 source="chevron-down"
-                size={13}
+                size={15}
                 color={selectedFilters.country?.length ? colors.primary.main : colors.text.secondary}
               />
             </TouchableOpacity>
@@ -595,7 +606,7 @@ const ResponsesScreen: React.FC = () => {
                 onPress={clearAllFilters}
                 activeOpacity={0.8}
               >
-                <Icon source="close-circle" size={13} color={colors.status.error} />
+                <Icon source="close-circle" size={15} color={colors.status.error} />
                 <Text style={styles.clearChipBtnText}>Clear all</Text>
               </TouchableOpacity>
             )}
@@ -877,9 +888,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroSubtitle: {
-    fontFamily: 'DMSans-Regular',
-    fontSize: typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'Fraunces-Regular',
+    fontSize: typography.fontSize.md,
+    color: 'rgba(255,255,255,0.75)',
   },
   heroMenuBtn: {
     width: 36,
@@ -919,7 +930,7 @@ const styles = StyleSheet.create({
   // ── Filter chip row
   filterScrollView: {
     backgroundColor: colors.background.default,
-    maxHeight: 52,
+    maxHeight: 60,
   },
   filterScrollContent: {
     paddingHorizontal: spacing.lg,
@@ -930,9 +941,9 @@ const styles = StyleSheet.create({
   filterChipBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: borderRadius.round,
     borderWidth: 1,
     borderColor: colors.border.medium,
@@ -945,7 +956,7 @@ const styles = StyleSheet.create({
   },
   filterChipBtnText: {
     fontFamily: 'DMSans-Medium',
-    fontSize: typography.fontSize.xs,
+    fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
   },
   filterChipBtnTextActive: {
@@ -954,9 +965,9 @@ const styles = StyleSheet.create({
   clearChipBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: borderRadius.round,
     borderWidth: 1,
     borderColor: colors.status.error + '55',
@@ -964,7 +975,7 @@ const styles = StyleSheet.create({
   },
   clearChipBtnText: {
     fontFamily: 'DMSans-Medium',
-    fontSize: typography.fontSize.xs,
+    fontSize: typography.fontSize.sm,
     color: colors.status.error,
   },
 
@@ -985,7 +996,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
   },
   toggleBtnActive: {
     backgroundColor: colors.primary.main,
@@ -1005,8 +1016,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border.light,
-    padding: 14,
-    marginBottom: 10,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
   },
   respTop: {
     flexDirection: 'row',
@@ -1204,7 +1215,7 @@ const styles = StyleSheet.create({
   },
   detailStatValue: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xxl,
     color: colors.text.primary,
     letterSpacing: -0.3,
   },
@@ -1286,7 +1297,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 13,
     borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary.main,
+    backgroundColor: colors.accent.main,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -45,7 +45,7 @@ export const colors = {
   status: {
     success: '#059669',                   // Emerald
     successSurface: '#D1FAE5',
-    warning: '#D97706',                   // Amber (reuse accent)
+    warning: '#B45309',                   // Darker amber (accent.dark) — WCAG AA on warningSurface
     warningSurface: '#FEF3C7',
     error: '#DC2626',                     // Red
     errorSurface: '#FEE2E2',
@@ -57,7 +57,7 @@ export const colors = {
   sync: {
     synced: '#059669',
     syncedSurface: '#D1FAE5',
-    pending: '#D97706',
+    pending: '#B45309',                   // Darker amber — WCAG AA on pendingSurface
     pendingSurface: '#FEF3C7',
     error: '#DC2626',
     errorSurface: '#FEE2E2',
@@ -201,14 +201,14 @@ export const typography = {
     wider: 0.6,
     widest: 1.2,
   },
-  // Font families — loaded via @expo-google-fonts
+  // Font families — must match names registered via useFonts in App.tsx
   fontFamily: {
-    display: 'Fraunces_700Bold',
-    displayLight: 'Fraunces_400Regular',
-    body: 'DMSans_400Regular',
-    bodyMedium: 'DMSans_500Medium',
-    bodySemibold: 'DMSans_600SemiBold',
-    bodyBold: 'DMSans_700Bold',
+    display: 'Fraunces-Bold',
+    displayRegular: 'Fraunces-Regular',
+    body: 'DMSans-Regular',
+    bodyMedium: 'DMSans-Medium',
+    bodySemibold: 'DMSans-SemiBold',
+    bodyBold: 'DMSans-Bold',
   },
 };
 

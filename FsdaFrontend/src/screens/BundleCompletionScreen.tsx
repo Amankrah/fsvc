@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
   listContent: { padding: spacing.md, paddingTop: spacing.xs, paddingBottom: 100 },
 
   // Card
-  card: { marginBottom: spacing.md, backgroundColor: colors.background.paper, borderRadius: borderRadius.xl, borderWidth: 1, borderColor: colors.border.light, elevation: 0 },
+  card: { marginBottom: spacing.md, backgroundColor: colors.background.paper, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border.light, elevation: 0 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
   bundleInfo: { flex: 1 },
   respondentType: { fontFamily: 'Fraunces-Bold', color: colors.text.primary, fontSize: typography.fontSize.lg, letterSpacing: -0.2, marginBottom: spacing.xs },

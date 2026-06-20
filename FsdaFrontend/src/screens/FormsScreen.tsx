@@ -24,6 +24,7 @@ import { colors, spacing, borderRadius, typography } from '../constants/theme';
 import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SkeletonProjectCard } from '../components/Skeleton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const FormsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -217,7 +218,12 @@ const FormsScreen: React.FC = () => {
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
       {/* ── Hero header ─────────────────────────────────────────────────── */}
-      <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+      <LinearGradient
+        colors={[colors.primary.dark, colors.primary.main]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}
+      >
         <View style={styles.heroNav}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -230,7 +236,7 @@ const FormsScreen: React.FC = () => {
         </View>
         <Text style={styles.heroTitle}>Forms</Text>
         <Text style={styles.heroSubtitle}>Build and manage questionnaires</Text>
-      </View>
+      </LinearGradient>
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
       <View style={styles.searchWrap}>
@@ -321,9 +327,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroSubtitle: {
-    fontFamily: 'DMSans-Regular',
-    fontSize: typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'Fraunces-Regular',
+    fontSize: typography.fontSize.md,
+    color: 'rgba(255,255,255,0.75)',
   },
 
   // ── Search
@@ -359,7 +365,7 @@ const styles = StyleSheet.create({
   // ── Card
   card: {
     backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border.light,
@@ -443,9 +449,9 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xxl,
     color: colors.text.primary,
-    lineHeight: typography.fontSize.lg + 4,
+    lineHeight: typography.fontSize.xxl + 4,
   },
   statLabel: {
     fontFamily: 'DMSans-Regular',
@@ -462,7 +468,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary.main,
+    backgroundColor: colors.accent.main,
     borderRadius: borderRadius.lg,
     paddingVertical: 12,
   },

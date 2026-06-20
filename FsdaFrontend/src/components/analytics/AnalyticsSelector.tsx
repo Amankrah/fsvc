@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
   },
 
   stepLabel: {
-    fontFamily: 'DMSans_700Bold',
+    fontFamily: 'DMSans-Bold',
     fontSize: typography.fontSize.xs,
     fontWeight: '700',
     color: colors.text.secondary,
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   chooseBtnText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.sm,
     color: colors.primary.main,
   },
@@ -637,13 +637,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedMethodName: {
-    fontFamily: 'DMSans_700Bold',
+    fontFamily: 'DMSans-Bold',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
     marginBottom: 3,
   },
   selectedMethodDesc: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: 8,
@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   categoryBadgeText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: 11,
   },
 
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   varChipText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: 11,
     color: colors.primary.main,
   },
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addMoreBtnText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.sm,
     color: colors.primary.main,
   },
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   paramLabel: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
     backgroundColor: colors.background.paper,
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   boolLabel: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
   },
@@ -760,13 +760,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary.main,
   },
   filterChipText: {
-    fontFamily: 'DMSans_500Medium',
+    fontFamily: 'DMSans-Medium',
     fontSize: 12,
     color: colors.text.secondary,
   },
   filterChipTextSelected: {
     color: '#fff',
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
   },
   checkRow: {
     flexDirection: 'row',
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   checkRowLabel: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
   },
@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   runBtnText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.md,
     color: '#fff',
   },
@@ -830,12 +830,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.light,
   },
   modalTitle: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Fraunces-Bold',
     fontSize: 16,
     color: colors.primary.dark,
   },
   modalSubtitle: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 11,
     color: colors.text.secondary,
     marginTop: 1,
@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
 
   // ── Method rows ────────────────────────────────────────────────────────
   groupLabel: {
-    fontFamily: 'DMSans_700Bold',
+    fontFamily: 'DMSans-Bold',
     fontSize: 10,
     color: colors.text.tertiary,
     textTransform: 'uppercase',
@@ -904,7 +904,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   methodName: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: 13,
     color: colors.text.primary,
   },
@@ -912,7 +912,7 @@ const styles = StyleSheet.create({
     color: colors.primary.main,
   },
   methodDesc: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 11,
     color: colors.text.secondary,
     marginTop: 1,
@@ -932,18 +932,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary.surface,
   },
   varRowLabel: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 13,
     color: colors.text.primary,
     flex: 1,
   },
   varRowLabelSelected: {
     color: colors.primary.main,
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
   },
 
   emptyText: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: 'DMSans-Regular',
     fontSize: 13,
     color: colors.text.secondary,
     textAlign: 'center',
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmBtnText: {
-    fontFamily: 'DMSans_600SemiBold',
+    fontFamily: 'DMSans-SemiBold',
     fontSize: typography.fontSize.md,
     color: '#fff',
   },

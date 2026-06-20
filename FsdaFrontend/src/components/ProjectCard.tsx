@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     height: 3,
   },
   body: {
-    padding: spacing.md,
+    padding: spacing.lg,
   },
   headerRow: {
     flexDirection: 'row',
@@ -216,9 +216,9 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xxl,
     color: colors.text.primary,
-    lineHeight: typography.fontSize.lg + 4,
+    lineHeight: typography.fontSize.xxl + 4,
   },
   statLabel: {
     fontFamily: 'DMSans-Regular',

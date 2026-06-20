@@ -45,7 +45,7 @@ staticfiles/
 static_root/
 media_root/
 
-# Django migrations - ignore to prevent dev/prod conflicts
+# Django migrations — per-environment; never commit (dev/prod use different chains)
 **/migrations/*.py
 **/migrations/*.pyc
 backend/*/migrations/*.py
