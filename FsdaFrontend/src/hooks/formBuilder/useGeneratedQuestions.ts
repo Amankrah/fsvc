@@ -76,10 +76,6 @@ export const useGeneratedQuestions = (projectId: string) => {
 
           setGeneratedQuestions(questionsList);
 
-          showAlert(
-            'Loaded from Cache',
-            `Failed to fetch from server, but loaded ${questionsList.length} questions from cache.`
-          );
           console.log(`✓ Loaded ${questionsList.length} questions from cache as fallback`);
           return questionsList;
         }

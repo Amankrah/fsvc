@@ -282,13 +282,18 @@ class NotificationListView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
-        notifications = request.user.notifications.filter(
-            is_read=False
-        ).order_by('-created_at')[:20]  # Last 20 unread notifications
-        
-        formatted_notifications = []
-        for notification in notifications:
-            formatted_notifications.append({
+        # Return all unread + last 30 read notifications so read items stay visible
+        unread_qs = request.user.notifications.filter(is_read=False).order_by('-created_at')
+        read_qs = request.user.notifications.filter(is_read=True).order_by('-created_at')[:30]
+
+        notifications = sorted(
+            list(unread_qs) + list(read_qs),
+            key=lambda n: n.created_at,
+            reverse=True
+        )
+
+        def _fmt(notification):
+            return {
                 'id': str(notification.id),
                 'title': notification.title,
                 'message': notification.message,
@@ -300,10 +305,11 @@ class NotificationListView(APIView):
                 'action_text': notification.action_text,
                 'related_project_id': str(notification.related_project_id) if notification.related_project_id else None,
                 'is_expired': notification.is_expired(),
-            })
-        
+            }
+
+        formatted_notifications = [_fmt(n) for n in notifications]
         unread_count = request.user.get_unread_notifications_count()
-        
+
         return Response({
             'notifications': formatted_notifications,
             'unread_count': unread_count,

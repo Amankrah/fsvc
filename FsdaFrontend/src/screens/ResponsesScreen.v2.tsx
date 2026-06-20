@@ -1,17 +1,10 @@
 /**
  * ResponsesScreen - Refactored Version
  * Modular, production-ready implementation with clean separation of concerns
- *
- * Architecture:
- * - Custom hooks handle business logic
- * - Reusable components handle UI
- * - Constants centralize configuration
- * - Full Django backend compatibility
- * - Server-side pagination via infinite scroll (FlatList + onEndReached)
  */
 
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
-import { colors } from '../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../constants/theme';
 import {
   View,
   StyleSheet,
@@ -19,18 +12,18 @@ import {
   RefreshControl,
   ListRenderItem,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
   ActivityIndicator,
   Searchbar,
-  Menu,
-  IconButton,
-  Chip,
-  Button,
-  SegmentedButtons,
+  Icon,
+  Portal,
+  Dialog,
+  Divider,
 } from 'react-native-paper';
-import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useRoute, RouteProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -51,25 +44,47 @@ import { RootStackParamList } from '../navigation/RootNavigator';
 
 type ResponsesRouteProp = RouteProp<RootStackParamList, 'Responses'>;
 
+type FilterKey = 'respondent_type' | 'commodity' | 'country';
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const getAvatarColor = (str: string): string => {
+  const palette = [
+    colors.primary.main,
+    colors.status.info,
+    '#0D9488',
+    '#4F46E5',
+    colors.accent?.main ?? '#D97706',
+  ];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return palette[Math.abs(hash) % palette.length];
+};
+
+const getInitials = (respondentId: string): string => {
+  const parts = respondentId.replace(/[^a-zA-Z0-9]/g, ' ').trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return respondentId.slice(0, 2).toUpperCase();
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 const ResponsesScreen: React.FC = () => {
   const route = useRoute<ResponsesRouteProp>();
   const { projectId, projectName } = route.params;
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
 
-  const [menuVisible, setMenuVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
-  const [selectedFilters, setSelectedFilters] = useState<{
-    respondent_type?: string[];
-    commodity?: string[];
-    country?: string[];
-  }>({});
+  const [selectedFilters, setSelectedFilters] = useState<Partial<Record<FilterKey, string[]>>>({});
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
-  const [filterMenusVisible, setFilterMenusVisible] = useState({
-    respondent_type: false,
-    commodity: false,
-    country: false,
-  });
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Dialog visibility
+  const [activeFilterMenu, setActiveFilterMenu] = useState<FilterKey | null>(null);
+  const [exportDialogVisible, setExportDialogVisible] = useState(false);
 
   // Hooks
   const respondentsHook = useRespondents(projectId);
@@ -77,10 +92,10 @@ const ResponsesScreen: React.FC = () => {
   const exportHook = useExport(projectId, projectName);
   const { user } = useAuthStore();
 
-  // Debounce ref for search — avoids an API call on every keystroke
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Build the combined server-side filter object from all active UI state
+  // ── Filter helpers ────────────────────────────────────────────────────────
+
   const buildActiveFilters = useCallback(
     (overrideSearch?: string): RespondentFilters => {
       const f: RespondentFilters = {};
@@ -95,7 +110,6 @@ const ResponsesScreen: React.FC = () => {
     [selectedFilters, filterMode, user?.id, searchQuery]
   );
 
-  // Load data + filter options on focus
   useFocusEffect(
     useCallback(() => {
       respondentsHook.loadData();
@@ -104,7 +118,6 @@ const ResponsesScreen: React.FC = () => {
     }, [])
   );
 
-  // Reload data when projectId changes, resetting all filter state
   useEffect(() => {
     setSelectedFilters({});
     setFilterMode('all');
@@ -112,153 +125,166 @@ const ResponsesScreen: React.FC = () => {
     detailsHook.clearSelection();
     setViewMode('list');
     respondentsHook.loadFilterOptions();
-    // setFilters({}) triggers a fresh page-1 fetch with no filters
     respondentsHook.setFilters({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  // Re-fetch from page 1 whenever dropdown filters or filterMode change
   useEffect(() => {
     respondentsHook.setFilters(buildActiveFilters());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFilters, filterMode]);
 
-  // Debounced re-fetch when search text changes
-  const handleSearchChange = useCallback((text: string) => {
-    setSearchQuery(text);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      respondentsHook.setFilters(buildActiveFilters(text));
-    }, 400);
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setSearchQuery(text);
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        respondentsHook.setFilters(buildActiveFilters(text));
+      }, 400);
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildActiveFilters]);
+    [buildActiveFilters]
+  );
 
-  // Handle respondent press
   const handleRespondentPress = async (respondent: Respondent) => {
     await detailsHook.loadRespondentResponses(respondent);
     setViewMode('detail');
   };
 
-  // Handle back to list
   const handleBack = () => {
     detailsHook.clearSelection();
     setViewMode('list');
   };
 
-  // ----------- Filter options come from the backend (full dataset, not just current page) -----------
-
   const { respondent_types: uniqueRespondentTypes, commodities: uniqueCommodities, countries: uniqueCountries } =
     respondentsHook.filterOptions;
 
-  const toggleFilter = (filterType: 'respondent_type' | 'commodity' | 'country', value: string) => {
-    if (!value) {
-      // "All" — clear this filter and close the menu
-      setSelectedFilters(prev => ({ ...prev, [filterType]: undefined }));
-      setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
-      return;
-    }
+  const toggleFilterValue = (key: FilterKey, value: string) => {
     setSelectedFilters(prev => {
-      const current = prev[filterType] ?? [];
+      const current = prev[key] ?? [];
       const next = current.includes(value)
         ? current.filter(v => v !== value)
         : [...current, value];
-      return { ...prev, [filterType]: next.length > 0 ? next : undefined };
+      return { ...prev, [key]: next.length > 0 ? next : undefined };
     });
-    // Keep menu open so users can select multiple values
   };
 
-  const clearFilters = () => setSelectedFilters({});
-
-  const toggleFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
-    setFilterMenusVisible(prev => ({ ...prev, [filterType]: !prev[filterType] }));
+  const clearFilterKey = (key: FilterKey) => {
+    setSelectedFilters(prev => ({ ...prev, [key]: undefined }));
   };
 
-  const closeFilterMenu = (filterType: 'respondent_type' | 'commodity' | 'country') => {
-    setFilterMenusVisible(prev => ({ ...prev, [filterType]: false }));
-  };
+  const clearAllFilters = () => setSelectedFilters({});
 
-  // Total responses across loaded pages (local approximation)
+  const hasActiveFilters = Object.values(selectedFilters).some(v => v?.length);
+
+  // ── Active filter dialog config ───────────────────────────────────────────
+
+  const filterDialogConfig = useMemo(() => {
+    if (!activeFilterMenu) return null;
+    const map: Record<FilterKey, { title: string; options: string[] }> = {
+      respondent_type: { title: 'Filter by Type', options: uniqueRespondentTypes },
+      commodity: { title: 'Filter by Commodity', options: uniqueCommodities },
+      country: { title: 'Filter by Country', options: uniqueCountries },
+    };
+    return { key: activeFilterMenu, ...map[activeFilterMenu] };
+  }, [activeFilterMenu, uniqueRespondentTypes, uniqueCommodities, uniqueCountries]);
+
+  const activeFilterSelections = activeFilterMenu ? (selectedFilters[activeFilterMenu] ?? []) : [];
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+
   const totalResponses = useMemo(
     () => respondentsHook.respondents.reduce((sum, r) => sum + r.response_count, 0),
     [respondentsHook.respondents]
   );
 
-  // ----------- Infinite scroll handlers -----------
-
-  // ----------- Pagination handlers -----------
-
   const flatListRef = useRef<FlatList<Respondent>>(null);
 
-  // Scroll to top when page changes
   useEffect(() => {
     if (respondentsHook.currentPage > 1) {
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     }
   }, [respondentsHook.currentPage]);
 
-  // ----------- FlatList renderers -----------
+  // ── Filter chip label helpers ─────────────────────────────────────────────
 
-  const renderTableRow: ListRenderItem<Respondent> = useCallback(
-    ({ item: respondent }) => (
-      <TouchableOpacity
-        onPress={() => handleRespondentPress(respondent)}
-        activeOpacity={0.7}>
-        <View style={styles.tableRow}>
-          {/* Respondent ID */}
-          <View style={styles.colId}>
-            <Text style={styles.cellText} numberOfLines={2}>
-              {respondent.respondent_id}
-            </Text>
-          </View>
-          {/* Submitted By + time */}
-          <View style={[styles.colSubmittedBy, styles.submittedByCell]}>
-            <Text style={styles.cellText} numberOfLines={1}>
-              {respondent.created_by_details?.first_name
-                ? `${respondent.created_by_details.first_name} ${respondent.created_by_details.last_name || ''}`.trim()
-                : 'Anonymous'}
-            </Text>
-            {respondent.created_at ? (
-              <Text style={styles.cellTimestamp} numberOfLines={1}>
-                {new Date(respondent.created_at).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+  const filterChipLabel = (key: FilterKey, prefix: string): string => {
+    const sel = selectedFilters[key];
+    if (!sel?.length) return `${prefix}: All`;
+    if (sel.length === 1) return `${prefix}: ${sel[0]}`;
+    return `${prefix}: ${sel.length} selected`;
+  };
+
+  // ── Respondent card ───────────────────────────────────────────────────────
+
+  const renderRespondentCard: ListRenderItem<Respondent> = useCallback(
+    ({ item: respondent }) => {
+      const initials = getInitials(respondent.respondent_id);
+      const avatarColor = getAvatarColor(respondent.respondent_id);
+      const isComplete = respondent.completion_rate >= 100;
+      const submitter = respondent.created_by_details?.first_name
+        ? `${respondent.created_by_details.first_name} ${respondent.created_by_details.last_name || ''}`.trim()
+        : null;
+      const typeLocation = [respondent.respondent_type, respondent.commodity ?? respondent.country]
+        .filter(Boolean)
+        .join(' · ');
+      const dateStr = respondent.created_at
+        ? new Date(respondent.created_at).toLocaleDateString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric',
+          })
+        : null;
+
+      return (
+        <TouchableOpacity
+          style={styles.respondentCard}
+          onPress={() => handleRespondentPress(respondent)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.respTop}>
+            <View style={[styles.respAvatar, { backgroundColor: avatarColor + '18', borderColor: avatarColor + '40' }]}>
+              <Text style={[styles.respAvatarText, { color: avatarColor }]}>{initials}</Text>
+            </View>
+            <View style={styles.respInfo}>
+              <Text style={styles.respId}>{respondent.respondent_id}</Text>
+              {typeLocation ? (
+                <Text style={styles.respType}>{typeLocation}</Text>
+              ) : submitter ? (
+                <Text style={styles.respType}>{submitter}</Text>
+              ) : null}
+            </View>
+            <View style={[styles.respBadge, isComplete ? styles.respBadgeComplete : styles.respBadgePartial]}>
+              <Text style={[styles.respBadgeText, isComplete ? styles.respBadgeTextComplete : styles.respBadgeTextPartial]}>
+                {isComplete ? 'Complete' : 'Partial'}
               </Text>
+            </View>
+          </View>
+
+          <View style={styles.respMeta}>
+            {dateStr && (
+              <View style={styles.respMetaItem}>
+                <Icon source="calendar-outline" size={11} color={colors.text.disabled} />
+                <Text style={styles.respMetaText}>{dateStr}</Text>
+              </View>
+            )}
+            <View style={styles.respMetaItem}>
+              <Icon source="format-list-bulleted" size={11} color={colors.text.disabled} />
+              <Text style={styles.respMetaText}>{respondent.response_count} responses</Text>
+            </View>
+            {submitter && typeLocation ? (
+              <View style={styles.respMetaItem}>
+                <Icon source="account-outline" size={11} color={colors.text.disabled} />
+                <Text style={styles.respMetaText}>{submitter}</Text>
+              </View>
             ) : null}
           </View>
-          {/* Filters */}
-          <View style={[styles.filtersCell, styles.colFilters]}>
-            {respondent.respondent_type && (
-              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
-                {respondent.respondent_type}
-              </Chip>
-            )}
-            {respondent.commodity && (
-              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
-                {respondent.commodity}
-              </Chip>
-            )}
-            {respondent.country && (
-              <Chip style={styles.filterChip} textStyle={styles.filterChipText} compact>
-                {respondent.country}
-              </Chip>
-            )}
-          </View>
-          {/* Response count */}
-          <View style={styles.colResponses}>
-            <Text style={[styles.cellText, styles.cellCountText]}>
-              {respondent.response_count}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    ),
+        </TouchableOpacity>
+      );
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
+
+  // ── List sub-components ───────────────────────────────────────────────────
 
   const ListHeader = useCallback(
     () => (
@@ -268,25 +294,27 @@ const ResponsesScreen: React.FC = () => {
           totalResponses={totalResponses}
           totalCount={respondentsHook.totalCount}
         />
-
-        <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-          <SegmentedButtons
-            value={filterMode}
-            onValueChange={value => setFilterMode(value as 'all' | 'mine')}
-            buttons={[
-              { value: 'all', label: 'All Responses', icon: 'account-group' },
-              { value: 'mine', label: 'My Responses', icon: 'account' },
-            ]}
-            style={{ marginBottom: 8 }}
-          />
-        </View>
-
-        {/* Table header row */}
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.headerText, styles.colId]}>Respondent ID</Text>
-          <Text style={[styles.headerText, styles.colSubmittedBy]}>Submitted By</Text>
-          <Text style={[styles.headerText, styles.colFilters]}>Filters</Text>
-          <Text style={[styles.headerText, styles.colResponses]}>Responses</Text>
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, filterMode === 'all' && styles.toggleBtnActive]}
+            onPress={() => setFilterMode('all')}
+            activeOpacity={0.8}
+          >
+            <Icon source="account-group" size={14} color={filterMode === 'all' ? '#fff' : colors.text.secondary} />
+            <Text style={[styles.toggleBtnText, filterMode === 'all' && styles.toggleBtnTextActive]}>
+              All Responses
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, filterMode === 'mine' && styles.toggleBtnActive]}
+            onPress={() => setFilterMode('mine')}
+            activeOpacity={0.8}
+          >
+            <Icon source="account" size={14} color={filterMode === 'mine' ? '#fff' : colors.text.secondary} />
+            <Text style={[styles.toggleBtnText, filterMode === 'mine' && styles.toggleBtnTextActive]}>
+              My Responses
+            </Text>
+          </TouchableOpacity>
         </View>
       </>
     ),
@@ -296,29 +324,28 @@ const ResponsesScreen: React.FC = () => {
 
   const ListFooter = useCallback(
     () => (
-      <View style={styles.paginationContainer}>
-        <Button
-          mode="outlined"
-          disabled={respondentsHook.currentPage === 1 || respondentsHook.loading}
+      <View style={styles.paginationRow}>
+        <TouchableOpacity
+          style={[styles.pageBtn, (respondentsHook.currentPage === 1 || respondentsHook.loading) && styles.pageBtnDisabled]}
           onPress={respondentsHook.prevPage}
-          style={styles.pageButton}
-          icon="chevron-left"
+          disabled={respondentsHook.currentPage === 1 || respondentsHook.loading}
+          activeOpacity={0.8}
         >
-          Prev
-        </Button>
-        <Text variant="bodyMedium" style={styles.pageInfo}>
-          Page {respondentsHook.currentPage} of {respondentsHook.totalPages}
+          <Icon source="chevron-left" size={16} color={respondentsHook.currentPage === 1 ? colors.text.disabled : colors.primary.main} />
+          <Text style={[styles.pageBtnText, respondentsHook.currentPage === 1 && styles.pageBtnTextDisabled]}>Prev</Text>
+        </TouchableOpacity>
+        <Text style={styles.pageInfo}>
+          {respondentsHook.currentPage} / {respondentsHook.totalPages}
         </Text>
-        <Button
-          mode="outlined"
-          disabled={respondentsHook.currentPage >= respondentsHook.totalPages || respondentsHook.loading}
+        <TouchableOpacity
+          style={[styles.pageBtn, (respondentsHook.currentPage >= respondentsHook.totalPages || respondentsHook.loading) && styles.pageBtnDisabled]}
           onPress={respondentsHook.nextPage}
-          style={styles.pageButton}
-          contentStyle={{ flexDirection: 'row-reverse' }}
-          icon="chevron-right"
+          disabled={respondentsHook.currentPage >= respondentsHook.totalPages || respondentsHook.loading}
+          activeOpacity={0.8}
         >
-          Next
-        </Button>
+          <Text style={[styles.pageBtnText, respondentsHook.currentPage >= respondentsHook.totalPages && styles.pageBtnTextDisabled]}>Next</Text>
+          <Icon source="chevron-right" size={16} color={respondentsHook.currentPage >= respondentsHook.totalPages ? colors.text.disabled : colors.primary.main} />
+        </TouchableOpacity>
       </View>
     ),
     [respondentsHook.currentPage, respondentsHook.totalPages, respondentsHook.loading, respondentsHook.prevPage, respondentsHook.nextPage]
@@ -328,158 +355,154 @@ const ResponsesScreen: React.FC = () => {
     () =>
       !respondentsHook.loading ? (
         <View style={styles.emptyContainer}>
-          <Text variant="bodyLarge" style={styles.emptyText}>
-            No respondents found
-          </Text>
+          <Icon source="account-search-outline" size={48} color={colors.text.disabled} />
+          <Text style={styles.emptyTitle}>No respondents found</Text>
+          <Text style={styles.emptyHint}>Try adjusting your filters or search</Text>
         </View>
       ) : null,
     [respondentsHook.loading]
   );
 
-  // ----------- Loading state -----------
+  // ── Loading state ─────────────────────────────────────────────────────────
 
   if (respondentsHook.loading && respondentsHook.respondents.length === 0) {
     return (
-      <ScreenWrapper style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-        <Text variant="bodyLarge" style={styles.loadingText}>
-          Loading responses...
-        </Text>
+      <ScreenWrapper style={styles.container} edges={{ top: false }}>
+        <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+          <View style={styles.heroNav}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Icon source="chevron-left" size={24} color="#fff" />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.heroTitle}>Responses</Text>
+          <Text style={styles.heroSubtitle}>{projectName}</Text>
+        </View>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading responses...</Text>
+        </View>
       </ScreenWrapper>
     );
   }
 
-  // ----------- Detail view -----------
+  // ── Detail view ───────────────────────────────────────────────────────────
 
   const renderDetailView = () => {
-    if (!detailsHook.selectedRespondent) return null;
+    const r = detailsHook.selectedRespondent;
+    if (!r) return null;
 
-    return (
-      <>
-        <View style={styles.detailHeader}>
-          <IconButton
-            icon="arrow-left"
-            size={24}
-            iconColor={colors.text.primary}
-            onPress={handleBack}
-          />
-          <View style={styles.detailHeaderInfo}>
-            <Text variant="titleLarge" style={styles.detailTitle}>
-              {detailsHook.selectedRespondent.created_by_details?.first_name
-                ? `${detailsHook.selectedRespondent.created_by_details.first_name} ${detailsHook.selectedRespondent.created_by_details.last_name || ''}`.trim()
-                : 'Anonymous'}
-            </Text>
-            <Text variant="bodyMedium" style={styles.detailSubtitle}>
-              ID: {detailsHook.selectedRespondent.respondent_id}
+    const initials = getInitials(r.respondent_id);
+    const avatarColor = getAvatarColor(r.respondent_id);
+    const isComplete = r.completion_rate >= 100;
+    const typeLocation = [r.respondent_type, r.commodity ?? r.country].filter(Boolean).join(' · ');
+
+    const DetailHero = () => (
+      <View style={styles.detailHero}>
+        <View style={styles.detailAvatarRow}>
+          <View style={[styles.detailAvatar, { backgroundColor: avatarColor + '20', borderColor: avatarColor + '50' }]}>
+            <Text style={[styles.detailAvatarText, { color: avatarColor }]}>{initials}</Text>
+          </View>
+          <View style={styles.detailAvatarInfo}>
+            <Text style={styles.detailRespondentId}>{r.respondent_id}</Text>
+            {typeLocation ? <Text style={styles.detailRespondentType}>{typeLocation}</Text> : null}
+          </View>
+          <View style={[styles.respBadge, isComplete ? styles.respBadgeComplete : styles.respBadgePartial]}>
+            <Text style={[styles.respBadgeText, isComplete ? styles.respBadgeTextComplete : styles.respBadgeTextPartial]}>
+              {isComplete ? 'Complete' : 'Partial'}
             </Text>
           </View>
         </View>
-
-        <View style={styles.detailStats}>
-          <Chip style={styles.detailChip} textStyle={styles.chipText}>
-            📊 {detailsHook.selectedRespondent.response_count} Responses
-          </Chip>
-          <Chip style={styles.detailChip} textStyle={styles.chipText}>
-            🆔 {detailsHook.selectedRespondent.respondent_id}
-          </Chip>
-          {detailsHook.selectedRespondent.respondent_type && (
-            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
-              {detailsHook.selectedRespondent.respondent_type}
-            </Chip>
-          )}
-          {detailsHook.selectedRespondent.commodity && (
-            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
-              {detailsHook.selectedRespondent.commodity}
-            </Chip>
-          )}
-          {detailsHook.selectedRespondent.country && (
-            <Chip style={styles.filterChipSmall} textStyle={styles.filterChipTextSmall}>
-              {detailsHook.selectedRespondent.country}
-            </Chip>
-          )}
+        <View style={styles.detailStatRow}>
+          <View style={styles.detailStatPill}>
+            <Icon source="format-list-bulleted" size={13} color={colors.primary.main} />
+            <Text style={styles.detailStatValue}>{r.response_count}</Text>
+            <Text style={styles.detailStatLabel}>Responses</Text>
+          </View>
+          <View style={styles.detailStatDivider} />
+          <View style={styles.detailStatPill}>
+            <Icon source="percent" size={13} color={colors.primary.main} />
+            <Text style={styles.detailStatValue}>{Math.round(r.completion_rate)}%</Text>
+            <Text style={styles.detailStatLabel}>Complete</Text>
+          </View>
         </View>
+      </View>
+    );
 
-        <FlatList
-          data={detailsHook.respondentResponses}
-          keyExtractor={item => item.response_id}
-          renderItem={({ item }) => <ResponseCard response={item} />}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={respondentsHook.refreshing}
-              onRefresh={respondentsHook.handleRefresh}
-              tintColor={colors.primary.main}
-              colors={[colors.primary.main]}
-            />
-          }
-        />
-      </>
+    if (detailsHook.loading) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading responses...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        data={detailsHook.respondentResponses}
+        keyExtractor={item => item.response_id}
+        renderItem={({ item }) => <ResponseCard response={item} />}
+        ListHeaderComponent={DetailHero}
+        contentContainerStyle={styles.detailContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Icon source="clipboard-text-off-outline" size={40} color={colors.text.disabled} />
+            <Text style={styles.emptyTitle}>No responses recorded</Text>
+          </View>
+        }
+      />
     );
   };
 
-  // ----------- Main render -----------
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <ScreenWrapper style={styles.container} edges={{ top: false }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerContent}>
-          <Text variant="headlineSmall" style={styles.title}>
-            {viewMode === 'list' ? 'Responses' : 'Response Details'}
-          </Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            {projectName}
-          </Text>
+
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <View style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}>
+        <View style={styles.heroNav}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={viewMode === 'list' ? () => navigation.goBack() : handleBack}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon source="chevron-left" size={24} color="#fff" />
+            <Text style={styles.backText}>{viewMode === 'list' ? 'Back' : 'Responses'}</Text>
+          </TouchableOpacity>
+
+          {viewMode === 'list' && (
+            <TouchableOpacity
+              style={styles.heroMenuBtn}
+              onPress={() => setExportDialogVisible(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Icon source="dots-vertical" size={22} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {viewMode === 'list' && (
-          <Menu
-            visible={menuVisible}
-            onDismiss={() => setMenuVisible(false)}
-            anchor={
-              <IconButton
-                icon="dots-vertical"
-                size={24}
-                iconColor={colors.text.primary}
-                onPress={() => setMenuVisible(true)}
-              />
-            }
-            contentStyle={styles.menuContent}>
-            <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportExcel(buildActiveFilters()); }}
-              title="Export to Excel"
-              leadingIcon="file-excel"
-              titleStyle={styles.menuItemText}
-            />
-            <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportCSV(buildActiveFilters()); }}
-              title="Export to CSV"
-              leadingIcon="file-delimited"
-              titleStyle={styles.menuItemText}
-            />
-            <Menu.Item
-              onPress={() => { setMenuVisible(false); exportHook.handleExportJSON(buildActiveFilters()); }}
-              title="Export to JSON"
-              leadingIcon="code-json"
-              titleStyle={styles.menuItemText}
-            />
-            <Menu.Item
-              onPress={() => { setMenuVisible(false); respondentsHook.loadData(); }}
-              title="Refresh"
-              leadingIcon="refresh"
-              titleStyle={styles.menuItemText}
-            />
-          </Menu>
-        )}
+        <Text style={styles.heroTitle}>
+          {viewMode === 'list' ? 'Responses' : (detailsHook.selectedRespondent?.respondent_id ?? 'Respondent')}
+        </Text>
+        <Text style={styles.heroSubtitle}>
+          {viewMode === 'list'
+            ? projectName
+            : [
+                detailsHook.selectedRespondent?.respondent_type,
+                detailsHook.selectedRespondent?.commodity ?? detailsHook.selectedRespondent?.country,
+              ].filter(Boolean).join(' · ') || projectName}
+        </Text>
       </View>
 
-      {/* Search & Filters (list view only) */}
+      {/* ── Search & Filter chips (list only) ─────────────────────────────── */}
       {viewMode === 'list' && (
         <>
           <View style={styles.searchContainer}>
             <Searchbar
-              placeholder="Search respondents..."
+              placeholder="Search by respondent ID or type..."
               onChangeText={handleSearchChange}
               value={searchQuery}
               style={styles.searchBar}
@@ -496,132 +519,102 @@ const ResponsesScreen: React.FC = () => {
             />
           </View>
 
-          <View style={styles.filterContainer}>
-            {/* Respondent Type Filter */}
-            <Menu
-              visible={filterMenusVisible.respondent_type}
-              onDismiss={() => closeFilterMenu('respondent_type')}
-              anchor={
-                <Button
-                  mode="outlined"
-                  onPress={() => toggleFilterMenu('respondent_type')}
-                  style={[styles.filterButton, selectedFilters.respondent_type?.length && styles.filterButtonActive]}
-                  labelStyle={styles.filterButtonLabel}
-                  icon="chevron-down">
-                  {`Type: ${
-                    !selectedFilters.respondent_type?.length
-                      ? 'All'
-                      : selectedFilters.respondent_type.length === 1
-                        ? selectedFilters.respondent_type[0]
-                        : `${selectedFilters.respondent_type.length} selected`
-                  }`}
-                </Button>
-              }
-              contentStyle={styles.menuContent}>
-              <Menu.Item onPress={() => toggleFilter('respondent_type', '')} title="All" titleStyle={styles.menuItemText} />
-              {uniqueRespondentTypes.map(type => (
-                <Menu.Item
-                  key={type}
-                  onPress={() => toggleFilter('respondent_type', type)}
-                  title={type}
-                  titleStyle={[styles.menuItemText, selectedFilters.respondent_type?.includes(type) && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.respondent_type?.includes(type) ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                />
-              ))}
-            </Menu>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScrollView}
+            contentContainerStyle={styles.filterScrollContent}
+          >
+            {/* Type chip */}
+            <TouchableOpacity
+              style={[styles.filterChipBtn, selectedFilters.respondent_type?.length && styles.filterChipBtnActive]}
+              onPress={() => setActiveFilterMenu('respondent_type')}
+              activeOpacity={0.8}
+            >
+              <Icon
+                source="tag-outline"
+                size={13}
+                color={selectedFilters.respondent_type?.length ? colors.primary.main : colors.text.secondary}
+              />
+              <Text style={[styles.filterChipBtnText, selectedFilters.respondent_type?.length && styles.filterChipBtnTextActive]}>
+                {filterChipLabel('respondent_type', 'Type')}
+              </Text>
+              <Icon
+                source="chevron-down"
+                size={13}
+                color={selectedFilters.respondent_type?.length ? colors.primary.main : colors.text.secondary}
+              />
+            </TouchableOpacity>
 
-            {/* Commodity Filter */}
-            <Menu
-              visible={filterMenusVisible.commodity}
-              onDismiss={() => closeFilterMenu('commodity')}
-              anchor={
-                <Button
-                  mode="outlined"
-                  onPress={() => toggleFilterMenu('commodity')}
-                  style={[styles.filterButton, selectedFilters.commodity?.length && styles.filterButtonActive]}
-                  labelStyle={styles.filterButtonLabel}
-                  icon="chevron-down">
-                  {`Commodity: ${
-                    !selectedFilters.commodity?.length
-                      ? 'All'
-                      : selectedFilters.commodity.length === 1
-                        ? selectedFilters.commodity[0]
-                        : `${selectedFilters.commodity.length} selected`
-                  }`}
-                </Button>
-              }
-              contentStyle={styles.menuContent}>
-              <Menu.Item onPress={() => toggleFilter('commodity', '')} title="All" titleStyle={styles.menuItemText} />
-              {uniqueCommodities.map(c => (
-                <Menu.Item
-                  key={c}
-                  onPress={() => toggleFilter('commodity', c)}
-                  title={c}
-                  titleStyle={[styles.menuItemText, selectedFilters.commodity?.includes(c) && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.commodity?.includes(c) ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                />
-              ))}
-            </Menu>
+            {/* Commodity chip */}
+            <TouchableOpacity
+              style={[styles.filterChipBtn, selectedFilters.commodity?.length && styles.filterChipBtnActive]}
+              onPress={() => setActiveFilterMenu('commodity')}
+              activeOpacity={0.8}
+            >
+              <Icon
+                source="sprout-outline"
+                size={13}
+                color={selectedFilters.commodity?.length ? colors.primary.main : colors.text.secondary}
+              />
+              <Text style={[styles.filterChipBtnText, selectedFilters.commodity?.length && styles.filterChipBtnTextActive]}>
+                {filterChipLabel('commodity', 'Commodity')}
+              </Text>
+              <Icon
+                source="chevron-down"
+                size={13}
+                color={selectedFilters.commodity?.length ? colors.primary.main : colors.text.secondary}
+              />
+            </TouchableOpacity>
 
-            {/* Country Filter */}
-            <Menu
-              visible={filterMenusVisible.country}
-              onDismiss={() => closeFilterMenu('country')}
-              anchor={
-                <Button
-                  mode="outlined"
-                  onPress={() => toggleFilterMenu('country')}
-                  style={[styles.filterButton, selectedFilters.country?.length && styles.filterButtonActive]}
-                  labelStyle={styles.filterButtonLabel}
-                  icon="chevron-down">
-                  {`Country: ${
-                    !selectedFilters.country?.length
-                      ? 'All'
-                      : selectedFilters.country.length === 1
-                        ? selectedFilters.country[0]
-                        : `${selectedFilters.country.length} selected`
-                  }`}
-                </Button>
-              }
-              contentStyle={styles.menuContent}>
-              <Menu.Item onPress={() => toggleFilter('country', '')} title="All" titleStyle={styles.menuItemText} />
-              {uniqueCountries.map(c => (
-                <Menu.Item
-                  key={c}
-                  onPress={() => toggleFilter('country', c)}
-                  title={c}
-                  titleStyle={[styles.menuItemText, selectedFilters.country?.includes(c) && styles.menuItemTextSelected]}
-                  leadingIcon={selectedFilters.country?.includes(c) ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                />
-              ))}
-            </Menu>
+            {/* Country chip */}
+            <TouchableOpacity
+              style={[styles.filterChipBtn, selectedFilters.country?.length && styles.filterChipBtnActive]}
+              onPress={() => setActiveFilterMenu('country')}
+              activeOpacity={0.8}
+            >
+              <Icon
+                source="earth"
+                size={13}
+                color={selectedFilters.country?.length ? colors.primary.main : colors.text.secondary}
+              />
+              <Text style={[styles.filterChipBtnText, selectedFilters.country?.length && styles.filterChipBtnTextActive]}>
+                {filterChipLabel('country', 'Country')}
+              </Text>
+              <Icon
+                source="chevron-down"
+                size={13}
+                color={selectedFilters.country?.length ? colors.primary.main : colors.text.secondary}
+              />
+            </TouchableOpacity>
 
-            {Object.values(selectedFilters).some(v => v?.length) && (
-              <Button
-                mode="text"
-                onPress={clearFilters}
-                style={styles.clearButton}
-                labelStyle={styles.clearButtonLabel}
-                icon="close">
-                Clear
-              </Button>
+            {/* Clear all */}
+            {hasActiveFilters && (
+              <TouchableOpacity
+                style={styles.clearChipBtn}
+                onPress={clearAllFilters}
+                activeOpacity={0.8}
+              >
+                <Icon source="close-circle" size={13} color={colors.status.error} />
+                <Text style={styles.clearChipBtnText}>Clear all</Text>
+              </TouchableOpacity>
             )}
-          </View>
+          </ScrollView>
         </>
       )}
 
-      {/* Content */}
+      {/* ── Content ───────────────────────────────────────────────────────── */}
       <View style={styles.content}>
         {viewMode === 'list' ? (
           <FlatList<Respondent>
             ref={flatListRef}
             data={respondentsHook.respondents}
             keyExtractor={item => item.id}
-            renderItem={renderTableRow}
+            renderItem={renderRespondentCard}
             ListHeaderComponent={ListHeader}
             ListFooterComponent={ListFooter}
             ListEmptyComponent={ListEmpty}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -637,290 +630,754 @@ const ResponsesScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Export Loading Overlay */}
+      {/* ── Export overlay ─────────────────────────────────────────────────── */}
       {exportHook.exporting && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text variant="bodyLarge" style={styles.loadingText}>
-            Exporting...
-          </Text>
+          <Text style={styles.loadingText}>Exporting...</Text>
         </View>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          DIALOGS
+      ════════════════════════════════════════════════════════════════════ */}
+      <Portal>
+
+        {/* ── Filter dialog ──────────────────────────────────────────────── */}
+        <Dialog
+          visible={activeFilterMenu !== null}
+          onDismiss={() => setActiveFilterMenu(null)}
+          style={styles.dialogPaper}
+        >
+          {/* Title row */}
+          <View style={styles.dialogTitleRow}>
+            <View style={styles.dialogTitleAccent} />
+            <Text style={styles.dialogTitleText}>{filterDialogConfig?.title ?? ''}</Text>
+          </View>
+
+          {/* Options */}
+          <Dialog.ScrollArea style={styles.filterDialogScrollArea}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* "All" row */}
+              <TouchableOpacity
+                style={styles.filterOptionRow}
+                onPress={() => {
+                  if (filterDialogConfig) clearFilterKey(filterDialogConfig.key);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  !activeFilterSelections.length && styles.filterOptionTextSelected,
+                ]}>
+                  All
+                </Text>
+                <View style={[styles.checkbox, !activeFilterSelections.length && styles.checkboxActive]}>
+                  {!activeFilterSelections.length && (
+                    <Icon source="check" size={13} color="#fff" />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              <Divider style={styles.filterOptionDivider} />
+
+              {(filterDialogConfig?.options ?? []).map(option => {
+                const isSelected = activeFilterSelections.includes(option);
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.filterOptionRow}
+                    onPress={() => filterDialogConfig && toggleFilterValue(filterDialogConfig.key, option)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterOptionText, isSelected && styles.filterOptionTextSelected]}>
+                      {option}
+                    </Text>
+                    <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+                      {isSelected && <Icon source="check" size={13} color="#fff" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Dialog.ScrollArea>
+
+          {/* Actions */}
+          <View style={styles.dialogActionRow}>
+            <TouchableOpacity
+              style={styles.dialogCancelBtn}
+              onPress={() => {
+                if (filterDialogConfig) clearFilterKey(filterDialogConfig.key);
+              }}
+            >
+              <Text style={styles.dialogCancelText}>Clear</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.dialogPrimaryBtn}
+              onPress={() => setActiveFilterMenu(null)}
+            >
+              <Icon source="check" size={16} color="#fff" />
+              <Text style={styles.dialogPrimaryText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </Dialog>
+
+        {/* ── Export dialog ──────────────────────────────────────────────── */}
+        <Dialog
+          visible={exportDialogVisible}
+          onDismiss={() => setExportDialogVisible(false)}
+          style={styles.dialogPaper}
+        >
+          <View style={styles.dialogTitleRow}>
+            <View style={[styles.dialogTitleAccent, { backgroundColor: colors.status.info }]} />
+            <Text style={styles.dialogTitleText}>Export & Options</Text>
+          </View>
+
+          <Dialog.Content style={styles.exportDialogContent}>
+            {/* Excel */}
+            <TouchableOpacity
+              style={styles.exportRow}
+              onPress={() => {
+                setExportDialogVisible(false);
+                exportHook.handleExportExcel(buildActiveFilters());
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.exportIconTile, { backgroundColor: '#16A34A18' }]}>
+                <Icon source="file-excel" size={20} color="#16A34A" />
+              </View>
+              <View style={styles.exportRowBody}>
+                <Text style={styles.exportRowTitle}>Export to Excel</Text>
+                <Text style={styles.exportRowHint}>Downloads as .xlsx with all filtered data</Text>
+              </View>
+              <Icon source="chevron-right" size={18} color={colors.text.disabled} />
+            </TouchableOpacity>
+
+            <Divider style={styles.exportDivider} />
+
+            {/* CSV */}
+            <TouchableOpacity
+              style={styles.exportRow}
+              onPress={() => {
+                setExportDialogVisible(false);
+                exportHook.handleExportCSV(buildActiveFilters());
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.exportIconTile, { backgroundColor: '#0284C718' }]}>
+                <Icon source="file-delimited" size={20} color="#0284C7" />
+              </View>
+              <View style={styles.exportRowBody}>
+                <Text style={styles.exportRowTitle}>Export to CSV</Text>
+                <Text style={styles.exportRowHint}>Comma-separated values for spreadsheets</Text>
+              </View>
+              <Icon source="chevron-right" size={18} color={colors.text.disabled} />
+            </TouchableOpacity>
+
+            <Divider style={styles.exportDivider} />
+
+            {/* JSON */}
+            <TouchableOpacity
+              style={styles.exportRow}
+              onPress={() => {
+                setExportDialogVisible(false);
+                exportHook.handleExportJSON(buildActiveFilters());
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.exportIconTile, { backgroundColor: '#7C3AED18' }]}>
+                <Icon source="code-json" size={20} color="#7C3AED" />
+              </View>
+              <View style={styles.exportRowBody}>
+                <Text style={styles.exportRowTitle}>Export to JSON</Text>
+                <Text style={styles.exportRowHint}>Raw structured data for developers</Text>
+              </View>
+              <Icon source="chevron-right" size={18} color={colors.text.disabled} />
+            </TouchableOpacity>
+
+            <Divider style={[styles.exportDivider, { marginVertical: spacing.xs }]} />
+
+            {/* Refresh */}
+            <TouchableOpacity
+              style={styles.exportRow}
+              onPress={() => {
+                setExportDialogVisible(false);
+                respondentsHook.loadData();
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.exportIconTile, { backgroundColor: colors.primary.surface }]}>
+                <Icon source="refresh" size={20} color={colors.primary.main} />
+              </View>
+              <View style={styles.exportRowBody}>
+                <Text style={styles.exportRowTitle}>Refresh</Text>
+                <Text style={styles.exportRowHint}>Reload the latest responses from server</Text>
+              </View>
+              <Icon source="chevron-right" size={18} color={colors.text.disabled} />
+            </TouchableOpacity>
+          </Dialog.Content>
+
+          {/* Close button */}
+          <View style={[styles.dialogActionRow, { justifyContent: 'flex-end' }]}>
+            <TouchableOpacity
+              style={[styles.dialogCancelBtn, { flex: 0, paddingHorizontal: spacing.xl }]}
+              onPress={() => setExportDialogVisible(false)}
+            >
+              <Text style={styles.dialogCancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </Dialog>
+
+      </Portal>
     </ScreenWrapper>
   );
 };
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.default,
   },
+  loadingText: {
+    marginTop: spacing.sm,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+
+  // ── Hero
+  hero: {
+    backgroundColor: colors.primary.dark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  heroNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+  heroTitle: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.xxl,
+    color: '#fff',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255,255,255,0.65)',
+  },
+  heroMenuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background.default,
   },
-  loadingText: {
-    marginTop: 16,
-    color: colors.text.secondary,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  title: {
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    fontSize: 28,
-  },
-  subtitle: {
-    color: colors.text.secondary,
-    marginTop: 4,
-    fontSize: 16,
-  },
-  menuContent: {
-    backgroundColor: colors.background.paper,
-  },
-  menuItemText: {
-    color: colors.text.primary,
-  },
-  menuItemTextSelected: {
-    color: colors.primary.main,
-    fontWeight: '600',
-  },
+
+  // ── Search
   searchContainer: {
-    padding: 16,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
     backgroundColor: colors.background.default,
   },
   searchBar: {
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
     borderWidth: 1,
     borderColor: colors.border.light,
     elevation: 0,
+    borderRadius: borderRadius.lg,
   },
   searchInput: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.primary,
   },
-  content: {
-    flex: 1,
+
+  // ── Filter chip row
+  filterScrollView: {
+    backgroundColor: colors.background.default,
+    maxHeight: 52,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  // Table styles (inline — no longer in a separate component)
-  dataTable: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 0,
-  },
-  tableHeader: {
-    backgroundColor: colors.background.subtle,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  headerText: {
-    color: colors.text.primary,
-    fontWeight: 'bold',
-    fontSize: 14,
-    flexShrink: 1,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 52,
-  },
-  cellText: {
-    color: colors.text.primary,
-    fontSize: 14,
-  },
-  cellCountText: {
-    textAlign: 'right',
-  },
-  filtersCell: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    paddingVertical: 4,
-  },
-  filterChip: {
-    backgroundColor: 'rgba(67, 56, 202, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(67, 56, 202, 0.2)',
-    paddingVertical: 2,
-  },
-  filterChipText: {
-    color: colors.text.secondary,
-    fontSize: 10,
-  },
-  // Load more footer
-  loadMoreContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  filterScrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
-    paddingVertical: 16,
     gap: 8,
   },
-  loadMoreText: {
-    color: colors.text.secondary,
-  },
-  endOfListText: {
-    textAlign: 'center',
-    color: colors.text.hint,
-    paddingVertical: 16,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-  },
-  filterContainer: {
+  filterChipBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-    backgroundColor: colors.background.default,
-    flexWrap: 'wrap',
-  },
-  filterButton: {
-    borderColor: colors.border.medium,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: borderRadius.round,
     borderWidth: 1,
-    backgroundColor: 'white',
-    minWidth: 140,
-    flexShrink: 1,
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.paper,
   },
-  filterButtonActive: {
+  filterChipBtnActive: {
     borderColor: colors.primary.main,
-    borderWidth: 2,
+    borderWidth: 1.5,
     backgroundColor: colors.primary.faint,
   },
-  filterButtonLabel: {
-    color: colors.text.primary,
-    fontSize: 13,
-    flexShrink: 1,
+  filterChipBtnText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
   },
-  clearButton: {
-    marginLeft: 'auto',
+  filterChipBtnTextActive: {
+    color: colors.primary.main,
   },
-  clearButtonLabel: {
-    color: colors.status.error,
-    fontSize: 12,
-  },
-  // Detail view styles
-  detailHeader: {
+  clearChipBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: borderRadius.round,
+    borderWidth: 1,
+    borderColor: colors.status.error + '55',
+    backgroundColor: colors.status.errorSurface,
   },
-  detailHeaderInfo: {
-    flex: 1,
-    marginLeft: 8,
+  clearChipBtnText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.status.error,
   },
-  detailTitle: {
-    color: colors.text.primary,
-    fontWeight: 'bold',
-  },
-  detailSubtitle: {
-    color: colors.text.secondary,
-    marginTop: 4,
-  },
-  detailStats: {
+
+  // ── All/Mine toggle
+  toggleRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  detailChip: {
-    backgroundColor: 'rgba(67, 56, 202, 0.08)',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(67, 56, 202, 0.2)',
+    borderColor: colors.border.light,
+    overflow: 'hidden',
   },
-  chipText: {
-    color: colors.text.primary,
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
   },
-  filterChipSmall: {
-    backgroundColor: 'rgba(67, 56, 202, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(67, 56, 202, 0.2)',
-    height: 28,
+  toggleBtnActive: {
+    backgroundColor: colors.primary.main,
   },
-  filterChipTextSmall: {
+  toggleBtnText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    fontSize: 11,
   },
+  toggleBtnTextActive: {
+    color: '#fff',
+  },
+
+  // ── Respondent card
+  respondentCard: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    padding: 14,
+    marginBottom: 10,
+  },
+  respTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 8,
+  },
+  respAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  respAvatarText: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  respInfo: { flex: 1 },
+  respId: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  respType: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+  },
+  respBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.round,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  respBadgeComplete: { backgroundColor: colors.status.successSurface },
+  respBadgePartial: { backgroundColor: colors.status.warningSurface },
+  respBadgeText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  respBadgeTextComplete: { color: colors.status.success },
+  respBadgeTextPartial: { color: colors.status.warning },
+  respMeta: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  respMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  respMetaText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: 11,
+    color: colors.text.disabled,
+  },
+
+  // ── List layout
+  content: { flex: 1 },
+  listContent: {
+    padding: spacing.lg,
+    paddingBottom: 32,
+  },
+
+  // ── Empty state
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
+    gap: spacing.sm,
+  },
+  emptyTitle: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.text.secondary,
+  },
+  emptyHint: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.disabled,
+  },
+
+  // ── Pagination
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingBottom: 40,
+  },
+  pageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary.main,
+    backgroundColor: colors.primary.faint,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  pageBtnDisabled: {
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.paper,
+  },
+  pageBtnText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.primary.main,
+  },
+  pageBtnTextDisabled: { color: colors.text.disabled },
+  pageInfo: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    minWidth: 60,
+    textAlign: 'center',
+  },
+
+  // ── Detail view
+  detailContent: {
+    padding: spacing.lg,
+    paddingBottom: 40,
+  },
+  detailHero: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  detailAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: spacing.md,
+  },
+  detailAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  detailAvatarText: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  detailAvatarInfo: { flex: 1 },
+  detailRespondentId: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
+    marginBottom: 3,
+  },
+  detailRespondentType: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+  detailStatRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.background.subtle ?? colors.background.default,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  detailStatPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
+  },
+  detailStatDivider: {
+    width: 1,
+    backgroundColor: colors.border.light,
+  },
+  detailStatValue: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
+  },
+  detailStatLabel: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+
+  // ── Loading overlay
   loadingOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
   },
-  // Table column flex widths — must match header and row
-  tableHeaderRow: {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIALOG STYLES (shared pattern — mirrors DataCollectionScreen)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  dialogPaper: {
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.background.paper,
+    overflow: 'hidden',
+  },
+  dialogTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.subtle,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    marginTop: 8,
+    paddingRight: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xs,
   },
-  colId: { flex: 2.5, paddingRight: 4 },
-  colSubmittedBy: { flex: 1.5, paddingRight: 4 },
-  colFilters: { flex: 2, paddingRight: 4 },
-  colResponses: { flex: 0.8, alignItems: 'flex-end' },
-  submittedByCell: {
-    flexDirection: 'column',
-    justifyContent: 'center',
-    gap: 2,
+  dialogTitleAccent: {
+    width: 4,
+    height: 26,
+    backgroundColor: colors.primary.main,
+    borderRadius: 2,
   },
-  cellTimestamp: {
-    fontSize: 11,
-    color: colors.text.hint,
-    marginTop: 2,
+  dialogTitleText: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 20,
+    color: colors.text.primary,
+    letterSpacing: -0.2,
+    flex: 1,
+    paddingLeft: spacing.md,
   },
-  // Pagination
-  paginationContainer: {
+  dialogActionRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 24,
-    gap: 16,
-    paddingBottom: 40,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.xs,
   },
-  pageButton: {
-    minWidth: 100,
+  dialogCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
     borderColor: colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  pageInfo: {
+  dialogCancelText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
     color: colors.text.secondary,
-    fontWeight: '500',
+  },
+  dialogPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogPrimaryText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+
+  // ── Filter dialog
+  filterDialogScrollArea: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border.light,
+    maxHeight: 320,
+    paddingHorizontal: 0,
+  },
+  filterOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+  },
+  filterOptionText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.md,
+    color: colors.text.secondary,
+    flex: 1,
+  },
+  filterOptionTextSelected: {
+    fontFamily: 'DMSans-Bold',
+    color: colors.text.primary,
+  },
+  filterOptionDivider: {
+    backgroundColor: colors.border.light,
+    marginHorizontal: spacing.lg,
+  },
+  // Custom checkbox
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.border.medium,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary.main,
+    borderColor: colors.primary.main,
+  },
+
+  // ── Export dialog
+  exportDialogContent: {
+    paddingTop: spacing.xs,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
+  exportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 13,
+  },
+  exportIconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  exportRowBody: { flex: 1 },
+  exportRowTitle: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  exportRowHint: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+  },
+  exportDivider: {
+    backgroundColor: colors.border.light,
+    marginHorizontal: spacing.lg,
   },
 });
 

@@ -605,3 +605,32 @@ class PendingInvitation(models.Model):
         )
         
         return True, invitation
+
+
+class CollectionTarget(models.Model):
+    """
+    Per-member, per-bundle collection target set by project owner.
+    A target is uniquely identified by (project, respondent_type, commodity, country, assigned_to).
+    Each member sees their personal target and progress in "My Stats".
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='collection_targets')
+    assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='collection_targets')
+    respondent_type = models.CharField(max_length=50)
+    commodity = models.CharField(max_length=50, blank=True, default='')
+    country = models.CharField(max_length=100, blank=True, default='')
+    target_count = models.PositiveIntegerField(help_text="Target number of completed respondents for this bundle")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['project', 'respondent_type', 'commodity', 'country', 'assigned_to']
+        ordering = ['assigned_to', 'respondent_type', 'commodity', 'country']
+
+    def __str__(self):
+        parts = [self.respondent_type]
+        if self.commodity:
+            parts.append(self.commodity)
+        if self.country:
+            parts.append(self.country)
+        return f"{self.assigned_to.username}: {' / '.join(parts)} → {self.target_count} ({self.project.name})"

@@ -1650,6 +1650,35 @@ class ModernQuestionViewSet(BaseModelViewSet):
                 'completed_respondent_ids': completed_respondents,
             })
 
+        # Attach collection targets to each bundle (aggregate across all members)
+        from projects.models import CollectionTarget
+        from django.db.models import Sum
+        targets_agg = CollectionTarget.objects.filter(
+            project_id=project_id
+        ).values(
+            'respondent_type', 'commodity', 'country'
+        ).annotate(total_target=Sum('target_count'))
+        target_lookup = {
+            (t['respondent_type'], t['commodity'], t['country']): t['total_target']
+            for t in targets_agg
+        }
+        # Also get per-member breakdown for display
+        all_targets = CollectionTarget.objects.filter(
+            project_id=project_id
+        ).select_related('assigned_to')
+        member_targets_lookup: dict = {}
+        for t in all_targets:
+            key = (t.respondent_type, t.commodity, t.country)
+            member_targets_lookup.setdefault(key, []).append({
+                'user_id': str(t.assigned_to.id),
+                'username': t.assigned_to.username,
+                'target_count': t.target_count,
+            })
+        for bundle in bundle_stats:
+            key = (bundle['respondent_type'], bundle['commodity'], bundle['country'])
+            bundle['target_count'] = target_lookup.get(key, None)
+            bundle['member_targets'] = member_targets_lookup.get(key, [])
+
         return JsonResponse({
             'project_id': project_id,
             'bundles': bundle_stats,

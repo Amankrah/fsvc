@@ -4,19 +4,25 @@
  */
 
 import React from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   Text,
   TextInput,
   Switch,
-  Button,
-  Chip,
   ActivityIndicator,
-  Card,
-  Divider,
+  Icon,
 } from 'react-native-paper';
 import { RespondentType, CommodityType } from '../../types';
-import { colors } from '../../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../../constants/theme';
+
+interface PrepareAllProgress {
+  current: number;
+  total: number;
+  label: string;
+  generated: number;
+  cached: number;
+  skipped: number;
+}
 
 interface RespondentFormProps {
   // Respondent state
@@ -41,7 +47,12 @@ interface RespondentFormProps {
   questionsGenerated: boolean;
   cachingForOffline?: boolean;
   cachedOfflineCount?: number;
-  loadingQuestions?: boolean; // New prop for visual feedback
+  loadingQuestions?: boolean;
+
+  // Prepare All for Offline
+  preparingAll?: boolean;
+  prepareAllProgress?: PrepareAllProgress | null;
+  onPrepareAllForOffline?: () => void;
 
   // Actions
   onGenerateQuestions: () => void;
@@ -70,29 +81,50 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
   cachingForOffline = false,
   cachedOfflineCount = 0,
   loadingQuestions = false,
+  preparingAll = false,
+  prepareAllProgress = null,
+  onPrepareAllForOffline,
   onGenerateQuestions,
   onStartSurvey,
   onCacheForOffline,
 }) => {
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Card style={styles.card} mode="outlined">
-        <Card.Content>
-          {/* Respondent ID Section */}
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            Respondent Identification
-          </Text>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.contentContainer}
+    >
+      {/* ── Respondent Identification ────────────────────────────────────── */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Respondent Identification</Text>
 
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Auto-generate Respondent ID</Text>
-            <Switch value={useAutoId} onValueChange={handleToggleAutoId} color={colors.primary.main} />
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Auto-generate Respondent ID</Text>
+          <Switch value={useAutoId} onValueChange={handleToggleAutoId} color={colors.primary.main} />
+        </View>
+
+        {useAutoId ? (
+          /* Display pill — read-only ID with refresh button */
+          <View style={styles.idDisplay}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.idLabel}>Respondent ID</Text>
+              <Text style={styles.idValue} numberOfLines={1}>
+                {respondentId || 'Generating…'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={generateNewRespondentId}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Icon source="refresh" size={20} color={colors.text.tertiary} />
+            </TouchableOpacity>
           </View>
-
+        ) : (
+          /* Editable input — shown when user disables auto-generate */
           <TextInput
             label="Respondent ID"
             value={respondentId}
             onChangeText={setRespondentId}
-            disabled={useAutoId}
             mode="outlined"
             style={styles.input}
             textColor={colors.text.primary}
@@ -103,157 +135,238 @@ export const RespondentForm: React.FC<RespondentFormProps> = ({
                 outline: colors.border.light,
               },
             }}
-            right={
-              useAutoId ? (
-                <TextInput.Icon icon="refresh" onPress={generateNewRespondentId} />
-              ) : null
-            }
           />
+        )}
+      </View>
 
-          <Divider style={styles.divider} />
+      {/* ── Respondent Profile ───────────────────────────────────────────── */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Respondent Profile</Text>
 
-          {/* Respondent Profile Section */}
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            Respondent Profile
-          </Text>
-
-          {loadingOptions ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={colors.primary.main} />
-              <Text style={styles.loadingText}>Loading available options...</Text>
-            </View>
-          ) : (
-            <>
-              {/* Respondent Type */}
-              <Text style={styles.label}>Respondent Type *</Text>
-              <View style={styles.chipContainer}>
-                {availableRespondentTypes.map((type) => (
-                  <Chip
+        {loadingOptions ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.primary.main} />
+            <Text style={styles.loadingText}>Loading available options…</Text>
+          </View>
+        ) : (
+          <>
+            {/* Respondent Type */}
+            <Text style={styles.fieldLabel}>Respondent Type *</Text>
+            <View style={styles.chipGrid}>
+              {availableRespondentTypes.map((type) => {
+                const selected = selectedRespondentType === type.value;
+                return (
+                  <TouchableOpacity
                     key={type.value}
-                    selected={selectedRespondentType === type.value}
+                    style={[styles.chip, selected && styles.chipSelected]}
                     onPress={() =>
                       setSelectedRespondentType(
                         selectedRespondentType === type.value ? '' : (type.value as RespondentType)
                       )
                     }
-                    style={[
-                      styles.chip,
-                      selectedRespondentType === type.value && styles.selectedChip,
-                    ]}
-                    textStyle={styles.chipText}>
-                    {type.display}
-                  </Chip>
-                ))}
-              </View>
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      {type.display}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-              {/* Commodities */}
-              <Text style={styles.label}>Commodities (Optional - Multi-select)</Text>
-              <View style={styles.chipContainer}>
-                {availableCommodities.map((commodity) => (
-                  <Chip
+            {/* Commodities */}
+            <Text style={styles.fieldLabel}>Commodities (Optional - Multi-select)</Text>
+            <View style={styles.chipGrid}>
+              {availableCommodities.map((commodity) => {
+                const selected = selectedCommodities.includes(commodity.value as CommodityType);
+                return (
+                  <TouchableOpacity
                     key={commodity.value}
-                    selected={selectedCommodities.includes(commodity.value as CommodityType)}
+                    style={[styles.chip, selected && styles.chipSelected]}
                     onPress={() => toggleCommodity(commodity.value as CommodityType)}
-                    style={[
-                      styles.chip,
-                      selectedCommodities.includes(commodity.value as CommodityType) &&
-                      styles.selectedChip,
-                    ]}
-                    textStyle={styles.chipText}>
-                    {commodity.display}
-                  </Chip>
-                ))}
-              </View>
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      {commodity.display}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-              {/* Country */}
-              <Text style={styles.label}>Country (Optional)</Text>
-              <View style={styles.chipContainer}>
-                {availableCountries.slice(0, 10).map((country) => (
-                  <Chip
+            {/* Country */}
+            <Text style={styles.fieldLabel}>Country (Optional)</Text>
+            <View style={styles.chipGrid}>
+              {availableCountries.slice(0, 10).map((country) => {
+                const selected = selectedCountry === country;
+                return (
+                  <TouchableOpacity
                     key={country}
-                    selected={selectedCountry === country}
+                    style={[styles.chip, selected && styles.chipSelected]}
                     onPress={() => setSelectedCountry(selectedCountry === country ? '' : country)}
-                    style={[styles.chip, selectedCountry === country && styles.selectedChip]}
-                    textStyle={styles.chipText}>
-                    {country}
-                  </Chip>
-                ))}
-              </View>
-            </>
-          )}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      {country}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+      </View>
 
-          <Divider style={styles.divider} />
-
-          {/* Action Buttons */}
-          <View style={styles.buttonContainer}>
-            <Button
-              mode="contained"
-              onPress={onGenerateQuestions}
-              loading={generatingQuestions}
-              disabled={!selectedRespondentType || generatingQuestions || loadingOptions}
-              style={styles.generateButton}
-              textColor="#FFFFFF"
-              icon="auto-fix">
-              {questionsGenerated ? 'Regenerate Questions' : 'Generate Questions'}
-            </Button>
-
-            {questionsGenerated && onCacheForOffline && (
-              <Button
-                mode="outlined"
-                onPress={onCacheForOffline}
-                loading={cachingForOffline}
-                disabled={!selectedRespondentType || cachingForOffline || generatingQuestions}
-                style={styles.cacheButton}
-                icon="download-circle"
-                textColor={colors.primary.main}>
-                {cachedOfflineCount > 0 ? 'Update Offline Cache' : 'Cache for Offline'}
-              </Button>
-            )}
-
-            {questionsGenerated && (
-              <Button
-                mode="contained"
-                onPress={onStartSurvey}
-                disabled={!respondentId}
-                style={styles.startButton}
-                textColor="#FFFFFF"
-                icon="play-circle">
-                Start Survey
-              </Button>
-            )}
+      {/* ── Action Buttons ───────────────────────────────────────────────── */}
+      <View style={styles.actionsContainer}>
+        {/* Generate Questions — disabled (greyed) when questions already exist */}
+        {questionsGenerated ? (
+          <View style={styles.questionsReadyBtn}>
+            <Icon source="check-circle" size={18} color={colors.status.success} />
+            <Text style={styles.questionsReadyText}>Questions Ready</Text>
           </View>
-
-          {/* Offline Cache Status */}
-          {cachedOfflineCount > 0 && (
-            <View style={styles.offlineBanner}>
-              <Text style={styles.offlineText}>📴 {cachedOfflineCount} questions cached offline</Text>
-              <Text style={styles.offlineSubtext}>
-                Available for: {selectedRespondentType}
-                {selectedCommodities.length > 0 && ` - ${selectedCommodities.join(', ')}`}
-                {selectedCountry && ` - ${selectedCountry}`}
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.generateBtn,
+              (!selectedRespondentType || generatingQuestions || loadingOptions) &&
+                styles.btnDisabled,
+            ]}
+            onPress={onGenerateQuestions}
+            disabled={!selectedRespondentType || generatingQuestions || loadingOptions}
+            activeOpacity={0.82}
+          >
+            {generatingQuestions ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.generateBtnText}>
+                Generate Questions
               </Text>
-            </View>
-          )}
+            )}
+          </TouchableOpacity>
+        )}
 
-          {loadingQuestions && (
-            <View style={styles.loadingBanner}>
+        {/* Cache for Offline — appears after generation */}
+        {questionsGenerated && onCacheForOffline && (
+          <TouchableOpacity
+            style={[
+              styles.cacheButton,
+              (!selectedRespondentType || cachingForOffline || generatingQuestions) &&
+                styles.btnDisabled,
+            ]}
+            onPress={onCacheForOffline}
+            disabled={!selectedRespondentType || cachingForOffline || generatingQuestions}
+            activeOpacity={0.82}
+          >
+            {cachingForOffline ? (
               <ActivityIndicator size="small" color={colors.primary.main} />
-              <Text style={styles.loadingText}>Updating questions for new selection...</Text>
-            </View>
-          )}
+            ) : (
+              <>
+                <Icon source="download-circle" size={18} color={colors.primary.main} />
+                <Text style={styles.cacheBtnText}>
+                  {cachedOfflineCount > 0 ? 'Update Offline Cache' : 'Cache for Offline'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
-          {!loadingQuestions && questionsGenerated && (
-            <View style={styles.successBanner}>
-              <Text style={styles.successText}>✅ Questions are ready!</Text>
-              <Text style={styles.successSubtext}>
-                Questions have been generated for {selectedRespondentType}
-                {selectedCommodities.length > 0 && ` - ${selectedCommodities.join(', ')}`}
-                {selectedCountry && ` - ${selectedCountry}`}
-              </Text>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
+        {/* Start Survey — appears after generation */}
+        {questionsGenerated && (
+          <TouchableOpacity
+            style={[styles.startButton, !respondentId && styles.btnDisabled]}
+            onPress={onStartSurvey}
+            disabled={!respondentId}
+            activeOpacity={0.82}
+          >
+            <Icon source="play-circle" size={18} color="#fff" />
+            <Text style={styles.startBtnText}>Start Survey</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Prepare All for Offline — bulk generate + cache all profile combos */}
+        {onPrepareAllForOffline && (
+          <TouchableOpacity
+            style={[
+              styles.prepareAllBtn,
+              (preparingAll || loadingOptions) && styles.btnDisabled,
+            ]}
+            onPress={onPrepareAllForOffline}
+            disabled={preparingAll || loadingOptions}
+            activeOpacity={0.82}
+          >
+            {preparingAll ? (
+              <View style={styles.prepareAllProgressContainer}>
+                <ActivityIndicator size="small" color={colors.accent.orange} />
+                <View style={styles.prepareAllProgressInfo}>
+                  <Text style={styles.prepareAllProgressLabel}>
+                    {prepareAllProgress?.label || 'Preparing...'}
+                  </Text>
+                  {prepareAllProgress && (
+                    <>
+                      <View style={styles.prepareAllProgressTrack}>
+                        <View
+                          style={[
+                            styles.prepareAllProgressFill,
+                            {
+                              width: `${prepareAllProgress.total > 0
+                                ? (prepareAllProgress.current / prepareAllProgress.total) * 100
+                                : 0}%` as any,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.prepareAllProgressStats}>
+                        {prepareAllProgress.current}/{prepareAllProgress.total} — {prepareAllProgress.generated} generated, {prepareAllProgress.cached} cached
+                        {prepareAllProgress.skipped > 0 && `, ${prepareAllProgress.skipped} skipped`}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <>
+                <Icon source="cloud-download" size={18} color={colors.accent.orange} />
+                <Text style={styles.prepareAllBtnText}>Prepare All for Offline</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* ── Status Banners ───────────────────────────────────────────────── */}
+      {cachedOfflineCount > 0 && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>📴 {cachedOfflineCount} questions cached offline</Text>
+          <Text style={styles.offlineSubtext}>
+            Available for: {selectedRespondentType}
+            {selectedCommodities.length > 0 && ` - ${selectedCommodities.join(', ')}`}
+            {selectedCountry && ` - ${selectedCountry}`}
+          </Text>
+        </View>
+      )}
+
+      {loadingQuestions && (
+        <View style={styles.loadingBanner}>
+          <ActivityIndicator size="small" color={colors.primary.main} />
+          <Text style={[styles.loadingText, { marginLeft: spacing.md }]}>
+            Updating questions for new selection…
+          </Text>
+        </View>
+      )}
+
+      {!loadingQuestions && questionsGenerated && (
+        <View style={styles.successBanner}>
+          <Text style={styles.successText}>✅ Questions are ready!</Text>
+          <Text style={styles.successSubtext}>
+            Questions have been generated for {selectedRespondentType}
+            {selectedCommodities.length > 0 && ` - ${selectedCommodities.join(', ')}`}
+            {selectedCountry && ` - ${selectedCountry}`}
+          </Text>
+        </View>
+      )}
+
+      <View style={{ height: spacing.huge }} />
     </ScrollView>
   );
 };
@@ -263,136 +376,293 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.default,
   },
-  card: {
-    margin: 16,
-    backgroundColor: colors.primary.faint,
-    borderRadius: 20,
+  contentContainer: {
+    paddingBottom: 100,
+  },
+
+  // ── Section cards — green-tinted, matching mockup
+  sectionCard: {
+    backgroundColor: colors.primary.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: 'rgba(29, 122, 82, 0.25)',
+    margin: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.lg,
   },
   sectionTitle: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
     color: colors.text.primary,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    letterSpacing: -0.2,
+    marginBottom: spacing.md,
   },
+
+  // ── Switch row
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 8,
+    marginBottom: spacing.md,
   },
   switchLabel: {
-    color: colors.text.primary,
-    fontSize: 14,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    flex: 1,
+    marginRight: spacing.md,
   },
+
+  // ── Respondent ID display pill (auto-generate ON)
+  idDisplay: {
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  idLabel: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginBottom: 2,
+  },
+  idValue: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+  },
+
+  // ── Editable ID input (auto-generate OFF)
   input: {
-    marginBottom: 16,
     backgroundColor: colors.background.paper,
   },
-  divider: {
-    backgroundColor: colors.border.light,
-    marginVertical: 24,
+
+  // ── Chip field labels
+  fieldLabel: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
   },
-  label: {
-    color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  chipContainer: {
+
+  // ── Chips
+  chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: 7,
+    marginBottom: spacing.md,
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border.medium,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
     backgroundColor: colors.background.paper,
-    borderRadius: 8,
-    borderColor: colors.border.light,
   },
-  selectedChip: {
-    backgroundColor: colors.primary.faint,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  chipSelected: {
+    borderColor: colors.primary.main,
+    backgroundColor: colors.primary.surface,
   },
   chipText: {
-    color: colors.text.primary,
-    fontSize: 12,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
+  chipTextSelected: {
+    fontFamily: 'DMSans-Bold',
+    color: colors.primary.main,
+  },
+
+  // ── Loading (inside Respondent Profile card)
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    paddingVertical: spacing.xxl,
   },
   loadingText: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.secondary,
-    marginLeft: 12,
+    fontSize: typography.fontSize.sm,
   },
-  buttonContainer: {
-    gap: 12,
-    marginTop: 8,
+
+  // ── Action buttons
+  actionsContainer: {
+    gap: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
   },
-  generateButton: {
+  generateBtn: {
     backgroundColor: colors.primary.dark,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+generateBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+  questionsReadyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 16,
+    backgroundColor: colors.status.successSurface,
+    borderWidth: 1.5,
+    borderColor: 'rgba(5, 150, 105, 0.3)',
+  },
+  questionsReadyText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.status.success,
+  },
+  btnDisabled: {
+    opacity: 0.45,
   },
   cacheButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
     borderColor: colors.primary.main,
-    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    backgroundColor: colors.background.paper,
+  },
+  cacheBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.primary.main,
   },
   startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
   },
+  startBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+
+  // ── Prepare All for Offline button
+  prepareAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: colors.accent.orange,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    backgroundColor: colors.background.paper,
+    marginTop: spacing.sm,
+  },
+  prepareAllBtnText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.accent.orange,
+  },
+  prepareAllProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    width: '100%',
+  },
+  prepareAllProgressInfo: {
+    flex: 1,
+  },
+  prepareAllProgressLabel: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.sm,
+    color: colors.accent.orange,
+    marginBottom: 4,
+  },
+  prepareAllProgressTrack: {
+    height: 4,
+    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  prepareAllProgressFill: {
+    height: 4,
+    backgroundColor: colors.accent.orange,
+    borderRadius: 2,
+  },
+  prepareAllProgressStats: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+  },
+
+  // ── Status banners
   offlineBanner: {
     backgroundColor: 'rgba(100, 200, 255, 0.15)',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    margin: spacing.md,
+    marginTop: spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(100, 200, 255, 0.4)',
   },
   offlineText: {
+    fontFamily: 'DMSans-Bold',
     color: colors.primary.main,
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: typography.fontSize.md,
     marginBottom: 4,
   },
   offlineSubtext: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.primary,
-    fontSize: 13,
+    fontSize: typography.fontSize.sm,
   },
   successBanner: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    backgroundColor: colors.status.successSurface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    margin: spacing.md,
+    marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
+    borderColor: 'rgba(5, 150, 105, 0.3)',
   },
   successText: {
+    fontFamily: 'DMSans-Bold',
     color: colors.status.success,
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: typography.fontSize.md,
     marginBottom: 4,
   },
   successSubtext: {
+    fontFamily: 'DMSans-Regular',
     color: colors.text.primary,
-    fontSize: 13,
+    fontSize: typography.fontSize.sm,
   },
   loadingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    backgroundColor: colors.status.infoSurface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    margin: spacing.md,
+    marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(33, 150, 243, 0.3)',
+    borderColor: 'rgba(37, 99, 235, 0.3)',
   },
 });

@@ -45,8 +45,8 @@ class SyncManager {
       }
     });
 
-    // Start periodic sync check (every 5 minutes)
-    this.startPeriodicSync(5 * 60 * 1000);
+    // Start adaptive periodic sync (1 min active / 10 min idle)
+    this.startPeriodicSync();
   }
 
   /**
@@ -71,6 +71,12 @@ class SyncManager {
       });
 
       console.log(`Queued ${operation} operation for ${table_name}:${record_id}`);
+
+      // Switch to active polling interval since queue now has items
+      if (this.currentIntervalMs !== SyncManager.ACTIVE_INTERVAL_MS) {
+        this.currentIntervalMs = SyncManager.ACTIVE_INTERVAL_MS;
+        this.scheduleNextSync(); // restart timer with shorter interval
+      }
 
       // If online, try to sync immediately
       if (networkMonitor.getConnectionStatus()) {
@@ -102,6 +108,13 @@ class SyncManager {
     if (!isConnected) {
       console.log('No network connection, sync postponed');
       return { success: false, synced: 0, failed: 0, errors: ['No network connection'] };
+    }
+
+    // Verify backend is actually reachable (NetInfo only checks device connectivity)
+    const reachable = await syncApi.isBackendReachable();
+    if (!reachable) {
+      console.log('[SyncManager] Backend unreachable despite network connectivity, sync postponed');
+      return { success: false, synced: 0, failed: 0, errors: ['Backend unreachable'] };
     }
 
     this.isSyncing = true;
@@ -146,9 +159,14 @@ class SyncManager {
             this.emitEvent('item_failed', { item, error: errorMsg });
             console.error(`✗ Failed: ${item.table_name}:${item.record_id} - ${errorMsg}`);
 
-            // If authentication error, emit special event to notify user
+            // If authentication error, pause syncing and break — all
+            // remaining items will also 401. Emit event so the app can
+            // redirect to login; sync resumes after re-auth.
             if (errorMsg.includes('Authentication') || errorMsg.includes('Session expired') || errorMsg.includes('Not logged in')) {
+              this.autoSyncEnabled = false;
               this.emitEvent('auth_error', { message: errorMsg });
+              console.warn('[SyncManager] Auth error detected — auto-sync paused. Will resume after re-auth.');
+              break;
             }
           }
         } catch (error: any) {
@@ -177,7 +195,8 @@ class SyncManager {
           console.log('[SyncManager] processPending returned:', processResult);
 
           if (processResult.success) {
-            const processed = processResult.data?.total_processed || 0;
+            // Backend returns total_processed at root level (not nested under .data)
+            const processed = (processResult as any).total_processed ?? processResult.data?.total_processed ?? 0;
             console.log(`✓ Backend processed ${processed} items`);
           } else {
             console.warn('[SyncManager] Backend processing had issues:', processResult.error);
@@ -253,18 +272,58 @@ class SyncManager {
   }
 
   /**
-   * Start periodic sync
+   * Re-enable auto-sync and trigger an immediate sync attempt.
+   * Call this after the user re-authenticates.
    */
-  private startPeriodicSync(intervalMs: number): void {
+  resumeAfterAuth(): void {
+    this.autoSyncEnabled = true;
+    console.log('[SyncManager] Resumed after re-auth — triggering sync');
+    this.syncPendingItems();
+  }
+
+  // Adaptive interval constants
+  private static readonly ACTIVE_INTERVAL_MS = 60_000;   // 1 min when queue has items
+  private static readonly IDLE_INTERVAL_MS = 600_000;     // 10 min when queue is empty
+  private currentIntervalMs: number = SyncManager.IDLE_INTERVAL_MS;
+
+  /**
+   * Start periodic sync with adaptive intervals.
+   * Checks pending count after each tick and adjusts the interval:
+   * - 1 minute when the queue has pending/failed items
+   * - 10 minutes when the queue is empty (idle)
+   */
+  private startPeriodicSync(_initialMs?: number): void {
+    this.scheduleNextSync();
+  }
+
+  private scheduleNextSync(): void {
     if (this.syncInterval) {
-      clearInterval(this.syncInterval);
+      clearTimeout(this.syncInterval);
     }
 
-    this.syncInterval = setInterval(() => {
+    this.syncInterval = setTimeout(async () => {
       if (this.autoSyncEnabled && networkMonitor.getConnectionStatus()) {
-        this.syncPendingItems();
+        await this.syncPendingItems();
       }
-    }, intervalMs);
+
+      // Adapt interval based on queue state
+      try {
+        const count = await this.getPendingCount();
+        const newInterval = count > 0
+          ? SyncManager.ACTIVE_INTERVAL_MS
+          : SyncManager.IDLE_INTERVAL_MS;
+
+        if (newInterval !== this.currentIntervalMs) {
+          console.log(`[SyncManager] Adaptive interval: ${this.currentIntervalMs / 1000}s → ${newInterval / 1000}s (${count} pending)`);
+          this.currentIntervalMs = newInterval;
+        }
+      } catch {
+        // Keep current interval on error
+      }
+
+      // Schedule next tick
+      this.scheduleNextSync();
+    }, this.currentIntervalMs);
   }
 
   /**
@@ -272,7 +331,7 @@ class SyncManager {
    */
   stopPeriodicSync(): void {
     if (this.syncInterval) {
-      clearInterval(this.syncInterval);
+      clearTimeout(this.syncInterval);
       this.syncInterval = null;
     }
   }

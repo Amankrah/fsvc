@@ -1,13 +1,14 @@
 /**
  * QuestionCard Component
- * Displays a single question with actions and metadata
+ * Displays a single question with actions and metadata.
+ * Savanna Intelligence design: white card, left accent bar, theme tokens.
  */
 
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text, Icon } from 'react-native-paper';
 import { Question, ResponseType, ResponseTypeInfo } from '../../types';
-import { colors } from '../../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 interface QuestionCardProps {
   question: Question;
@@ -17,8 +18,22 @@ interface QuestionCardProps {
   onEdit: (question: Question) => void;
   onDuplicate: (questionId: string) => void;
   onDelete: (questionId: string) => void;
-  responseCount?: number; // Number of respondents who answered this question
+  responseCount?: number;
 }
+
+/** Maps response type → accent color + badge surface color */
+const getTypeColors = (responseType: string) => {
+  const amberTypes = ['multiple_choice', 'text', 'long_text', 'email', 'phone', 'url'];
+  const infoTypes = ['matrix', 'ranking', 'slider', 'file_upload', 'signature'];
+  if (amberTypes.includes(responseType)) {
+    return { accent: colors.sync.pending, surface: colors.sync.pendingSurface };
+  }
+  if (infoTypes.includes(responseType)) {
+    return { accent: colors.status.info, surface: colors.status.infoSurface };
+  }
+  // Default: green (single_choice, number, decimal, yes_no, date, photo, gps, etc.)
+  return { accent: colors.sync.synced, surface: colors.sync.syncedSurface };
+};
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
@@ -30,6 +45,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onDelete,
   responseCount,
 }) => {
+  const { accent, surface } = getTypeColors(question.response_type);
+
   const getResponseTypeDisplay = (type: ResponseType) => {
     const typeInfo = responseTypes.find((rt) => rt.value === type);
     return typeInfo?.display_name || type;
@@ -45,171 +62,182 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     return src?.label || source;
   };
 
+  // Compact meta line: "4 options · Required"
+  const metaParts: string[] = [];
+  if (question.options?.length) metaParts.push(`${question.options.length} options`);
+  metaParts.push(question.is_required ? 'Required' : 'Optional');
+  if (question.allow_multiple) metaParts.push('Multiple');
+
   return (
-    <TouchableOpacity style={styles.cardWrapper} activeOpacity={0.95}>
+    <TouchableOpacity style={styles.cardWrapper} activeOpacity={0.92}>
       <View style={styles.card}>
-        <View style={styles.cardOverlay} />
+        {/* Left accent bar — color indicates response type group */}
+        <View style={[styles.accentBar, { backgroundColor: accent }]} />
+
         <View style={styles.content}>
+          {/* ── Header: type badge + action buttons ── */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <View style={styles.modernChip}>
-                <Text style={styles.modernChipText}>{index + 1}</Text>
-              </View>
-              <View style={styles.typeChipModern}>
-                <Text style={styles.typeChipText}>
+              <View style={[styles.typeBadge, { backgroundColor: surface }]}>
+                <Text style={[styles.typeBadgeText, { color: accent }]}>
                   {getResponseTypeDisplay(question.response_type)}
                 </Text>
               </View>
+
+              {question.priority_score !== undefined && question.priority_score >= 7 && (
+                <View style={styles.priorityBadge}>
+                  <Text style={styles.priorityBadgeText}>⭐ {question.priority_score}</Text>
+                </View>
+              )}
+
+              {responseCount !== undefined && responseCount > 0 && (
+                <View style={styles.responseCountBadge}>
+                  <Text style={styles.responseCountBadgeText}>✓ {responseCount}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => onEdit(question)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Icon source="pencil-outline" size={17} color={colors.text.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => onDuplicate(question.id)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Icon source="content-copy" size={16} color={colors.text.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.deleteBtnStyle]}
+                onPress={() => onDelete(question.id)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Icon source="delete-outline" size={17} color={colors.status.error} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── Question text ── */}
+          <Text style={styles.questionText} numberOfLines={3}>
+            {question.question_text}
+          </Text>
+
+          {/* ── Compact meta line ── */}
+          <Text style={styles.metaLine}>{metaParts.join(' · ')}</Text>
+
+          {/* ── Secondary badges: category / data source / work package ── */}
+          {(question.question_category || question.data_source || question.work_package) && (
+            <View style={styles.secondaryRow}>
               {question.question_category && (
-                <View style={styles.categoryChipDisplay}>
-                  <Text style={styles.categoryChipDisplayText}>
+                <View style={styles.secondaryBadge}>
+                  <Text style={styles.secondaryBadgeText}>
                     {getCategoryDisplay(question.question_category)}
                   </Text>
                 </View>
               )}
-              {question.priority_score && question.priority_score >= 7 && (
-                <View style={styles.priorityChip}>
-                  <Text style={styles.priorityChipText}>⭐ {question.priority_score}</Text>
+              {question.data_source && question.data_source !== 'internal' && (
+                <View style={[styles.secondaryBadge, styles.dataSourceBadge]}>
+                  <Text style={[styles.secondaryBadgeText, { color: colors.status.info }]}>
+                    🤝 {getDataSourceDisplay(question.data_source)}
+                  </Text>
                 </View>
               )}
-              {responseCount !== undefined && responseCount > 0 && (
-                <View style={styles.responseCountChip}>
-                  <Text style={styles.responseCountChipText}>✓ {responseCount} responses</Text>
+              {question.work_package && (
+                <View style={[styles.secondaryBadge, styles.workPackageBadge]}>
+                  <Text style={[styles.secondaryBadgeText, { color: colors.sync.pending }]}>
+                    📦 {question.work_package}
+                  </Text>
                 </View>
               )}
             </View>
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.actionButton} onPress={() => onEdit(question)}>
-                <IconButton icon="pencil" size={18} iconColor={colors.text.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={() => onDuplicate(question.id)}>
-                <IconButton icon="content-copy" size={18} iconColor={colors.text.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(question.id)}>
-                <IconButton icon="delete" size={18} iconColor={colors.text.primary} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          )}
 
-          <Text variant="bodyLarge" style={styles.questionText}>
-            {question.question_text}
-          </Text>
-
-          {/* QuestionBank Metadata */}
-          <View style={styles.metaRow}>
-            {question.data_source && question.data_source !== 'internal' && (
-              <View style={styles.dataSourceBadge}>
-                <Text style={styles.dataSourceBadgeText}>
-                  🤝 {getDataSourceDisplay(question.data_source)}
-                </Text>
-              </View>
-            )}
-            {question.work_package && (
-              <View style={styles.workPackageBadge}>
-                <Text style={styles.workPackageBadgeText}>📦 {question.work_package}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.meta}>
-            {question.is_required && (
-              <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>Required</Text>
-              </View>
-            )}
-            {question.allow_multiple && (
-              <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>Multiple</Text>
-              </View>
-            )}
-            {question.options && question.options.length > 0 && (
-              <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>{question.options.length} options</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Targeted/Assigned Information */}
-          {/* Show assigned fields for generated questions, targeted fields for question bank */}
-          {(question as any).assigned_respondent_type ||
+          {/* ── Assigned fields (Generated Questions) ── */}
+          {((question as any).assigned_respondent_type ||
             (question as any).assigned_commodity ||
-            (question as any).assigned_country ? (
-            /* Generated Question - Show Assigned Fields */
-            <View style={styles.targetedInfoSection}>
+            (question as any).assigned_country) && (
+            <View style={styles.targetingBox}>
               {(question as any).assigned_respondent_type && (
-                <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>👥 Respondent:</Text>
-                  <Text style={styles.targetedValue} numberOfLines={1}>
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>👥 Respondent:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
                     {(question as any).assigned_respondent_type}
                   </Text>
                 </View>
               )}
               {(question as any).assigned_commodity && (
-                <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>🌾 Commodity:</Text>
-                  <Text style={styles.targetedValue} numberOfLines={1}>
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>🌾 Commodity:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
                     {(question as any).assigned_commodity}
                   </Text>
                 </View>
               )}
               {(question as any).assigned_country && (
-                <View style={styles.targetedRow}>
-                  <Text style={styles.targetedLabel}>🌍 Country:</Text>
-                  <Text style={styles.targetedValue} numberOfLines={1}>
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>🌍 Country:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
                     {(question as any).assigned_country}
                   </Text>
                 </View>
               )}
             </View>
-          ) : (
-            /* Question Bank - Show Targeted Fields */
+          )}
+
+          {/* ── Targeted fields (Question Bank) ── */}
+          {!(question as any).assigned_respondent_type &&
             ((question.targeted_respondents?.length ?? 0) > 0 ||
               (question.targeted_commodities?.length ?? 0) > 0 ||
               (question.targeted_countries?.length ?? 0) > 0) && (
-              <View style={styles.targetedInfoSection}>
-                {question.targeted_respondents && question.targeted_respondents.length > 0 && (
-                  <View style={styles.targetedRow}>
-                    <Text style={styles.targetedLabel}>👥 Respondents:</Text>
-                    <Text style={styles.targetedValue} numberOfLines={1}>
-                      {question.targeted_respondents.slice(0, 2).join(', ')}
-                      {question.targeted_respondents.length > 2 &&
-                        ` +${question.targeted_respondents.length - 2}`}
-                    </Text>
-                  </View>
-                )}
-                {question.targeted_commodities && question.targeted_commodities.length > 0 && (
-                  <View style={styles.targetedRow}>
-                    <Text style={styles.targetedLabel}>🌾 Commodities:</Text>
-                    <Text style={styles.targetedValue} numberOfLines={1}>
-                      {question.targeted_commodities.slice(0, 3).join(', ')}
-                      {question.targeted_commodities.length > 3 &&
-                        ` +${question.targeted_commodities.length - 3}`}
-                    </Text>
-                  </View>
-                )}
-                {question.targeted_countries && question.targeted_countries.length > 0 && (
-                  <View style={styles.targetedRow}>
-                    <Text style={styles.targetedLabel}>🌍 Countries:</Text>
-                    <Text style={styles.targetedValue} numberOfLines={1}>
-                      {question.targeted_countries.slice(0, 3).join(', ')}
-                      {question.targeted_countries.length > 3 &&
-                        ` +${question.targeted_countries.length - 3}`}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )
+            <View style={styles.targetingBox}>
+              {question.targeted_respondents && question.targeted_respondents.length > 0 && (
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>👥 Respondents:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
+                    {question.targeted_respondents.slice(0, 2).join(', ')}
+                    {question.targeted_respondents.length > 2 &&
+                      ` +${question.targeted_respondents.length - 2}`}
+                  </Text>
+                </View>
+              )}
+              {question.targeted_commodities && question.targeted_commodities.length > 0 && (
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>🌾 Commodities:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
+                    {question.targeted_commodities.slice(0, 3).join(', ')}
+                    {question.targeted_commodities.length > 3 &&
+                      ` +${question.targeted_commodities.length - 3}`}
+                  </Text>
+                </View>
+              )}
+              {question.targeted_countries && question.targeted_countries.length > 0 && (
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>🌍 Countries:</Text>
+                  <Text style={styles.targetValue} numberOfLines={1}>
+                    {question.targeted_countries.slice(0, 3).join(', ')}
+                    {question.targeted_countries.length > 3 &&
+                      ` +${question.targeted_countries.length - 3}`}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
 
+          {/* ── Options preview ── */}
           {question.options && question.options.length > 0 && (
             <View style={styles.optionsPreview}>
               {question.options.slice(0, 3).map((option, idx) => (
-                <Text key={idx} variant="bodySmall" style={styles.optionText}>
+                <Text key={idx} style={styles.optionText}>
                   • {option}
                 </Text>
               ))}
               {question.options.length > 3 && (
-                <Text variant="bodySmall" style={styles.moreOptions}>
+                <Text style={styles.moreOptions}>
                   +{question.options.length - 3} more
                 </Text>
               )}
@@ -223,221 +251,177 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
 const styles = StyleSheet.create({
   cardWrapper: {
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
+
+  // Card: row layout — accent bar sits flush on the left
   card: {
-    position: 'relative',
-    backgroundColor: colors.primary.faint,
-    borderRadius: 20,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
     borderColor: colors.border.light,
+    overflow: 'hidden',
   },
-  cardOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
+  accentBar: {
+    width: 4,
   },
   content: {
-    padding: 16,
-    zIndex: 1,
+    flex: 1,
+    padding: spacing.md,
   },
+
+  // ── Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
   headerLeft: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
     flex: 1,
+    marginRight: spacing.sm,
   },
-  modernChip: {
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.primary.muted,
+  typeBadge: {
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
-  modernChipText: {
-    color: colors.text.primary,
-    fontSize: 12,
-    fontWeight: 'bold',
+  typeBadgeText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
   },
-  typeChipModern: {
-    backgroundColor: 'rgba(156, 39, 176, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(156, 39, 176, 0.4)',
+  priorityBadge: {
+    backgroundColor: colors.sync.pendingSurface,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
-  typeChipText: {
-    color: colors.text.primary,
-    fontSize: 11,
-    fontWeight: '600',
+  priorityBadgeText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.sync.pending,
   },
-  categoryChipDisplay: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
+  responseCountBadge: {
+    backgroundColor: colors.sync.syncedSurface,
+    borderRadius: borderRadius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
-  categoryChipDisplayText: {
-    color: colors.status.success,
-    fontSize: 11,
-    fontWeight: '600',
+  responseCountBadgeText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.sync.synced,
   },
-  priorityChip: {
-    backgroundColor: 'rgba(255, 193, 7, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 193, 7, 0.4)',
-  },
-  priorityChipText: {
-    color: colors.status.warning,
-    fontSize: 11,
-  },
-  responseCountChip: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
-  },
-  responseCountChipText: {
-    color: colors.status.success,
-    fontSize: 11,
-    fontWeight: '600',
-  },
+
+  // ── Action buttons
   actions: {
     flexDirection: 'row',
     gap: 4,
-  },
-  actionButton: {
-    backgroundColor: colors.primary.faint,
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteButton: {
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.subtle,
     alignItems: 'center',
+    justifyContent: 'center',
   },
+  deleteBtnStyle: {
+    backgroundColor: colors.status.errorSurface,
+  },
+
+  // ── Question text + meta
   questionText: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.md,
     color: colors.text.primary,
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 12,
-    fontWeight: '500',
+    lineHeight: 22,
+    marginBottom: 5,
   },
-  metaRow: {
+  metaLine: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    marginBottom: spacing.sm,
+  },
+
+  // ── Secondary badges
+  secondaryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  secondaryBadge: {
+    backgroundColor: colors.background.subtle,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: colors.border.light,
   },
   dataSourceBadge: {
-    backgroundColor: 'rgba(33, 150, 243, 0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(33, 150, 243, 0.4)',
-  },
-  dataSourceBadgeText: {
-    color: colors.status.info,
-    fontSize: 11,
-    fontWeight: '600',
+    backgroundColor: colors.status.infoSurface,
   },
   workPackageBadge: {
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.4)',
+    backgroundColor: colors.sync.pendingSurface,
   },
-  workPackageBadgeText: {
-    color: colors.status.warning,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  meta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  metaChip: {
-    backgroundColor: colors.background.subtle,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-  },
-  metaChipText: {
-    color: colors.text.primary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  targetedInfoSection: {
-    backgroundColor: colors.background.subtle,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-  },
-  targetedRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  targetedLabel: {
+  secondaryBadgeText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
-    fontSize: 12,
-    fontWeight: '600',
+  },
+
+  // ── Targeting info box
+  targetingBox: {
+    backgroundColor: colors.background.subtle,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  targetRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  targetLabel: {
+    fontFamily: 'DMSans-Medium',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
     marginRight: 6,
   },
-  targetedValue: {
+  targetValue: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
     color: colors.text.primary,
-    fontSize: 12,
     flex: 1,
   },
+
+  // ── Options preview
   optionsPreview: {
     backgroundColor: colors.background.subtle,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border.light,
   },
   optionText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
     color: colors.text.primary,
-    fontSize: 13,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   moreOptions: {
-    color: colors.text.secondary,
-    fontSize: 12,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
     fontStyle: 'italic',
-    marginTop: 4,
+    marginTop: 2,
   },
 });

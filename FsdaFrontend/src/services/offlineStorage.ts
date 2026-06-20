@@ -17,6 +17,7 @@ export interface SyncQueueItem {
   max_attempts: number;
   status: 'pending' | 'syncing' | 'failed' | 'completed';
   error_message?: string;
+  next_retry_at?: string;  // ISO timestamp — item won't auto-retry before this time
 }
 
 const STORAGE_KEYS = {
@@ -24,6 +25,13 @@ const STORAGE_KEYS = {
   OFFLINE_DATA: '@fsda/offline_data',
   LAST_SYNC: '@fsda/last_sync',
 };
+
+/** Exponential backoff delays: 30s, 2min, 10min, then capped at 10min */
+const BACKOFF_DELAYS_MS = [30_000, 120_000, 600_000];
+function getBackoffDelay(attempts: number): number {
+  const idx = Math.min(attempts, BACKOFF_DELAYS_MS.length - 1);
+  return BACKOFF_DELAYS_MS[idx];
+}
 
 class OfflineStorage {
   // Serializes all queue write operations to prevent read-modify-write races
@@ -95,11 +103,37 @@ class OfflineStorage {
   }
 
   /**
-   * Get pending items only (read-only, no lock needed)
+   * Get items ready for sync: pending items + failed items past their backoff window.
+   * Failed items past next_retry_at are automatically promoted back to 'pending'.
    */
   async getPendingItems(): Promise<SyncQueueItem[]> {
     const queue = await this.getQueue();
-    return queue.filter((item) => item.status === 'pending');
+    const now = Date.now();
+    const readyItems: SyncQueueItem[] = [];
+    let promoted = false;
+
+    for (const item of queue) {
+      if (item.status === 'pending') {
+        readyItems.push(item);
+      } else if (
+        item.status === 'failed' &&
+        item.next_retry_at &&
+        new Date(item.next_retry_at).getTime() <= now
+      ) {
+        // Promote back to pending for automatic retry
+        item.status = 'pending';
+        item.error_message = undefined;
+        readyItems.push(item);
+        promoted = true;
+      }
+    }
+
+    // Persist the promotions
+    if (promoted) {
+      await this.saveQueue(queue);
+    }
+
+    return readyItems;
   }
 
   /**
@@ -156,12 +190,19 @@ class OfflineStorage {
 
       if (!item) return;
 
+      const newAttempts = item.attempts + 1;
       const index = queue.findIndex((i) => i.id === id);
+
+      // Calculate next retry time with exponential backoff
+      const backoffMs = getBackoffDelay(newAttempts - 1);
+      const nextRetry = new Date(Date.now() + backoffMs).toISOString();
+
       queue[index] = {
         ...queue[index],
         status: 'failed',
         error_message,
-        attempts: item.attempts + 1,
+        attempts: newAttempts,
+        next_retry_at: newAttempts < item.max_attempts ? nextRetry : undefined,
       };
       await this.saveQueue(queue);
     });

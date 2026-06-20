@@ -6,12 +6,13 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django_core.utils.viewsets import BaseModelViewSet
 from django_core.utils.filters import ProjectFilter
-from .models import Project, ProjectMember
+from .models import Project, ProjectMember, CollectionTarget
 from .serializers import (
-    ProjectSerializer, 
-    ProjectMemberSerializer, 
-    ProjectMemberInviteSerializer, 
-    ProjectMemberUpdateSerializer
+    ProjectSerializer,
+    ProjectMemberSerializer,
+    ProjectMemberInviteSerializer,
+    ProjectMemberUpdateSerializer,
+    CollectionTargetSerializer,
 )
 
 User = get_user_model()
@@ -620,7 +621,15 @@ Research Data Collection Team
                 return Response({
                     'error': 'You are not invited to this project'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
+
+            # Guard: already an active member
+            if member.status == 'active':
+                return Response({
+                    'error': 'already_member',
+                    'message': f'You are already an active member of {project.name}',
+                    'role': member.role,
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             # Accept the invitation
             # Mark the notification as read and confirm acceptance
             notification.mark_as_read()
@@ -710,9 +719,87 @@ Research Data Collection Team
                     'status': invitation.status
                 }
             })
-            
+
         except PendingInvitation.DoesNotExist:
             return Response(
-                {'error': 'Invalid invitation token'}, 
+                {'error': 'Invalid invitation token'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+    @action(detail=True, methods=['get', 'put'], url_path='collection-targets')
+    def collection_targets(self, request, pk=None):
+        """
+        GET: List all collection targets for the project (any member).
+             ?user_id=<uuid> — filter to a single member's targets.
+        PUT: Bulk upsert targets (owner only).
+             Each item: { respondent_type, commodity, country, assigned_to, target_count }.
+        """
+        project = self.get_object()
+
+        if not project.can_user_access(request.user):
+            return Response(
+                {'error': 'You do not have permission to access this project'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if request.method == 'GET':
+            targets = CollectionTarget.objects.filter(project=project).select_related('assigned_to')
+            # Optional filter by user
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                targets = targets.filter(assigned_to_id=user_id)
+            serializer = CollectionTargetSerializer(targets, many=True)
+            return Response({'targets': serializer.data})
+
+        # PUT — bulk upsert (owner only)
+        if not project.can_user_edit(request.user):
+            return Response(
+                {'error': 'Only project owners can set collection targets'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        incoming = request.data.get('targets', [])
+        if not isinstance(incoming, list):
+            return Response(
+                {'error': '"targets" must be a list'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for item in incoming:
+            rt = item.get('respondent_type', '')
+            commodity = item.get('commodity', '') or ''
+            country = item.get('country', '') or ''
+            assigned_to_id = item.get('assigned_to')
+            target_count = item.get('target_count', 0)
+
+            if not rt or not assigned_to_id:
+                continue
+
+            # Verify the user is a project member or owner
+            try:
+                assigned_user = User.objects.get(id=assigned_to_id)
+            except User.DoesNotExist:
+                continue
+
+            if not target_count or int(target_count) <= 0:
+                CollectionTarget.objects.filter(
+                    project=project,
+                    assigned_to=assigned_user,
+                    respondent_type=rt,
+                    commodity=commodity,
+                    country=country,
+                ).delete()
+            else:
+                CollectionTarget.objects.update_or_create(
+                    project=project,
+                    assigned_to=assigned_user,
+                    respondent_type=rt,
+                    commodity=commodity,
+                    country=country,
+                    defaults={'target_count': int(target_count)},
+                )
+
+        # Return updated list
+        targets = CollectionTarget.objects.filter(project=project).select_related('assigned_to')
+        serializer = CollectionTargetSerializer(targets, many=True)
+        return Response({'targets': serializer.data})

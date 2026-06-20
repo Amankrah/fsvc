@@ -4,36 +4,38 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  Platform,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import {
   Text,
-  FAB,
   Portal,
   Dialog,
   TextInput,
   Button,
-  Surface,
-  IconButton,
   Searchbar,
   Chip,
   Switch,
   Divider,
+  Icon,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScreenWrapper } from '../components/layout/ScreenWrapper';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import apiService from '../services/api';
 import ProjectCard from '../components/ProjectCard';
+import StatPill from '../components/StatPill';
 import NotificationBell from '../components/NotificationBell';
+import { SkeletonProjectCard } from '../components/Skeleton';
 import { Project, RespondentType, CommodityType, PartnerOrganization } from '../types';
-import { colors } from '../constants/theme';
+import { colors, spacing, borderRadius, typography } from '../constants/theme';
 import { offlineProjectCache, networkMonitor, syncManager } from '../services';
+import { useToast } from '../components/Toast';
 
 type RootStackParamList = {
   Dashboard: { editProjectId?: string };
@@ -53,6 +55,8 @@ const DashboardScreen: React.FC = () => {
   const route = useRoute<DashboardRouteProp>();
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
+  const { width: windowWidth } = useWindowDimensions();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
@@ -61,6 +65,8 @@ const DashboardScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'synced' | 'pending' | 'error'>('all');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+
+  const [fabPressed, setFabPressed] = useState(false);
 
   // Create Project Dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -124,20 +130,14 @@ const DashboardScreen: React.FC = () => {
           setFilteredProjects(projectList);
           setIsOfflineMode(false);
 
-          // Load QuestionBank count from dashboard stats endpoint (more efficient and accurate)
-          const dashboardStats = await apiService.getDashboardStats();
-          const questionBankCount = dashboardStats.questionbank_templates || 0;
-
-          // Debug logging to verify we're getting the correct count
-          console.log('QuestionBank count from dashboard_stats:', questionBankCount);
-
-          // Calculate stats
+          // Calculate stats from project data (consistent with offline path)
           const totalResponses = projectList.reduce((sum: number, p: Project) => sum + (p.response_count || 0), 0);
           const totalMembers = projectList.reduce((sum: number, p: Project) => sum + (p.team_members_count || 1), 0);
+          const totalQuestions = projectList.reduce((sum: number, p: Project) => sum + (p.question_count || 0), 0);
 
           setStats({
             totalProjects: projectList.length,
-            totalQuestions: questionBankCount,
+            totalQuestions,
             totalResponses,
             totalMembers,
           });
@@ -308,7 +308,7 @@ const DashboardScreen: React.FC = () => {
       setShowCreateDialog(false);
     } catch (error: any) {
       console.error('Error creating project:', error);
-      alert(error.response?.data?.message || 'Failed to create project');
+      showToast({ message: error.response?.data?.message || 'Failed to create project', variant: 'error' });
     } finally {
       setIsCreating(false);
     }
@@ -322,7 +322,7 @@ const DashboardScreen: React.FC = () => {
       );
 
       if (alreadyAdded) {
-        alert('This user has already been added as a partner');
+        showToast({ message: 'This user has already been added as a partner', variant: 'warning' });
         return;
       }
 
@@ -431,7 +431,7 @@ const DashboardScreen: React.FC = () => {
       setShowEditDialog(false);
     } catch (error: any) {
       console.error('Error updating project:', error);
-      alert(error.response?.data?.message || 'Failed to update project');
+      showToast({ message: error.response?.data?.message || 'Failed to update project', variant: 'error' });
     } finally {
       setIsUpdating(false);
     }
@@ -439,6 +439,14 @@ const DashboardScreen: React.FC = () => {
 
   const handleProjectPress = useCallback(
     (project: Project) => {
+      if (project.membership_status === 'pending') {
+        Alert.alert(
+          'Invitation Pending',
+          `You've been invited to "${project.name}" but haven't accepted yet.\n\nOpen your notifications (bell icon) to accept or decline the invitation.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
       navigation.navigate('ProjectDetails', { projectId: project.id });
     },
     [navigation]
@@ -458,151 +466,129 @@ const DashboardScreen: React.FC = () => {
     [navigation]
   );
 
-  const renderStatCard = (icon: string, label: string, value: number, color: string) => (
-    <Surface style={[styles.statCard, { borderLeftColor: color }]} elevation={2}>
-      <IconButton icon={icon} size={32} iconColor={color} />
-      <View style={styles.statContent}>
-        <Text variant="headlineMedium" style={styles.statValue}>
-          {value}
-        </Text>
-        <Text variant="bodyMedium" style={styles.statLabel}>
-          {label}
-        </Text>
-      </View>
-    </Surface>
-  );
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.headerTop}>
-        <View style={styles.welcomeSection}>
-          <Text variant="headlineMedium" style={styles.welcomeText}>
-            Welcome back, {user?.first_name || user?.username}! 👋
-          </Text>
-          <Text variant="bodyMedium" style={styles.subtitleText}>
-            Manage your research projects and collaborate with your team
-          </Text>
+    <View>
+      {/* ── Green hero band ─────────────────────────────────────────────── */}
+      <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+        {/* Top row: greeting + actions */}
+        <View style={styles.heroTop}>
+          <View style={styles.heroGreeting}>
+            <Text style={styles.heroGreetLine}>
+              {getGreeting()}, {user?.first_name || user?.username} 👋
+            </Text>
+            <Text style={styles.heroSub}>Your research projects</Text>
+          </View>
+          <View style={styles.heroActions}>
+            <NotificationBell
+              onNavigateToProject={handleNavigateToProject}
+              onNavigateToInvitation={handleNavigateToInvitation}
+            />
+          </View>
         </View>
-        <NotificationBell
-          onNavigateToProject={handleNavigateToProject}
-          onNavigateToInvitation={handleNavigateToInvitation}
-        />
-      </View>
 
-      {isOfflineMode && (
-        <Surface style={styles.offlineBanner}>
-          <IconButton icon="wifi-off" size={20} iconColor={colors.accent.orange} />
-          <Text variant="bodyMedium" style={styles.offlineBannerText}>
-            Offline Mode - Showing cached projects
-          </Text>
-        </Surface>
-      )}
+        {/* Offline banner */}
+        {isOfflineMode && (
+          <View style={styles.offlineBanner}>
+            <Icon source="wifi-off" size={16} color={colors.status.warning} />
+            <Text style={styles.offlineBannerText}>Offline — showing cached data</Text>
+          </View>
+        )}
 
-      <View style={styles.statsGrid}>
-        {renderStatCard('folder-outline', 'Projects', stats.totalProjects, colors.visualization.purple)}
-        {renderStatCard('file-document-outline', 'Questions', stats.totalQuestions, colors.visualization.teal)}
-        {renderStatCard('account-outline', 'Respondents', stats.totalResponses, colors.accent.orange)}
-        {renderStatCard('account-group-outline', 'Members', stats.totalMembers, colors.visualization.cyan)}
-      </View>
-
-      <View style={styles.quickActions}>
-        <Text variant="titleMedium" style={styles.quickActionsTitle}>
-          Quick Actions
-        </Text>
-        <View style={styles.quickActionsButtons}>
-          <Button
-            mode="outlined"
-            icon="file-document-edit"
-            onPress={() => navigation.navigate('Forms')}
-            style={styles.quickActionButton}
+        {/* Stat pills — flex row on wide screens, scrollable on narrow */}
+        {Platform.OS === 'web' && windowWidth >= 600 ? (
+          <View style={styles.pillsRowFlex}>
+            <StatPill icon="folder-outline"        value={stats.totalProjects}  label="Projects"    onDark fill />
+            <StatPill icon="file-document-outline" value={stats.totalQuestions} label="Questions"   onDark fill />
+            <StatPill icon="account-outline"       value={stats.totalResponses} label="Respondents" onDark fill />
+            <StatPill icon="account-group-outline" value={stats.totalMembers}   label="Members"     onDark fill />
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillsRow}
           >
-            Build Forms
-          </Button>
-          <Button
-            mode="outlined"
-            icon="chart-bar"
-            onPress={() => {
-              if (projects.length > 0) {
-                navigation.navigate('Analytics', { projectId: projects[0].id });
-              }
-            }}
-            style={styles.quickActionButton}
-          >
-            Analytics
-          </Button>
-        </View>
+            <StatPill icon="folder-outline"        value={stats.totalProjects}  label="Projects"    onDark />
+            <StatPill icon="file-document-outline" value={stats.totalQuestions} label="Questions"   onDark />
+            <StatPill icon="account-outline"       value={stats.totalResponses} label="Respondents" onDark />
+            <StatPill icon="account-group-outline" value={stats.totalMembers}   label="Members"     onDark />
+          </ScrollView>
+        )}
       </View>
 
-      <View style={styles.controlsSection}>
+      {/* ── Search + filters ────────────────────────────────────────────── */}
+      <View style={styles.controls}>
         <Searchbar
-          placeholder="Search projects..."
+          placeholder="Search projects…"
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={styles.searchBar}
+          inputStyle={styles.searchInput}
+          elevation={0}
         />
-
-        <View style={styles.filterChips}>
-          <Chip
-            selected={filterStatus === 'all'}
-            onPress={() => setFilterStatus('all')}
-            style={styles.chip}
-          >
-            All
-          </Chip>
-          <Chip
-            selected={filterStatus === 'synced'}
-            onPress={() => setFilterStatus('synced')}
-            style={styles.chip}
-          >
-            Synced
-          </Chip>
-          <Chip
-            selected={filterStatus === 'pending'}
-            onPress={() => setFilterStatus('pending')}
-            style={styles.chip}
-          >
-            Pending
-          </Chip>
-          <Chip
-            selected={filterStatus === 'error'}
-            onPress={() => setFilterStatus('error')}
-            style={styles.chip}
-          >
-            Error
-          </Chip>
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {(['all', 'synced', 'pending', 'error'] as const).map((s) => (
+            <Chip
+              key={s}
+              selected={filterStatus === s}
+              onPress={() => setFilterStatus(s)}
+              style={[styles.chip, filterStatus === s && styles.chipActive]}
+              textStyle={filterStatus === s ? styles.chipTextActive : styles.chipText}
+              compact
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </Chip>
+          ))}
+        </ScrollView>
       </View>
 
-      <Text variant="titleLarge" style={styles.sectionTitle}>
-        Your Projects ({filteredProjects.length})
-      </Text>
+      {/* ── Section header ──────────────────────────────────────────────── */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Your Projects ({filteredProjects.length})</Text>
+      </View>
+
+      {/* ── Loading skeletons ────────────────────────────────────────────── */}
+      {isLoading && (
+        <View>
+          <SkeletonProjectCard />
+          <SkeletonProjectCard />
+          <SkeletonProjectCard />
+        </View>
+      )}
     </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <IconButton icon="folder-plus-outline" size={80} iconColor="#ccc" />
-      <Text variant="titleLarge" style={styles.emptyTitle}>
-        No Projects Yet
+      <View style={styles.emptyIllustration}>
+        <Icon source="folder-plus-outline" size={40} color={colors.primary.main} />
+      </View>
+      <Text style={styles.emptyTitle}>No Projects Yet</Text>
+      <Text style={styles.emptyBody}>
+        Create your first project to start collecting and analysing research data.
       </Text>
-      <Text variant="bodyMedium" style={styles.emptyText}>
-        Create your first project to start collecting research data
-      </Text>
-      <Button
-        mode="contained"
+      <TouchableOpacity
+        style={styles.emptyBtn}
         onPress={() => setShowCreateDialog(true)}
-        style={styles.emptyButton}
-        icon="plus"
+        activeOpacity={0.82}
       >
-        Create Project
-      </Button>
+        <Icon source="plus" size={18} color="#fff" />
+        <Text style={styles.emptyBtnLabel}>Create Project</Text>
+      </TouchableOpacity>
     </View>
   );
 
   return (
-    <ScreenWrapper style={styles.container} edges={{ top: false }}>
+    <View style={styles.container}>
       <FlatList
-        data={filteredProjects}
+        data={isLoading ? [] : filteredProjects}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <ProjectCard project={item} onPress={handleProjectPress} onEditPress={handleOpenEditDialog} />
@@ -610,21 +596,33 @@ const DashboardScreen: React.FC = () => {
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={!isLoading ? renderEmptyState : null}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary.main]}
+          />
         }
-        contentContainerStyle={filteredProjects.length === 0 ? styles.emptyList : undefined}
+        contentContainerStyle={!isLoading && filteredProjects.length === 0 ? styles.emptyList : styles.listContent}
+        showsVerticalScrollIndicator={false}
       />
 
-      <FAB
-        icon="plus"
-        style={styles.fab}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: insets.bottom + 8 }, fabPressed && styles.fabActive]}
         onPress={() => setShowCreateDialog(true)}
-        label="New Project"
-      />
+        onPressIn={() => setFabPressed(true)}
+        onPressOut={() => setFabPressed(false)}
+        activeOpacity={1}
+      >
+        <Icon source="plus" size={18} color={fabPressed ? '#fff' : colors.primary.dark} />
+        <Text style={[styles.fabLabel, fabPressed && styles.fabLabelActive]}>New Project</Text>
+      </TouchableOpacity>
 
       <Portal>
         <Dialog visible={showCreateDialog} onDismiss={() => setShowCreateDialog(false)} style={styles.createDialog}>
-          <Dialog.Title>Create New Project</Dialog.Title>
+          <View style={styles.dialogTitleRow}>
+            <View style={styles.dialogTitleAccent} />
+            <Text style={styles.dialogTitleText}>Create New Project</Text>
+          </View>
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogContent}>
@@ -733,22 +731,27 @@ const DashboardScreen: React.FC = () => {
               </View>
             </ScrollView>
           </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setShowCreateDialog(false)} disabled={isCreating}>
-              Cancel
-            </Button>
-            <Button
+          <View style={styles.dialogActionRow}>
+            <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowCreateDialog(false)} disabled={isCreating}>
+              <Text style={styles.dialogCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dialogPrimaryBtn, (isCreating || !newProjectName.trim()) && styles.dialogBtnDisabled]}
               onPress={handleCreateProject}
-              loading={isCreating}
               disabled={isCreating || !newProjectName.trim()}
             >
-              Create
-            </Button>
-          </Dialog.Actions>
+              {isCreating
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.dialogPrimaryText}>Create Project</Text>}
+            </TouchableOpacity>
+          </View>
         </Dialog>
 
         <Dialog visible={showEditDialog} onDismiss={() => setShowEditDialog(false)} style={styles.createDialog}>
-          <Dialog.Title>Edit Project</Dialog.Title>
+          <View style={styles.dialogTitleRow}>
+            <View style={styles.dialogTitleAccent} />
+            <Text style={styles.dialogTitleText}>Edit Project</Text>
+          </View>
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogContent}>
@@ -856,188 +859,308 @@ const DashboardScreen: React.FC = () => {
               </View>
             </ScrollView>
           </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setShowEditDialog(false)} disabled={isUpdating}>
-              Cancel
-            </Button>
-            <Button
+          <View style={styles.dialogActionRow}>
+            <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowEditDialog(false)} disabled={isUpdating}>
+              <Text style={styles.dialogCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dialogPrimaryBtn, (isUpdating || !newProjectName.trim()) && styles.dialogBtnDisabled]}
               onPress={handleUpdateProject}
-              loading={isUpdating}
               disabled={isUpdating || !newProjectName.trim()}
             >
-              Update
-            </Button>
-          </Dialog.Actions>
+              {isUpdating
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.dialogPrimaryText}>Save Changes</Text>}
+            </TouchableOpacity>
+          </View>
         </Dialog>
       </Portal>
-    </ScreenWrapper >
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // ── Layout
   container: {
     flex: 1,
     backgroundColor: colors.background.default,
   },
-  header: {
-    backgroundColor: colors.background.paper,
-    borderBottomColor: colors.border.light,
-    padding: 20,
-    shadowColor: colors.neutral.black,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+  listContent: {
+    paddingBottom: spacing.xl,
   },
-  headerTop: {
+
+  // ── Hero band
+  hero: {
+    backgroundColor: colors.primary.dark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  heroTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  welcomeSection: {
+  heroGreeting: {
     flex: 1,
-    marginRight: 16,
+    marginRight: spacing.md,
   },
-  welcomeText: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: colors.text.primary,
-    fontSize: 28,
+  heroGreetLine: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.xl,
+    color: '#fff',
+    letterSpacing: -0.3,
+    marginBottom: 2,
   },
-  subtitleText: {
-    color: colors.text.secondary,
-    fontSize: 16,
+  heroSub: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   offlineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.paper,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.accent.orange,
-    padding: 12,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: colors.neutral.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    gap: spacing.xs,
+    backgroundColor: 'rgba(217,119,6,0.15)',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(217,119,6,0.3)',
   },
   offlineBannerText: {
-    color: colors.text.primary,
-    flex: 1,
-    marginLeft: 8,
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+    color: colors.status.warning,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+  pillsRow: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  statCard: {
-    flex: 1,
-    minWidth: 150,
+  pillsRowFlex: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+
+  // ── Controls
+  controls: {
     backgroundColor: colors.background.paper,
-    borderLeftWidth: 4,
-    shadowColor: colors.neutral.black,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statContent: {
-    marginLeft: 12,
-  },
-  statValue: {
-    fontWeight: 'bold',
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  statLabel: {
-    color: colors.text.secondary,
-    fontSize: 14,
-    marginTop: 2,
-  },
-  quickActions: {
-    marginBottom: 24,
-  },
-  quickActionsTitle: {
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: colors.text.primary,
-    fontSize: 18,
-  },
-  quickActionsButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  quickActionButton: {
-    flex: 1,
-  },
-  controlsSection: {
-    marginBottom: 24,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
   },
   searchBar: {
-    marginBottom: 12,
-    elevation: 2,
+    backgroundColor: colors.background.subtle,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.sm,
+    height: 44,
   },
-  filterChips: {
-    flexDirection: 'row',
-    gap: 8,
+  searchInput: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.sm,
+  },
+  filterRow: {
+    gap: spacing.xs,
+    paddingBottom: spacing.xs,
   },
   chip: {
-    marginRight: 0,
+    borderRadius: borderRadius.round,
+  },
+  chipActive: {
+    backgroundColor: colors.primary.surface,
+  },
+  chipText: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+  },
+  chipTextActive: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.xs,
+    color: colors.primary.main,
+  },
+
+  // ── Section row
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   sectionTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.lg,
     color: colors.text.primary,
-    fontSize: 18,
+    letterSpacing: -0.2,
   },
+
+  // ── Empty state
   emptyList: {
     flexGrow: 1,
   },
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
+    paddingVertical: spacing.huge,
+  },
+  emptyIllustration: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.primary.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontFamily: 'Fraunces-Bold',
+    fontSize: typography.fontSize.xl,
     color: colors.text.primary,
-    fontSize: 20,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+    marginBottom: spacing.sm,
   },
-  emptyText: {
+  emptyBody: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.md,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
-    fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 22,
+    marginBottom: spacing.xl,
   },
-  emptyButton: {
-    paddingHorizontal: 24,
+  emptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
   },
+  emptyBtnLabel: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+
+  // ── FAB
   fab: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
+    right: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    // Ghost/outline state (idle — transparent so content behind shows through)
+    backgroundColor: 'rgba(10, 61, 43, 0.08)',
+    borderRadius: borderRadius.round,
+    borderWidth: 1.5,
+    borderColor: colors.primary.dark,
+    paddingVertical: 13,
+    paddingHorizontal: spacing.lg,
+    shadowColor: colors.primary.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
+  fabActive: {
+    // Solid state (pressed)
+    backgroundColor: colors.primary.dark,
+    borderColor: colors.primary.dark,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  fabLabel: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.primary.dark,
+  },
+  fabLabelActive: {
+    color: '#fff',
+  },
+
+  // ── Dialogs
   createDialog: {
     maxHeight: '90%',
+    borderRadius: borderRadius.xxl,
+    backgroundColor: colors.background.paper,
+    overflow: 'hidden',
+  },
+  dialogTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xs,
+  },
+  dialogTitleAccent: {
+    width: 4,
+    height: 26,
+    backgroundColor: colors.primary.main,
+    borderRadius: 2,
+  },
+  dialogTitleText: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 20,
+    color: colors.text.primary,
+    letterSpacing: -0.2,
+    flex: 1,
+    paddingLeft: spacing.md,
+  },
+  dialogActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  dialogCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogCancelText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: colors.text.secondary,
+  },
+  dialogPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogPrimaryText: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: typography.fontSize.md,
+    color: '#fff',
+  },
+  dialogBtnDisabled: {
+    opacity: 0.45,
   },
   dialogScrollArea: {
     paddingHorizontal: 0,

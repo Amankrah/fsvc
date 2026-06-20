@@ -21,6 +21,29 @@ class SyncApi {
     this.baseUrl = `${API_BASE_URL}/sync`;
   }
 
+  /**
+   * Lightweight reachability check — pings the sync stats endpoint with a
+   * short timeout. Returns true if the backend responds (any 2xx/4xx),
+   * false on network failure or timeout.
+   */
+  async isBackendReachable(timeoutMs: number = 5000): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const response = await fetch(`${API_BASE_URL}/sync/sync-queue/stats/`, {
+        method: 'HEAD',
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      // Any HTTP response (even 401/403) means the server is up
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async getAuthHeaders() {
     // Use 'auth_token' to match authStore (not 'userToken')
     const token = await secureStorage.getItem('auth_token');
@@ -36,25 +59,64 @@ class SyncApi {
   }
 
   /**
-   * Send sync queue item to backend
+   * Send sync queue item to backend.
+   *
+   * Individual response records (queued from partial-failure retries) are
+   * POSTed directly to the responses endpoint — the same API path used by
+   * normal online submission.  Everything else goes through the generic
+   * sync-queue endpoint for backend-side processing.
    */
   async syncItem(item: SyncQueueItem): Promise<ApiResponse<any>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${this.baseUrl}/sync-queue/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          table_name: item.table_name,
-          record_id: item.record_id,
-          operation: item.operation,
-          data: item.data,
-          priority: item.priority,
-        }),
-      });
+
+      // Detect individual-response records: they have the direct
+      // { project, question, respondent, response_value } shape.
+      const isDirectResponse =
+        item.table_name === 'responses' &&
+        item.operation === 'create' &&
+        item.data?.question &&
+        item.data?.respondent &&
+        item.data?.response_value !== undefined;
+
+      let response: Response;
+
+      if (isDirectResponse) {
+        // Submit directly to the responses endpoint — no backend
+        // sync-queue parsing required, and duplicate-safe because the
+        // endpoint returns 400 on unique-constraint violations.
+        response = await fetch(`${API_BASE_URL}/responses/responses/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(item.data),
+        });
+
+        // Treat unique-constraint 400s as success (response already exists)
+        if (response.status === 400) {
+          const body = await response.json().catch(() => ({}));
+          const msg = JSON.stringify(body);
+          if (msg.includes('unique') || msg.includes('already exists')) {
+            console.log(`Response for question ${item.data.question} already exists, treating as success`);
+            return { success: true, data: body };
+          }
+          throw new Error(`HTTP 400: ${msg}`);
+        }
+      } else {
+        // Generic sync-queue path for drafts, full offline submissions, etc.
+        response = await fetch(`${this.baseUrl}/sync-queue/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            table_name: item.table_name,
+            record_id: item.record_id,
+            operation: item.operation,
+            data: item.data,
+            priority: item.priority,
+          }),
+        });
+      }
 
       if (!response.ok) {
-        // Handle authentication errors specifically
         if (response.status === 401) {
           const errorText = await response.text();
           console.error('Authentication error during sync:', errorText);
@@ -69,7 +131,6 @@ class SyncApi {
     } catch (error: any) {
       console.error('Error syncing item:', error);
 
-      // Provide user-friendly error messages
       let errorMessage = error.message || 'Failed to sync item';
 
       if (error.message?.includes('No authentication token')) {

@@ -1,74 +1,74 @@
 /**
  * StatsCards Component
- * Displays summary statistics
+ * Summary stat pills in the responses screen header band.
  */
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text } from 'react-native-paper';
-import { colors } from '../../constants/theme';
+import { Text } from 'react-native-paper';
+import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 interface StatsCardsProps {
   totalRespondents: number;
   totalResponses: number;
-  /** True total from the backend (may be larger than loaded respondents) */
   totalCount?: number;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ totalRespondents, totalResponses, totalCount }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({
+  totalRespondents,
+  totalResponses,
+  totalCount,
+}) => {
   const displayCount = totalCount ?? totalRespondents;
 
   return (
-    <View style={styles.container}>
-      <Card style={styles.statCard}>
-        <Card.Content style={styles.statContent}>
-          <Text variant="headlineMedium" style={styles.statNumber}>
-            {displayCount}
-          </Text>
-          <Text variant="bodyMedium" style={styles.statLabel}>
-            Total Respondents
-          </Text>
-        </Card.Content>
-      </Card>
-
-      <Card style={styles.statCard}>
-        <Card.Content style={styles.statContent}>
-          <Text variant="headlineMedium" style={styles.statNumber}>
-            {totalResponses}
-          </Text>
-          <Text variant="bodyMedium" style={styles.statLabel}>
-            Total Responses
-          </Text>
-        </Card.Content>
-      </Card>
+    <View style={styles.row}>
+      <View style={styles.pill}>
+        <Text style={styles.pillValue}>{displayCount}</Text>
+        <Text style={styles.pillLabel}>Respondents</Text>
+      </View>
+      <View style={styles.divider} />
+      <View style={styles.pill}>
+        <Text style={styles.pillValue}>{totalResponses}</Text>
+        <Text style={styles.pillLabel}>Responses</Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  row: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: colors.background.paper,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border.light,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
   },
-  statContent: {
+  pill: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: spacing.md,
   },
-  statNumber: {
-    color: colors.primary.main,
-    fontWeight: 'bold',
-    fontSize: 32,
+  divider: {
+    width: 1,
+    backgroundColor: colors.border.light,
   },
-  statLabel: {
-    color: colors.text.secondary,
-    marginTop: 4,
-    textAlign: 'center',
+  pillValue: {
+    fontFamily: 'Fraunces-Bold',
+    fontSize: 28,
+    color: colors.text.primary,
+    lineHeight: 32,
+    letterSpacing: -0.5,
+  },
+  pillLabel: {
+    fontFamily: 'DMSans-Regular',
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 2,
   },
 });
