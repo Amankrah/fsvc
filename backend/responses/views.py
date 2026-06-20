@@ -831,6 +831,9 @@ class RespondentViewSet(BaseModelViewSet):
             return response.response_type.name
         return 'text_short'
 
+    def _bundle_cache_key(self, respondent):
+        return (respondent.respondent_type, respondent.commodity or '', respondent.country or '')
+
     def _build_respondent_export_maps(
         self,
         respondent,
@@ -838,6 +841,7 @@ class RespondentViewSet(BaseModelViewSet):
         question_bank_items,
         question_map,
         orphaned_questions,
+        export_caches=None,
     ):
         """
         Map a respondent's answers onto export columns.
@@ -850,11 +854,29 @@ class RespondentViewSet(BaseModelViewSet):
         orphaned_responses = {}
         included_qb_ids = {str(qb.id) for qb in question_bank_items}
         orphaned_ids = {str(q.id) for q in orphaned_questions}
-        qb_by_category = self._qb_columns_by_category(question_bank_items, respondent)
-        sociodem_type_to_qb = self._build_sociodem_type_to_qb(question_bank_items, qb_by_category)
+        cache_key = self._bundle_cache_key(respondent)
+        caches = export_caches if export_caches is not None else {}
+
+        if cache_key not in caches.setdefault('qb_by_category', {}):
+            caches['qb_by_category'][cache_key] = self._qb_columns_by_category(
+                question_bank_items, respondent
+            )
+        qb_by_category = caches['qb_by_category'][cache_key]
+
+        if cache_key not in caches.setdefault('sociodem_type_to_qb', {}):
+            caches['sociodem_type_to_qb'][cache_key] = self._build_sociodem_type_to_qb(
+                question_bank_items, qb_by_category
+            )
+        sociodem_type_to_qb = caches['sociodem_type_to_qb'][cache_key]
+
         qb_id_to_item = {str(qb.id): qb for qb in question_bank_items}
         category_positions = defaultdict(int)
-        bundle_questions = self._get_respondent_bundle_questions(project_id, respondent)
+
+        if cache_key not in caches.setdefault('bundle_questions', {}):
+            caches['bundle_questions'][cache_key] = self._get_respondent_bundle_questions(
+                project_id, respondent
+            )
+        bundle_questions = caches['bundle_questions'][cache_key]
 
         responses = sorted(
             respondent.responses.all(),
@@ -898,13 +920,11 @@ class RespondentViewSet(BaseModelViewSet):
                 category = response.question_category or ''
 
             if category == 'Sociodemographics':
-                for qb_id in qb_by_category.get('Sociodemographics', []):
-                    qb = qb_id_to_item.get(qb_id)
+                for qtype, target_qb in sociodem_type_to_qb.items():
+                    qb = qb_id_to_item.get(target_qb)
                     if not qb:
                         continue
-                    qtype = self._identify_sociodem_export(response.response_value, qb.question_text)
-                    if qtype and qtype in sociodem_type_to_qb:
-                        target_qb = sociodem_type_to_qb[qtype]
+                    if self._identify_sociodem_export(response.response_value, qb.question_text) == qtype:
                         if not qb_responses.get(target_qb):
                             qb_responses[target_qb] = formatted_value
                             matched = True
@@ -1104,6 +1124,8 @@ class RespondentViewSet(BaseModelViewSet):
                 def write(self, value):
                     return value
                     
+            export_caches = {}
+
             def generate_csv_rows():
                 # Build Header Row
                 headers = ['Respondent ID', 'Respondent Type', 'Commodity', 'Country', 'Completion Status']
@@ -1157,6 +1179,7 @@ class RespondentViewSet(BaseModelViewSet):
                             question_bank_items,
                             question_map,
                             orphaned_questions,
+                            export_caches,
                         )
 
                         # 1. Fill Question Bank Columns
@@ -1308,6 +1331,7 @@ class RespondentViewSet(BaseModelViewSet):
             # Data rows — chunked processing
             chunk_size = 1000
             respondent_ids = list(queryset.values_list('id', flat=True))
+            export_caches = {}
 
             for i in range(0, len(respondent_ids), chunk_size):
                 chunk_ids = respondent_ids[i:i+chunk_size]
@@ -1337,6 +1361,7 @@ class RespondentViewSet(BaseModelViewSet):
                         question_bank_items,
                         question_map,
                         orphaned_questions,
+                        export_caches,
                     )
 
                     for qb in question_bank_items:
@@ -1346,18 +1371,10 @@ class RespondentViewSet(BaseModelViewSet):
 
                     ws.append(row)
 
-            # Auto-fit column widths (approximate)
-            for col in ws.columns:
-                max_length = 0
-                for cell in col:
-                    try:
-                        cell_len = len(str(cell.value or ''))
-                        if cell_len > max_length:
-                            max_length = cell_len
-                    except Exception:
-                        pass
-                adjusted_width = min(max_length + 2, 60)
-                ws.column_dimensions[col[0].column_letter].width = adjusted_width
+            # Fixed column width — avoids scanning every cell on large exports
+            for col_idx in range(1, len(headers) + 1):
+                letter = ws.cell(row=1, column=col_idx).column_letter
+                ws.column_dimensions[letter].width = 28 if col_idx <= 5 else 36
 
             # Freeze header row
             ws.freeze_panes = 'A2'

@@ -758,6 +758,9 @@ class ApiService {
     });
   }
 
+  /** Long-running export endpoints (orphan matching can take minutes on large projects). */
+  private static readonly EXPORT_TIMEOUT_MS = 300000;
+
   async exportResponses(
     projectId: string,
     format: 'csv' | 'json' | 'xlsx' = 'csv',
@@ -780,19 +783,19 @@ class ApiService {
     if (format === 'csv') {
       const response = await this.axiosInstance.get(
         `/responses/respondents/export_csv/?${queryString}`,
-        { responseType: 'text' }
+        { responseType: 'text', timeout: ApiService.EXPORT_TIMEOUT_MS }
       );
       return response.data;
     } else if (format === 'xlsx') {
       const response = await this.axiosInstance.get(
         `/responses/respondents/export_xlsx/?${queryString}`,
-        { responseType: 'blob' }
+        { responseType: 'blob', timeout: ApiService.EXPORT_TIMEOUT_MS }
       );
       return response.data;
     } else if (format === 'json') {
       const response = await this.axiosInstance.get(
         `/responses/respondents/export_json/?${queryString}`,
-        { responseType: 'text' }
+        { responseType: 'text', timeout: ApiService.EXPORT_TIMEOUT_MS }
       );
       return response.data;
     }
@@ -814,7 +817,7 @@ class ApiService {
 
     const response = await this.axiosInstance.get(
       `/responses/respondents/export_bundle_pivot/?${params.toString()}`,
-      { responseType: 'text' }
+      { responseType: 'text', timeout: ApiService.EXPORT_TIMEOUT_MS }
     );
     return response.data;
   }
