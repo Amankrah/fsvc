@@ -667,6 +667,8 @@ class Response(models.Model):
                     'assigned_commodity': self.question.assigned_commodity,
                     'assigned_country': self.question.assigned_country,
                     'question_category': self.question.question_category,  # Include custom category
+                    'question_text': self.question.question_text,
+                    'response_type': self.question.response_type,
                 })
 
             self.question_bank_context = context

@@ -370,13 +370,20 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=True, methods=['get'])
     def responses(self, request, pk=None):
-        """Get all responses for a specific respondent with detailed information"""
+        """Get paginated responses for a specific respondent with detailed information"""
         try:
             respondent = self.get_object()
             responses = Response.objects.filter(
                 respondent=respondent
             ).select_related('question', 'collected_by', 'project').order_by('collected_at')
-            
+
+            page = self.paginate_queryset(responses)
+            if page is not None:
+                serializer = ResponseSerializer(page, many=True)
+                paginated = self.paginator.get_paginated_response(serializer.data)
+                paginated.data['respondent'] = RespondentSerializer(respondent).data
+                return paginated
+
             serializer = ResponseSerializer(responses, many=True)
             return DRFResponse({
                 'respondent': RespondentSerializer(respondent).data,

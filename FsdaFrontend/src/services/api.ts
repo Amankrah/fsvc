@@ -687,8 +687,8 @@ class ApiService {
     return await this.post('/responses/respondents/', data);
   }
 
-  async getRespondentResponses(respondentId: string) {
-    return await this.get(`/responses/respondents/${respondentId}/responses/`);
+  async getRespondentResponses(respondentId: string, page: number = 1, pageSize: number = 20) {
+    return await this.get(`/responses/respondents/${respondentId}/responses/?page=${page}&page_size=${pageSize}`);
   }
 
   async saveDraftResponse(data: any) {

@@ -1,6 +1,6 @@
 /**
  * useRespondentDetails Hook
- * Manages individual respondent responses
+ * Manages individual respondent responses with pagination
  */
 
 import { useState, useCallback } from 'react';
@@ -39,17 +39,36 @@ export interface ResponseDetail {
   question_bank_summary?: QuestionBankSummary;
 }
 
+const PAGE_SIZE = 20;
+
 export const useRespondentDetails = () => {
   const [selectedRespondent, setSelectedRespondent] = useState<Respondent | null>(null);
   const [respondentResponses, setRespondentResponses] = useState<ResponseDetail[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadRespondentResponses = useCallback(async (respondent: Respondent) => {
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const fetchPage = useCallback(async (respondent: Respondent, page: number) => {
     try {
       setLoading(true);
-      setSelectedRespondent(respondent);
-      const data = await apiService.getRespondentResponses(respondent.id);
-      setRespondentResponses(data.responses || []);
+      const data = await apiService.getRespondentResponses(respondent.id, page, PAGE_SIZE);
+
+      // Handle paginated response format from CustomPagination
+      if (data.results) {
+        setRespondentResponses(data.results);
+        setTotalCount(data.total ?? 0);
+        setTotalPages(data.total_pages ?? 1);
+        setCurrentPage(data.current_page ?? page);
+      } else {
+        // Fallback for non-paginated response
+        setRespondentResponses(data.responses || []);
+        setTotalCount(data.responses?.length ?? 0);
+        setTotalPages(1);
+        setCurrentPage(1);
+      }
     } catch (error) {
       console.error('Error loading respondent responses:', error);
       showAlert('Error', 'Failed to load respondent responses');
@@ -58,16 +77,46 @@ export const useRespondentDetails = () => {
     }
   }, []);
 
+  const loadRespondentResponses = useCallback(async (respondent: Respondent) => {
+    setSelectedRespondent(respondent);
+    setCurrentPage(1);
+    await fetchPage(respondent, 1);
+  }, [fetchPage]);
+
+  const nextPage = useCallback(() => {
+    if (selectedRespondent && currentPage < totalPages) {
+      const next = currentPage + 1;
+      setCurrentPage(next);
+      fetchPage(selectedRespondent, next);
+    }
+  }, [selectedRespondent, currentPage, totalPages, fetchPage]);
+
+  const prevPage = useCallback(() => {
+    if (selectedRespondent && currentPage > 1) {
+      const prev = currentPage - 1;
+      setCurrentPage(prev);
+      fetchPage(selectedRespondent, prev);
+    }
+  }, [selectedRespondent, currentPage, fetchPage]);
+
   const clearSelection = useCallback(() => {
     setSelectedRespondent(null);
     setRespondentResponses([]);
+    setCurrentPage(1);
+    setTotalPages(1);
+    setTotalCount(0);
   }, []);
 
   return {
     selectedRespondent,
     respondentResponses,
     loading,
+    currentPage,
+    totalPages,
+    totalCount,
     loadRespondentResponses,
+    nextPage,
+    prevPage,
     clearSelection,
   };
 };
