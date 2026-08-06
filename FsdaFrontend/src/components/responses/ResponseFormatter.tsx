@@ -16,7 +16,9 @@ interface ResponseFormatterProps {
 
 export const ResponseFormatter: React.FC<ResponseFormatterProps> = ({ response }) => {
   const value = response.response_value;
-  const questionType = response.question_details?.response_type;
+  const questionType =
+    response.question_type ||
+    response.question_details?.response_type;
 
   // Handle empty responses
   if (!value || value === 'null' || value === 'undefined') {

@@ -17,8 +17,13 @@ interface ResponseCardProps {
 }
 
 export const ResponseCard: React.FC<ResponseCardProps> = ({ response }) => {
-  const category = response.question_bank_summary?.question_category;
-  const questionText = response.question_details?.question_text || 'Question';
+  const category =
+    response.question_category ||
+    response.question_bank_summary?.question_category;
+  const questionText =
+    response.question_text ||
+    response.question_details?.question_text ||
+    'Question';
   const timestamp = new Date(response.collected_at).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',

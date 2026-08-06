@@ -34,6 +34,7 @@ export interface ResponseDetail {
   question: string;
   question_text: string;  // From ResponseLightSerializer
   question_type: string;  // From ResponseLightSerializer
+  question_category?: string;  // From ResponseLightSerializer
   question_details?: QuestionDetail;  // Optional for backward compatibility
   response_value: string;
   collected_at: string;
