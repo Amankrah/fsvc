@@ -1,6 +1,6 @@
 /**
  * useRespondentDetails Hook
- * Manages individual respondent responses
+ * Manages individual respondent responses with pagination
  */
 
 import { useState, useCallback } from 'react';
@@ -44,86 +44,91 @@ export interface ResponseDetail {
   question_bank_summary?: QuestionBankSummary;
 }
 
+const PAGE_SIZE = 100;
+
 export const useRespondentDetails = () => {
   const [selectedRespondent, setSelectedRespondent] = useState<Respondent | null>(null);
   const [respondentResponses, setRespondentResponses] = useState<ResponseDetail[]>([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
 
-  const loadRespondentResponses = useCallback(async (
-    respondent: Respondent,
-    pageNum?: number,
-    append: boolean = false
-  ) => {
+  const fetchPage = useCallback(async (respondent: Respondent, page: number) => {
     try {
       setLoading(true);
-      setSelectedRespondent(respondent);
-
-      const currentPage = pageNum || page;
       const data = await apiService.getRespondentResponses(respondent.id, {
-        page: currentPage,
-        page_size: pageSize,
+        page,
+        page_size: PAGE_SIZE,
       });
 
-      const responses = data.responses || [];
+      const responses = data.responses || data.results || [];
       const pagination = data.pagination;
 
-      if (append) {
-        setRespondentResponses(prev => [...prev, ...responses]);
-      } else {
-        setRespondentResponses(responses);
-      }
+      setRespondentResponses(responses);
 
       if (pagination) {
-        setTotalCount(pagination.total);
-        setTotalPages(pagination.total_pages);
-        setHasMore(!!pagination.next);
+        setTotalCount(pagination.total ?? 0);
+        setTotalPages(pagination.total_pages ?? 1);
+        setCurrentPage(pagination.current_page ?? page);
+      } else if (data.results) {
+        // CustomPagination format fallback
+        setTotalCount(data.total ?? 0);
+        setTotalPages(data.total_pages ?? 1);
+        setCurrentPage(data.current_page ?? page);
       } else {
-        // No pagination, using all responses
         setTotalCount(responses.length);
         setTotalPages(1);
-        setHasMore(false);
+        setCurrentPage(1);
       }
-
-      setPage(currentPage);
     } catch (error) {
       console.error('Error loading respondent responses:', error);
       showAlert('Error', 'Failed to load respondent responses');
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, []);
 
-  const loadMore = useCallback(async () => {
-    if (!selectedRespondent || !hasMore || loading) return;
-    await loadRespondentResponses(selectedRespondent, page + 1, true);
-  }, [selectedRespondent, hasMore, loading, page, loadRespondentResponses]);
+  const loadRespondentResponses = useCallback(async (respondent: Respondent) => {
+    setSelectedRespondent(respondent);
+    setCurrentPage(1);
+    await fetchPage(respondent, 1);
+  }, [fetchPage]);
+
+  const nextPage = useCallback(() => {
+    if (selectedRespondent && currentPage < totalPages) {
+      const next = currentPage + 1;
+      setCurrentPage(next);
+      fetchPage(selectedRespondent, next);
+    }
+  }, [selectedRespondent, currentPage, totalPages, fetchPage]);
+
+  const prevPage = useCallback(() => {
+    if (selectedRespondent && currentPage > 1) {
+      const prev = currentPage - 1;
+      setCurrentPage(prev);
+      fetchPage(selectedRespondent, prev);
+    }
+  }, [selectedRespondent, currentPage, fetchPage]);
 
   const clearSelection = useCallback(() => {
     setSelectedRespondent(null);
     setRespondentResponses([]);
-    setPage(1);
+    setCurrentPage(1);
+    setTotalPages(1);
     setTotalCount(0);
-    setTotalPages(0);
-    setHasMore(false);
   }, []);
 
   return {
     selectedRespondent,
     respondentResponses,
     loading,
-    loadRespondentResponses,
-    clearSelection,
-    // Pagination
-    page,
-    pageSize,
-    totalCount,
+    currentPage,
     totalPages,
-    hasMore,
-    loadMore,
+    totalCount,
+    loadRespondentResponses,
+    nextPage,
+    prevPage,
+    clearSelection,
   };
 };

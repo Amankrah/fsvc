@@ -34,6 +34,7 @@ import {
   useExport,
 } from '../hooks/responses';
 import { Respondent, RespondentFilters } from '../hooks/responses/useRespondents';
+import { ResponseDetail } from '../hooks/responses/useRespondentDetails';
 import { useAuthStore } from '../store/authStore';
 
 // Components
@@ -200,12 +201,19 @@ const ResponsesScreen: React.FC = () => {
   );
 
   const flatListRef = useRef<FlatList<Respondent>>(null);
+  const detailListRef = useRef<FlatList<ResponseDetail>>(null);
 
   useEffect(() => {
     if (respondentsHook.currentPage > 1) {
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     }
   }, [respondentsHook.currentPage]);
+
+  useEffect(() => {
+    if (detailsHook.currentPage > 1) {
+      detailListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [detailsHook.currentPage]);
 
   // ── Filter chip label helpers ─────────────────────────────────────────────
 
@@ -444,12 +452,41 @@ const ResponsesScreen: React.FC = () => {
       );
     }
 
+    const DetailPagination = () =>
+      detailsHook.totalPages > 1 ? (
+        <View style={styles.paginationRow}>
+          <TouchableOpacity
+            style={[styles.pageBtn, (detailsHook.currentPage === 1 || detailsHook.loading) && styles.pageBtnDisabled]}
+            onPress={detailsHook.prevPage}
+            disabled={detailsHook.currentPage === 1 || detailsHook.loading}
+            activeOpacity={0.8}
+          >
+            <Icon source="chevron-left" size={16} color={detailsHook.currentPage === 1 ? colors.text.disabled : colors.primary.main} />
+            <Text style={[styles.pageBtnText, detailsHook.currentPage === 1 && styles.pageBtnTextDisabled]}>Prev</Text>
+          </TouchableOpacity>
+          <Text style={styles.pageInfo}>
+            {detailsHook.currentPage} / {detailsHook.totalPages}
+          </Text>
+          <TouchableOpacity
+            style={[styles.pageBtn, (detailsHook.currentPage >= detailsHook.totalPages || detailsHook.loading) && styles.pageBtnDisabled]}
+            onPress={detailsHook.nextPage}
+            disabled={detailsHook.currentPage >= detailsHook.totalPages || detailsHook.loading}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.pageBtnText, detailsHook.currentPage >= detailsHook.totalPages && styles.pageBtnTextDisabled]}>Next</Text>
+            <Icon source="chevron-right" size={16} color={detailsHook.currentPage >= detailsHook.totalPages ? colors.text.disabled : colors.primary.main} />
+          </TouchableOpacity>
+        </View>
+      ) : null;
+
     return (
       <FlatList
+        ref={detailListRef}
         data={detailsHook.respondentResponses}
         keyExtractor={item => item.response_id}
         renderItem={({ item }) => <ResponseCard response={item} />}
         ListHeaderComponent={DetailHero}
+        ListFooterComponent={DetailPagination}
         contentContainerStyle={styles.detailContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
