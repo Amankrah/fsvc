@@ -370,28 +370,199 @@ class RespondentViewSet(BaseModelViewSet):
 
     @action(detail=True, methods=['get'])
     def responses(self, request, pk=None):
-        """Get paginated responses for a specific respondent with detailed information"""
+        """
+        Get all responses for a specific respondent with detailed information and resume metadata.
+
+        Query Parameters:
+        - page: Page number for pagination (optional)
+        - page_size: Number of items per page (optional, max 1000)
+        - no_pagination: Set to 'true' to disable pagination (returns all responses)
+
+        Returns:
+        - responses: List of all existing responses (only those with valid questions)
+        - resume_metadata: Information for resuming draft including answered question IDs
+        """
         try:
+            from forms.models import Question
+            from django.db.models import Q
+            from django_core.utils.pagination import CustomPagination
+
             respondent = self.get_object()
-            responses = Response.objects.filter(
+
+            # CRITICAL: Get ALL responses including orphaned ones (NULL question_id)
+            # We'll match orphaned responses to questions by position
+            # Optimize queries with select_related and prefetch_related to avoid N+1 queries
+            all_responses = Response.objects.filter(
                 respondent=respondent
-            ).select_related('question', 'collected_by', 'project').order_by('collected_at')
+            ).select_related(
+                'question',
+                'question__project',
+                'question__project__created_by',
+                'collected_by',
+                'project',
+                'project__created_by',
+                'respondent',
+                'respondent__project',
+                'respondent__project__created_by',
+                'respondent__created_by'
+            ).order_by('collected_at')
 
-            page = self.paginate_queryset(responses)
-            if page is not None:
-                serializer = ResponseSerializer(page, many=True)
-                paginated = self.paginator.get_paginated_response(serializer.data)
-                paginated.data['respondent'] = RespondentSerializer(respondent).data
-                return paginated
+            # Get available questions for this bundle (for position-based matching)
+            available_questions = Question.objects.filter(
+                project=respondent.project,
+                assigned_respondent_type=respondent.respondent_type,
+                assigned_commodity=respondent.commodity or '',
+                assigned_country=respondent.country or ''
+            ).exclude(
+                Q(assigned_respondent_type__isnull=True) |
+                Q(assigned_respondent_type='') |
+                Q(assigned_commodity__isnull=True) |
+                Q(assigned_commodity='') |
+                Q(assigned_country__isnull=True) |
+                Q(assigned_country='')
+            ).order_by('order_index')
 
-            serializer = ResponseSerializer(responses, many=True)
-            return DRFResponse({
+            questions_list = list(available_questions)
+
+            # Process responses: match orphaned ones by position
+            responses_to_serialize = []
+            for position, response in enumerate(all_responses):
+                if response.question is not None:
+                    # Valid response with question - use as-is
+                    responses_to_serialize.append(response)
+                else:
+                    # Orphaned response - match to question by position
+                    if position < len(questions_list):
+                        # Create a temporary response object with matched question
+                        # This allows us to serialize it properly for frontend
+                        response.question = questions_list[position]
+                        response._matched_by_position = True  # Flag for debugging
+                        responses_to_serialize.append(response)
+                        logger.debug(f"Matched orphaned response at position {position} to question: {questions_list[position].question_text[:50]}")
+                    else:
+                        logger.warning(f"Orphaned response at position {position} exceeds available questions ({len(questions_list)})")
+
+            # Sort responses by question category + order_index to match questionnaire order
+            CATEGORY_ORDER = [
+                'Sociodemographics',
+                'Environmental LCA',
+                'Social LCA',
+                'Vulnerability',
+                'Fairness',
+                'Solutions',
+                'Informations',
+                'Proximity and Value',
+            ]
+
+            def _response_sort_key(r):
+                if not r.question:
+                    return (9999, 9999)
+                category = r.question.question_category or ''
+                try:
+                    cat_idx = CATEGORY_ORDER.index(category)
+                except ValueError:
+                    cat_idx = 9999
+                return (cat_idx, r.question.order_index)
+
+            responses_to_serialize.sort(key=_response_sort_key)
+            responses = responses_to_serialize
+
+            # Check if pagination is disabled
+            no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
+
+            # Use lightweight serializer for better performance
+            from .serializers import ResponseLightSerializer
+
+            if no_pagination:
+                # Return all responses without pagination (backward compatibility)
+                serializer = ResponseLightSerializer(responses, many=True)
+                responses_data = serializer.data
+            else:
+                # Apply pagination for better performance with large datasets
+                paginator = CustomPagination()
+                paginator.page_size = int(request.query_params.get('page_size', 100))
+                paginated_responses = paginator.paginate_queryset(responses, request)
+                serializer = ResponseLightSerializer(paginated_responses, many=True)
+                responses_data = serializer.data
+
+            # Get answered question IDs from the processed responses (includes position-matched orphaned)
+            answered_question_ids = []
+            for resp in responses:
+                if resp.question and resp.question.id:
+                    answered_question_ids.append(str(resp.question.id))
+
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_answered_ids = []
+            for qid in answered_question_ids:
+                if qid not in seen:
+                    seen.add(qid)
+                    unique_answered_ids.append(qid)
+            answered_question_ids = unique_answered_ids
+
+            # We already have available_questions_list from position-based matching above
+            available_question_count = len(questions_list)
+
+            # Calculate resume index: find first unanswered question
+            answered_ids_set = set(answered_question_ids)
+            resume_index = 0
+            first_unanswered_question_id = None
+
+            for i, question in enumerate(questions_list):
+                if str(question.id) not in answered_ids_set:
+                    resume_index = i
+                    first_unanswered_question_id = str(question.id)
+                    break
+            else:
+                # All questions answered - resume at last question
+                if questions_list:
+                    resume_index = max(0, len(questions_list) - 1)
+
+            resume_metadata = {
+                'total_responses': len(responses),
+                'answered_question_ids': answered_question_ids,
+                'answered_count': len(answered_question_ids),
+                'available_question_count': available_question_count,
+                'resume_index': resume_index,  # NEW: Index to resume at
+                'first_unanswered_question_id': first_unanswered_question_id,  # NEW: ID of first unanswered question
+                'respondent_filters': {
+                    'respondent_type': respondent.respondent_type,
+                    'commodity': respondent.commodity,
+                    'country': respondent.country
+                }
+            }
+
+            logger.info(
+                f"Retrieved {len(responses)} responses for respondent {respondent.id}, "
+                f"{available_question_count} questions available for criteria: "
+                f"{respondent.respondent_type}, {respondent.commodity}, {respondent.country}. "
+                f"Resume index: {resume_index}"
+            )
+
+            response_data = {
                 'respondent': RespondentSerializer(respondent).data,
-                'responses': serializer.data
-            })
+                'responses': responses_data,
+                'resume_metadata': resume_metadata
+            }
+
+            # Add pagination info if paginated
+            if not no_pagination:
+                response_data['pagination'] = {
+                    'total': paginator.page.paginator.count,
+                    'total_pages': paginator.page.paginator.num_pages,
+                    'current_page': paginator.page.number,
+                    'page_size': paginator.get_page_size(request),
+                    'next': paginator.get_next_link(),
+                    'previous': paginator.get_previous_link()
+                }
+
+            return DRFResponse(response_data)
         except Exception as e:
+            logger.exception(f"Error getting responses for respondent {pk}")
+            import traceback
             return DRFResponse({
-                'error': f'Failed to get responses: {str(e)}'
+                'error': f'Failed to get responses: {str(e)}',
+                'traceback': traceback.format_exc()
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
