@@ -454,6 +454,29 @@ class RespondentViewSet(BaseModelViewSet):
                     else:
                         logger.warning(f"Orphaned response at position {position} exceeds available questions ({len(questions_list)})")
 
+            # Sort responses by question category + order_index to match questionnaire order
+            CATEGORY_ORDER = [
+                'Sociodemographics',
+                'Environmental LCA',
+                'Social LCA',
+                'Vulnerability',
+                'Fairness',
+                'Solutions',
+                'Informations',
+                'Proximity and Value',
+            ]
+
+            def _response_sort_key(r):
+                if not r.question:
+                    return (9999, 9999)
+                category = r.question.question_category or ''
+                try:
+                    cat_idx = CATEGORY_ORDER.index(category)
+                except ValueError:
+                    cat_idx = 9999
+                return (cat_idx, r.question.order_index)
+
+            responses_to_serialize.sort(key=_response_sort_key)
             responses = responses_to_serialize
 
             # Check if pagination is disabled
